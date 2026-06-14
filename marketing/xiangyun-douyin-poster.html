@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token向云抖音宣传图</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f1eee7;
+      font-family: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #10201d;
+    }
+
+    .poster {
+      position: relative;
+      width: 1440px;
+      height: 2560px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(185, 135, 69, 0.18), transparent 26%),
+        radial-gradient(circle at 82% 28%, rgba(15, 103, 104, 0.16), transparent 24%),
+        radial-gradient(circle at 78% 82%, rgba(73, 92, 110, 0.12), transparent 26%),
+        linear-gradient(145deg, #faf7f0 0%, #eef3ef 52%, #f8f5ee 100%);
+    }
+
+    .poster::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background-image:
+        linear-gradient(rgba(49, 94, 91, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(49, 94, 91, 0.045) 1px, transparent 1px);
+      background-size: 54px 54px;
+      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.1));
+    }
+
+    .flow {
+      position: absolute;
+      width: 1120px;
+      height: 1120px;
+      border: 82px solid rgba(15, 64, 63, 0.11);
+      border-right-color: rgba(185, 135, 69, 0.18);
+      border-bottom-color: rgba(73, 92, 110, 0.1);
+      border-radius: 42% 58% 48% 52%;
+      filter: blur(1px);
+      transform: rotate(-18deg);
+      right: -430px;
+      top: 340px;
+    }
+
+    .flow.two {
+      width: 860px;
+      height: 860px;
+      right: auto;
+      left: -430px;
+      top: 1180px;
+      border-width: 64px;
+      transform: rotate(24deg);
+      opacity: 0.9;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      padding: 150px 116px 112px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 40px;
+      color: #0f6768;
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+    }
+
+    .mark {
+      display: grid;
+      width: 78px;
+      height: 78px;
+      place-items: center;
+      border-radius: 22px;
+      color: #fff;
+      font-size: 24px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #0f4f4d, #1b706d);
+      box-shadow: 0 18px 38px rgba(15, 79, 77, 0.2);
+    }
+
+    .eyebrow {
+      padding: 18px 28px;
+      border: 1px solid rgba(185, 135, 69, 0.26);
+      border-radius: 999px;
+      background: rgba(255, 254, 250, 0.82);
+      box-shadow: 0 12px 28px rgba(28, 40, 36, 0.08);
+      font-size: 26px;
+      font-weight: 800;
+      color: #3f504c;
+    }
+
+    .hero {
+      margin-top: 148px;
+      max-width: 1110px;
+    }
+
+    h1 {
+      margin: 0;
+      color: #101d1d;
+      font-size: 118px;
+      line-height: 1.08;
+      font-weight: 950;
+      letter-spacing: 0;
+      text-wrap: balance;
+    }
+
+    .accent {
+      color: #b98745;
+    }
+
+    .subtitle {
+      margin: 46px 0 0;
+      max-width: 1030px;
+      color: #4b5d59;
+      font-size: 42px;
+      line-height: 1.58;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 22px;
+      margin-top: 62px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 66px;
+      padding: 0 28px;
+      border: 1px solid rgba(185, 135, 69, 0.26);
+      border-radius: 999px;
+      background: rgba(255, 254, 250, 0.86);
+      color: #0f6768;
+      font-size: 27px;
+      font-weight: 850;
+      box-shadow: 0 14px 32px rgba(28, 40, 36, 0.07);
+    }
+
+    .visual {
+      position: relative;
+      margin-top: 120px;
+      height: 780px;
+    }
+
+    .gateway {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 760px;
+      padding: 42px;
+      border: 1px solid rgba(185, 135, 69, 0.22);
+      border-radius: 34px;
+      background: rgba(255, 254, 250, 0.86);
+      box-shadow: 0 30px 80px rgba(28, 40, 36, 0.14);
+      backdrop-filter: blur(16px);
+    }
+
+    .window-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .dots {
+      display: flex;
+      gap: 12px;
+    }
+
+    .dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffbd64;
+    }
+
+    .dot:nth-child(2) {
+      background: #62c7bd;
+    }
+
+    .dot:nth-child(3) {
+      background: #6a93e8;
+    }
+
+    .window-title {
+      color: #746b5f;
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .endpoint {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 26px;
+      margin-top: 20px;
+      padding: 26px 28px;
+      border-radius: 22px;
+      background: #f4f0e8;
+      border: 1px solid rgba(185, 135, 69, 0.18);
+    }
+
+    .endpoint strong {
+      color: #101d1d;
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .endpoint span {
+      color: #0f6768;
+      font-size: 26px;
+      font-weight: 850;
+    }
+
+    .stack {
+      position: absolute;
+      right: 0;
+      top: 130px;
+      width: 510px;
+      display: grid;
+      gap: 24px;
+    }
+
+    .card {
+      padding: 30px 34px;
+      border: 1px solid rgba(185, 135, 69, 0.18);
+      border-radius: 30px;
+      background: rgba(255, 254, 250, 0.86);
+      box-shadow: 0 26px 62px rgba(28, 40, 36, 0.12);
+    }
+
+    .card-label {
+      color: #9b7c4d;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .card-title {
+      margin-top: 10px;
+      color: #101d1d;
+      font-size: 36px;
+      line-height: 1.22;
+      font-weight: 950;
+    }
+
+    .card-note {
+      margin-top: 14px;
+      color: #4f665f;
+      font-size: 24px;
+      line-height: 1.45;
+      font-weight: 650;
+    }
+
+    .card.highlight {
+      background: linear-gradient(135deg, #0f4f4d, #1b706d);
+      color: #fff;
+    }
+
+    .card.highlight .card-label,
+    .card.highlight .card-title,
+    .card.highlight .card-note {
+      color: #fff;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: auto;
+    }
+
+    .feature {
+      min-height: 200px;
+      padding: 34px;
+      border: 1px solid rgba(185, 135, 69, 0.18);
+      border-radius: 32px;
+      background: rgba(255, 254, 250, 0.8);
+      box-shadow: 0 18px 44px rgba(28, 40, 36, 0.09);
+    }
+
+    .feature-num {
+      color: #b98745;
+      font-size: 30px;
+      font-weight: 950;
+    }
+
+    .feature-title {
+      margin-top: 18px;
+      color: #101d1d;
+      font-size: 31px;
+      line-height: 1.24;
+      font-weight: 950;
+    }
+
+    .feature-copy {
+      margin-top: 12px;
+      color: #526964;
+      font-size: 22px;
+      line-height: 1.45;
+      font-weight: 650;
+    }
+
+    .cta {
+      margin-top: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 36px;
+      padding: 34px 40px;
+      border-radius: 34px;
+      background: #0d1717;
+      color: #fff;
+      box-shadow: 0 28px 70px rgba(13, 23, 23, 0.28);
+    }
+
+    .cta strong {
+      display: block;
+      font-size: 32px;
+      line-height: 1.25;
+      font-weight: 950;
+    }
+
+    .cta span {
+      display: block;
+      margin-top: 8px;
+      color: #d8c6a3;
+      font-size: 23px;
+      font-weight: 700;
+    }
+
+    .url {
+      flex: 0 0 auto;
+      padding: 22px 28px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #f1d9aa;
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+  </style>
+</head>
+<body>
+  <main class="poster">
+    <div class="flow"></div>
+    <div class="flow two"></div>
+    <section class="shell">
+      <div class="topline">
+        <div class="brand">
+          <div class="mark">向云</div>
+          <div>Token向云</div>
+        </div>
+        <div class="eyebrow">AI API 接入指南上线</div>
+      </div>
+
+      <section class="hero">
+        <h1>AI 接口接入<br><span class="accent">变得更简单</span></h1>
+        <p class="subtitle">统一网关、余额充值、API 密钥配置，一页搞定 Codex、Claude Code、Gemini CLI、OpenCode 常用接入。</p>
+        <div class="chips">
+          <span class="chip">仅支持余额充值</span>
+          <span class="chip">支付宝已开启</span>
+          <span class="chip">OpenAI 兼容接口</span>
+        </div>
+      </section>
+
+      <section class="visual">
+        <div class="gateway">
+          <div class="window-head">
+            <div class="dots">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </div>
+            <div class="window-title">Sub2API Gateway</div>
+          </div>
+          <div class="endpoint">
+            <strong>Base URL</strong>
+            <span>https://kkflow.org/v1</span>
+          </div>
+          <div class="endpoint">
+            <strong>Gemini</strong>
+            <span>/v1beta</span>
+          </div>
+          <div class="endpoint">
+            <strong>API Key</strong>
+            <span>sk-••••••</span>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card highlight">
+            <div class="card-label">01</div>
+            <div class="card-title">注册登录</div>
+            <div class="card-note">创建账号，进入会员中心。</div>
+          </div>
+          <div class="card">
+            <div class="card-label">02</div>
+            <div class="card-title">余额充值</div>
+            <div class="card-note">当前支持支付宝支付。</div>
+          </div>
+          <div class="card">
+            <div class="card-label">03</div>
+            <div class="card-title">创建密钥</div>
+            <div class="card-note">复制到客户端即可调用。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="features">
+        <div class="feature">
+          <div class="feature-num">A</div>
+          <div class="feature-title">文档清楚</div>
+          <div class="feature-copy">从注册到调用，按步骤配置。</div>
+        </div>
+        <div class="feature">
+          <div class="feature-num">B</div>
+          <div class="feature-title">客户端友好</div>
+          <div class="feature-copy">覆盖 Codex、Claude、Gemini。</div>
+        </div>
+        <div class="feature">
+          <div class="feature-num">C</div>
+          <div class="feature-title">快速验证</div>
+          <div class="feature-copy">模型列表与接口示例齐全。</div>
+        </div>
+      </section>
+
+      <section class="cta">
+        <div>
+          <strong>新手配置指南已上线</strong>
+          <span>保存这张图，按指南完成第一把 API Key。</span>
+        </div>
+        <div class="url">kkflow.org/guide/</div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

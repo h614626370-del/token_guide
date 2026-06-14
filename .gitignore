@@ -8,3 +8,4 @@ preview-server*.log
 dev-server.log
 .DS_Store
 Thumbs.db
+.idea
