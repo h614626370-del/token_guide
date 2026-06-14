@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token向云发布图</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #050507;
+      font-family: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", sans-serif;
+    }
+
+    .poster {
+      position: relative;
+      width: 1080px;
+      height: 1920px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 54% 24%, rgba(36, 167, 190, 0.22), transparent 30%),
+        radial-gradient(circle at 46% 68%, rgba(32, 111, 255, 0.24), transparent 34%),
+        linear-gradient(180deg, #030305 0%, #080a10 46%, #040406 100%);
+      color: #fff;
+    }
+
+    .stars {
+      position: absolute;
+      inset: 0;
+      opacity: 0.78;
+      background-image:
+        radial-gradient(circle, rgba(255, 255, 255, 0.9) 0 1.4px, transparent 1.8px),
+        radial-gradient(circle, rgba(126, 255, 235, 0.8) 0 1px, transparent 1.4px);
+      background-size: 92px 112px, 137px 173px;
+      background-position: 18px 32px, 56px 88px;
+    }
+
+    .brand {
+      position: absolute;
+      top: 92px;
+      left: 64px;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 38px;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-shadow: 0 4px 18px rgba(0, 0, 0, 0.68);
+    }
+
+    .mark {
+      display: grid;
+      width: 70px;
+      height: 70px;
+      place-items: center;
+      border-radius: 18px;
+      color: #fff;
+      background: linear-gradient(135deg, #12b8aa, #226cf5);
+      box-shadow: 0 16px 40px rgba(0, 220, 210, 0.22);
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .tag {
+      position: absolute;
+      top: 104px;
+      right: 64px;
+      z-index: 4;
+      padding: 14px 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 24px;
+      font-weight: 800;
+      backdrop-filter: blur(10px);
+    }
+
+    .stage {
+      position: absolute;
+      left: -38px;
+      top: 310px;
+      width: 1156px;
+      height: 1000px;
+      overflow: hidden;
+      border-top: 2px solid rgba(255, 255, 255, 0.45);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.22);
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.9),
+        0 32px 120px rgba(37, 140, 255, 0.3);
+      transform: rotate(-1deg);
+      background: #d9f5f8;
+    }
+
+    .shot {
+      position: absolute;
+      left: -515px;
+      top: -4px;
+      width: 2160px;
+      height: 1024px;
+      object-fit: cover;
+      filter: saturate(1.14) contrast(1.06) brightness(1.06);
+      transform: scale(1.12);
+    }
+
+    .stage::after {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background:
+        linear-gradient(180deg, rgba(18, 184, 170, 0.02), rgba(40, 131, 255, 0.26)),
+        radial-gradient(circle at 54% 45%, transparent 0 38%, rgba(0, 22, 52, 0.28) 76%);
+    }
+
+    .caption-stack {
+      position: absolute;
+      left: 24px;
+      top: 430px;
+      z-index: 3;
+      display: grid;
+      gap: 17px;
+      align-items: start;
+    }
+
+    .caption {
+      width: max-content;
+      max-width: 960px;
+      padding: 13px 24px 15px;
+      color: #050507;
+      background: #fff;
+      box-shadow:
+        0 4px 0 rgba(0, 0, 0, 0.2),
+        0 15px 26px rgba(0, 0, 0, 0.16);
+      font-size: 43px;
+      line-height: 1.12;
+      font-weight: 950;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .caption.large {
+      font-size: 48px;
+    }
+
+    .caption.accent {
+      color: #061210;
+      background: linear-gradient(90deg, #ffffff 0%, #e9fffb 100%);
+      border-left: 9px solid #12b8aa;
+    }
+
+    .bottom-copy {
+      position: absolute;
+      left: 64px;
+      right: 64px;
+      bottom: 98px;
+      z-index: 4;
+      padding: 34px 36px;
+      border-radius: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      background: rgba(12, 13, 18, 0.74);
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(12px);
+    }
+
+    .headline {
+      margin: 0;
+      font-size: 48px;
+      line-height: 1.18;
+      font-weight: 950;
+      letter-spacing: 0;
+    }
+
+    .headline span {
+      color: #3ff1dc;
+    }
+
+    .sub {
+      margin-top: 18px;
+      color: rgba(255, 255, 255, 0.78);
+      font-size: 29px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .url {
+      display: inline-flex;
+      margin-top: 26px;
+      padding: 16px 24px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #10b8aa, #226cf5);
+      color: #fff;
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 900;
+      box-shadow: 0 14px 34px rgba(24, 136, 240, 0.28);
+    }
+  </style>
+</head>
+<body>
+  <main class="poster">
+    <div class="stars"></div>
+    <div class="brand">
+      <div class="mark">向云</div>
+      <div>Token向云</div>
+    </div>
+    <div class="tag">AI API 接入效率指南</div>
+
+    <section class="stage">
+      <img class="shot" src="./assets/token-home-screenshot.png" alt="">
+    </section>
+
+    <section class="caption-stack">
+      <div class="caption large">兄弟，别再古法编程了</div>
+      <div class="caption accent">接上 AI API，效率直接拉满</div>
+      <div class="caption">不用到处翻教程，不用反复踩坑</div>
+      <div class="caption large">Token向云，一页搞定接入配置</div>
+      <div class="caption">Codex / Claude / Gemini 都能用</div>
+      <div class="caption accent">把时间留给产品，别耗在配置上</div>
+    </section>
+
+    <section class="bottom-copy">
+      <h1 class="headline">从注册到 API Key，<span>照着配就能用</span></h1>
+      <div class="sub">统一网关、新手指南、客户端配置示例都给你整理好了。少折腾配置，多一点产出。</div>
+      <div class="url">kkflow.org/guide/</div>
+    </section>
+  </main>
+</body>
+</html>
