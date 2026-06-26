@@ -1,10 +1,10 @@
 param(
   [switch]$Key,
-  [string]$HostName = "kkflow.org",
+  [string]$HostName = "xiaoji",
   [string]$User = "root",
   [int]$Port = 22,
   [string]$RemoteDir = "/www/wwwroot/guide",
-  [string]$KeyPath = "$HOME\.ssh\id_ed25519"
+  [string]$KeyPath = "$HOME\.ssh\xiaoji_ed25519"
 )
 
 $ErrorActionPreference = "Stop"
