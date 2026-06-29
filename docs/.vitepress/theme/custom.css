@@ -132,6 +132,38 @@
   margin-top: 22px;
 }
 
+.guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.guide-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(20, 108, 111, 0.24);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  background: #146c6f;
+}
+
+.guide-actions a + a {
+  color: #146c6f;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.dark .guide-actions a + a {
+  color: #9ae0da;
+  background: rgba(17, 24, 22, 0.72);
+}
+
 .vp-doc h2 {
   padding-top: 26px;
   border-top: 1px solid var(--vp-c-divider);

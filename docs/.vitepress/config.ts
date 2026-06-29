@@ -1,54 +1,101 @@
 import { defineConfig } from 'vitepress'
 
+const siteUrl = 'https://kkflow.org'
+const siteBase = '/guide/'
+
 export default defineConfig({
-  base: '/guide/',
+  base: siteBase,
   lang: 'zh-CN',
   title: 'Token向云指南',
-  description: '会员余额充值与 API 密钥使用指南',
+  description: '会员余额充值与 OpenAI / Claude API 接入指南',
   cleanUrls: true,
   lastUpdated: true,
   outDir: '../dist',
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/guide/favicon.svg' }],
+    ['meta', { name: 'robots', content: 'index,follow' }],
+    ['meta', { name: 'baiduspider', content: 'index,follow' }],
+    ['meta', { name: 'applicable-device', content: 'pc,mobile' }],
+    ['meta', { name: 'renderer', content: 'webkit' }],
+    ['meta', { name: 'keywords', content: 'Token向云,AI API,OpenAI API,Claude API,OpenAI 兼容接口,Claude Code,Codex CLI,gpt-image-2,API 接入指南' }],
+    ['meta', { property: 'og:site_name', content: 'Token向云指南' }],
+    ['meta', { property: 'og:type', content: 'website' }]
+  ],
+  transformHead({ pageData }) {
+    const path = pageData.relativePath.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '')
+    const normalizedPath = path ? path.replace(/\/$/, '') : ''
+    const canonical = normalizedPath ? `${siteUrl}${siteBase}${normalizedPath}` : `${siteUrl}${siteBase}`
+    const description = pageData.description || 'Token向云文档说明，覆盖会员充值、OpenAI API、Claude API、Codex CLI、Claude Code、OpenCode 与 gpt-image-2 图片接口接入配置。'
+
+    return [
+      ['link', { rel: 'canonical', href: canonical }],
+      ['meta', { property: 'og:url', content: canonical }],
+      ['meta', { property: 'og:title', content: pageData.title ? `${pageData.title} | Token向云指南` : 'Token向云指南' }],
+      ['meta', { property: 'og:description', content: description }]
+    ]
+  },
+  vite: {
+    server: {
+      proxy: {
+        '/v1': {
+          target: 'https://kkflow.org',
+          changeOrigin: true,
+          secure: true
+        },
+        '/api/v1': {
+          target: 'https://kkflow.org',
+          changeOrigin: true,
+          secure: true
+        }
+      }
+    }
+  },
   themeConfig: {
     logo: { text: 'GUIDE' },
     nav: [
       { text: '指南首页', link: '/' },
+      { text: '会员充值', link: '/member' },
+      { text: 'API 接入', link: '/api' },
+      { text: '模型试用', link: '/playground' },
       { text: '主站登录', link: 'https://kkflow.org/login' },
       { text: '主站注册', link: 'https://kkflow.org/register' }
     ],
     sidebar: [
       {
-        text: '使用流程',
+        text: '指南结构',
         items: [
-          { text: '快速入口', link: '/#快速入口' },
-          { text: '注册账号', link: '/#_1-注册账号' },
-          { text: '登录账号', link: '/#_2-登录账号' },
-          { text: '余额充值', link: '/#_3-余额充值' },
-          { text: '订阅暂未开放', link: '/#_4-订阅功能暂未开放' },
-          { text: '兑换暂未开放', link: '/#_5-兑换功能暂未开放' },
-          { text: '创建 API 密钥', link: '/#_6-创建-api-密钥' },
-          { text: '接口测试', link: '/#_7-sub2api-接口地址与连通测试' }
+          { text: '首页', link: '/' },
+          { text: '会员充值流程', link: '/member' },
+          { text: 'API 接入配置', link: '/api' },
+          { text: '模型试用台', link: '/playground' }
         ]
       },
       {
-        text: '客户端配置',
+        text: '会员充值流程',
         items: [
-          { text: '使用 API 密钥', link: '/#_8-使用-api-密钥' },
-          { text: 'Codex CLI', link: '/#_8-1-codex-cli-macos-linux' },
-          { text: 'Claude Code', link: '/#_8-3-claude-code' },
-          { text: 'Gemini CLI', link: '/#_8-4-gemini-cli' },
-          { text: 'OpenCode', link: '/#_8-5-opencode' },
-          { text: 'OpenClaw', link: '/#_8-6-openclaw-可选' }
+          { text: '注册账号', link: '/member#_1-注册账号' },
+          { text: '登录账号', link: '/member#_2-登录账号' },
+          { text: '余额充值', link: '/member#_3-余额充值' },
+          { text: '订阅暂未开放', link: '/member#_4-订阅功能暂未开放' },
+          { text: '兑换暂未开放', link: '/member#_5-兑换功能暂未开放' },
+          { text: '订单状态说明', link: '/member#_6-订单状态说明' },
+          { text: '常见问题', link: '/member#_7-常见问题' }
         ]
       },
       {
-        text: '调用示例',
+        text: 'API 接入配置',
         items: [
-          { text: 'GPT 文本调用', link: '/#_8-7-gpt-文本模型调用参数-responses' },
-          { text: '文生图调用', link: '/#_8-8-gpt-image-2-调用参数-images' },
-          { text: '参考图编辑', link: '/#_8-9-参考图编辑-images-edits-详细说明' },
-          { text: '模型选择建议', link: '/#_9-模型选择建议' },
-          { text: '订单状态说明', link: '/#_11-订单状态说明' },
-          { text: '常见问题', link: '/#_12-常见问题' }
+          { text: '创建 API 密钥', link: '/api#_1-创建-api-密钥' },
+          { text: '接口测试', link: '/api#_2-接口地址与连通测试' },
+          { text: '客户端安装', link: '/api#_3-客户端安装' },
+          { text: 'Codex CLI', link: '/api#_4-codex-cli-macos-linux' },
+          { text: 'Claude Code', link: '/api#_6-claude-code' },
+          { text: 'OpenCode', link: '/api#_7-opencode' },
+          { text: 'OpenClaw', link: '/api#_8-openclaw-可选' },
+          { text: 'GPT 文本调用', link: '/api#_9-gpt-文本模型调用参数-responses' },
+          { text: '文生图调用', link: '/api#_10-gpt-image-2-调用参数-images' },
+          { text: '模型选择建议', link: '/api#_12-模型选择建议' },
+          { text: '错误排查', link: '/api#_13-常见错误排查' }
         ]
       }
     ],
@@ -67,7 +114,7 @@ export default defineConfig({
       { icon: 'github', link: 'https://kkflow.org/guide' }
     ],
     footer: {
-      message: '内容整理自会员使用指南，图片已按要求移除。',
+      message: '当前指南覆盖会员充值流程，以及 OpenAI / Claude 协议接入配置。',
       copyright: 'Token向云 Sub2API Guide'
     }
   }

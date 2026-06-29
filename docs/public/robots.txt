@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /guide/
+
+Sitemap: https://kkflow.org/guide/sitemap.xml
