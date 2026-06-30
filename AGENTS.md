@@ -4,11 +4,17 @@
 
 ## 项目说明
 
-- 这是 `Token向云` 的 VitePress 指南站点。
-- 站点部署目标路径为 `https://kkflow.org/guide/`。
-- 构建产物输出到项目根目录 `dist/`。
-- 已生成的宣传图需要保留：
-  - `marketing/xiangyun-douyin-poster-1440x2560.png`
+- 这是 `Token向云` 的指南站和官网首页维护仓库。
+- VitePress 指南站线上路径：`https://kkflow.org/guide/`
+- 根域名官网首页：`https://kkflow.org/`
+- 指南站构建产物输出到项目根目录 `dist/`。
+
+## 关键目录
+
+- `docs/`: VitePress 文档源码。
+- `homepage/index.html`: 独立官网首页，上传到 `/www/wwwroot/kkflow.org/index.html`。
+- `homepage/home-content-fragment.html`: sub2api 后台“首页内容”专用片段。
+- `scripts/`: 辅助脚本。
 
 ## 常用命令
 
@@ -16,11 +22,6 @@
 npm run docs:dev
 npm run docs:build
 npm run docs:preview
-```
-
-部署脚本：
-
-```powershell
 npm run deploy
 ```
 
@@ -30,90 +31,26 @@ npm run deploy
 npm run deploy -- -Key
 ```
 
-## 图片生成方式
+## 首页维护约定
 
-需要生成运营图、宣传图、视觉素材时，优先使用 Codex 配置中的 `baseurl` 和 `key`，直接请求图片模型 `gpt-image-2`。
+- 修改官网首页时，优先维护 `homepage/index.html`。
+- 如果需要同步 sub2api 后台“首页内容”，从 `index.html` 提取 `<style>` 和 `<body>` 内部内容生成 `homepage/home-content-fragment.html`。
+- `homepage/index.html` 是完整 HTML，适合独立部署；不要直接粘到 sub2api 后台输入框。
+- 根首页部署依赖 Nginx 精确匹配：
 
-注意：
-
-- 不要把真实 `key` 写入仓库、脚本、日志或提交记录。
-- 不要在最终回复中展示完整密钥。
-- 可以临时从 Codex 配置读取 `baseurl` 和 `key`，或将它们放入当前终端环境变量后再调用。
-- 生成结果应保存到项目内合适目录，例如 `marketing/`。
-
-推荐环境变量命名：
-
-```powershell
-$env:OPENAI_BASE_URL = "<codex-config-baseurl>"
-$env:OPENAI_API_KEY = "<codex-config-key>"
-```
-
-### CURL POST 示例
-
-```powershell
-$body = @{
-  model = "gpt-image-2"
-  prompt = "生成一张 9:16 高级品牌宣传图，主题为 Token向云 AI API 接入指南上线，风格克制、现代、适合抖音发布。"
-  size = "1440x2560"
-} | ConvertTo-Json -Depth 10
-
-curl.exe -X POST "$env:OPENAI_BASE_URL/images/generations" `
-  -H "Authorization: Bearer $env:OPENAI_API_KEY" `
-  -H "Content-Type: application/json" `
-  -d $body
-```
-
-接口返回后，根据返回结构取图片内容：
-
-- 如果返回 `b64_json`，解码后写入 `.png`。
-- 如果返回 `url`，下载到本地文件。
-
-### Python 示例
-
-```python
-import base64
-import os
-import requests
-from pathlib import Path
-
-base_url = os.environ["OPENAI_BASE_URL"].rstrip("/")
-api_key = os.environ["OPENAI_API_KEY"]
-
-payload = {
-    "model": "gpt-image-2",
-    "prompt": "生成一张 9:16 高级品牌宣传图，主题为 Token向云 AI API 接入指南上线，风格克制、现代、适合抖音发布。",
-    "size": "1440x2560",
+```nginx
+location = / {
+    root /www/wwwroot/kkflow.org;
+    default_type text/html;
+    try_files /index.html =404;
 }
-
-response = requests.post(
-    f"{base_url}/images/generations",
-    headers={
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    },
-    json=payload,
-    timeout=120,
-)
-response.raise_for_status()
-data = response.json()["data"][0]
-
-out = Path("marketing/generated-image.png")
-out.parent.mkdir(parents=True, exist_ok=True)
-
-if "b64_json" in data:
-    out.write_bytes(base64.b64decode(data["b64_json"]))
-elif "url" in data:
-    image = requests.get(data["url"], timeout=120)
-    image.raise_for_status()
-    out.write_bytes(image.content)
-else:
-    raise RuntimeError(f"Unsupported image response: {data.keys()}")
-
-print(out.resolve())
 ```
+
+该配置应放在通配反代 `location ^~ /` 前面，确保 `/login`、`/register`、`/key-usage` 等路径仍由 sub2api 处理。
 
 ## Git 与敏感信息
 
 - 提交前检查 `git status --short`。
 - 不提交 `node_modules/`、`dist/`、日志文件或任何密钥。
 - 如果新增脚本需要密钥，只能读取环境变量或本机配置，不能硬编码。
+- 不要把真实密钥写入仓库、脚本、日志或最终回复。

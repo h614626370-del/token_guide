@@ -1,0 +1,1455 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Token向云 - 稳定的 AI API 聚合网关</title>
+    <meta name="robots" content="index,follow" />
+    <meta
+      name="description"
+      content="Token向云提供稳定的 AI API 聚合网关，支持 Claude、GPT、Gemini 等主流大模型统一接入，提供 API Key 管理、Token 用量统计、按量计费和团队成本控制。"
+    />
+    <meta
+      name="keywords"
+      content="Token向云,AI API,AI API网关,大模型接口,Claude API,GPT API,Gemini API,API Key,Token统计,AI中转,模型聚合"
+    />
+    <link rel="canonical" href="https://kkflow.org/" />
+    <meta name="theme-color" content="#0f766e" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:site_name" content="Token向云" />
+    <meta property="og:title" content="Token向云 - 稳定的 AI API 聚合网关" />
+    <meta
+      property="og:description"
+      content="一个 base URL、一个 API Key，统一调用 Claude、GPT、Gemini 等主流模型，清晰管理 Token 用量、余额和团队成本。"
+    />
+    <meta property="og:url" content="https://kkflow.org/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Token向云 - 稳定的 AI API 聚合网关" />
+    <meta
+      name="twitter:description"
+      content="统一 AI API 聚合接入，支持主流大模型、API Key 管理、Token 用量统计和按量计费。"
+    />
+    <link
+      rel="icon"
+      href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%230f766e"/><text x="32" y="40" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" font-weight="800" fill="white">T</text></svg>'
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Token向云",
+        "url": "https://kkflow.org/",
+        "description": "Token向云提供稳定的 AI API 聚合网关，支持 Claude、GPT、Gemini 等主流大模型统一接入，提供 API Key 管理、Token 用量统计、按量计费和团队成本控制。",
+        "inLanguage": "zh-CN",
+        "publisher": {
+          "@type": "Organization",
+          "name": "Token向云",
+          "url": "https://kkflow.org/"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f8fafc;
+        --paper: #ffffff;
+        --paper-soft: #f1f5f9;
+        --ink: #0f172a;
+        --text: #263242;
+        --muted: #667085;
+        --line: #dbe4ee;
+        --teal: #0f766e;
+        --blue: #2563eb;
+        --violet: #7c3aed;
+        --amber: #d97706;
+        --rose: #e11d48;
+        --green: #16a34a;
+        --dark: #07111f;
+        --dark-2: #0e1d33;
+        --radius: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft YaHei", Arial, sans-serif;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .tx-page {
+        min-height: 100vh;
+        overflow: hidden;
+        background:
+          linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+          linear-gradient(180deg, #ffffff 0%, #f8fafc 48%, #ffffff 100%);
+        background-size:
+          72px 72px,
+          72px 72px,
+          auto;
+      }
+
+      .tx-shell {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .tx-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        border-bottom: 1px solid rgba(219, 228, 238, 0.78);
+        background: rgba(255, 255, 255, 0.86);
+        backdrop-filter: blur(18px);
+      }
+
+      .tx-nav {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        min-height: 64px;
+        align-items: center;
+        gap: 28px;
+      }
+
+      .tx-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        font-weight: 850;
+      }
+
+      .tx-logo {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 auto;
+        place-items: center;
+        border: 1px solid rgba(15, 118, 110, 0.2);
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent),
+          linear-gradient(135deg, var(--teal), var(--blue));
+        color: white;
+        font-size: 15px;
+        font-weight: 950;
+        box-shadow: 0 14px 26px rgba(15, 118, 110, 0.2);
+      }
+
+      .tx-brand-name {
+        font-size: 17px;
+        letter-spacing: 0;
+        white-space: nowrap;
+      }
+
+      .tx-links {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .tx-links a {
+        border-radius: 8px;
+        padding: 8px 12px;
+      }
+
+      .tx-links a:hover {
+        background: var(--paper-soft);
+        color: var(--ink);
+      }
+
+      .tx-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .tx-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid rgba(22, 163, 74, 0.22);
+        border-radius: 999px;
+        background: #ecfdf3;
+        padding: 7px 10px;
+        color: #027a48;
+        font-size: 12px;
+        font-weight: 750;
+        white-space: nowrap;
+      }
+
+      .tx-status::before {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: var(--green);
+        content: "";
+      }
+
+      .tx-btn {
+        display: inline-flex;
+        min-height: 38px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 0 15px;
+        font-size: 14px;
+        font-weight: 800;
+        white-space: nowrap;
+        transition:
+          transform 0.18s ease,
+          background 0.18s ease,
+          border-color 0.18s ease,
+          color 0.18s ease,
+          box-shadow 0.18s ease;
+      }
+
+      .tx-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .tx-btn-primary {
+        background: var(--ink);
+        color: white;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+      }
+
+      .tx-btn-primary:hover {
+        background: var(--teal);
+        box-shadow: 0 14px 32px rgba(15, 118, 110, 0.24);
+      }
+
+      .tx-btn-secondary {
+        border-color: var(--line);
+        background: rgba(255, 255, 255, 0.72);
+        color: var(--text);
+      }
+
+      .tx-hero {
+        position: relative;
+        display: grid;
+        min-height: min(820px, calc(100vh - 64px));
+        place-items: start center;
+        padding: 74px 0 56px;
+        isolation: isolate;
+      }
+
+      .tx-hero::after {
+        position: absolute;
+        right: 0;
+        bottom: 22px;
+        left: 0;
+        z-index: -1;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.16), transparent);
+        content: "";
+      }
+
+      .tx-scene {
+        position: absolute;
+        inset: 38px max(-8vw, -120px) 28px;
+        z-index: -2;
+        overflow: hidden;
+        opacity: 0.9;
+      }
+
+      .tx-scene-grid {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(37, 99, 235, 0.08) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(15, 118, 110, 0.08) 1px, transparent 1px);
+        background-size: 110px 110px;
+        mask-image: linear-gradient(180deg, transparent, #000 18%, #000 76%, transparent);
+      }
+
+      .tx-lane {
+        position: absolute;
+        right: -80px;
+        left: -80px;
+        display: flex;
+        gap: 12px;
+        opacity: 0.72;
+        transform: rotate(-4deg);
+      }
+
+      .tx-lane-a {
+        top: 14%;
+        animation: tx-lane 36s linear infinite;
+      }
+
+      .tx-lane-b {
+        top: 73%;
+        animation: tx-lane 42s linear infinite reverse;
+      }
+
+      .tx-chip {
+        flex: 0 0 auto;
+        border: 1px solid rgba(148, 163, 184, 0.42);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.76);
+        padding: 10px 14px;
+        color: #344054;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 13px;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+        backdrop-filter: blur(12px);
+      }
+
+      @keyframes tx-lane {
+        from {
+          transform: translateX(0) rotate(-4deg);
+        }
+        to {
+          transform: translateX(-420px) rotate(-4deg);
+        }
+      }
+
+      .tx-node {
+        position: absolute;
+        display: grid;
+        width: 176px;
+        height: 106px;
+        place-items: center;
+        border: 1px solid rgba(219, 228, 238, 0.86);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.78);
+        color: var(--muted);
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(16px);
+      }
+
+      .tx-node strong {
+        display: block;
+        color: var(--ink);
+        font-size: 24px;
+        line-height: 1;
+      }
+
+      .tx-node span {
+        display: block;
+        margin-top: 8px;
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .tx-node-one {
+        top: 18%;
+        left: 7%;
+      }
+
+      .tx-node-two {
+        right: 8%;
+        bottom: 16%;
+      }
+
+      .tx-hero-copy {
+        max-width: 850px;
+        text-align: center;
+      }
+
+      .tx-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 28px;
+        border: 1px solid rgba(15, 118, 110, 0.22);
+        border-radius: 999px;
+        background: rgba(236, 253, 245, 0.82);
+        padding: 8px 13px;
+        color: var(--teal);
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .tx-kicker span {
+        display: inline-grid;
+        width: 18px;
+        height: 18px;
+        place-items: center;
+        border-radius: 999px;
+        background: var(--teal);
+        color: #fff;
+        font-size: 11px;
+      }
+
+      .tx-hero h1 {
+        margin: 0;
+        font-size: clamp(44px, 6.6vw, 76px);
+        line-height: 1.02;
+        letter-spacing: 0;
+        font-weight: 950;
+      }
+
+      .tx-hero h1 em {
+        color: var(--teal);
+        font-style: normal;
+      }
+
+      .tx-lead {
+        max-width: 760px;
+        margin: 28px auto 0;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.85;
+      }
+
+      .tx-hero-actions {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 30px;
+      }
+
+      .tx-hero-console {
+        margin: 40px auto 0;
+        overflow: hidden;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 12px;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(20, 184, 166, 0.22), transparent 24rem),
+          linear-gradient(135deg, #08111f, #101b2d 56%, #08111f);
+        box-shadow:
+          0 34px 90px rgba(15, 23, 42, 0.22),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        color: #dbeafe;
+        text-align: left;
+      }
+
+      .tx-console-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+        padding: 14px 18px;
+        color: #93a9c4;
+        font-size: 13px;
+      }
+
+      .tx-console-top code {
+        color: #5eead4;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+      }
+
+      .tx-console-flow {
+        display: grid;
+        grid-template-columns: 1fr 76px 1.12fr 76px 1fr;
+        gap: 0;
+        align-items: center;
+        padding: 20px;
+      }
+
+      .tx-console-box,
+      .tx-model-stack {
+        min-height: 112px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.055);
+        padding: 16px;
+      }
+
+      .tx-console-box small {
+        color: #93a9c4;
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .tx-console-box strong {
+        display: block;
+        margin-top: 12px;
+        color: #ffffff;
+        font-size: 22px;
+        line-height: 1.1;
+      }
+
+      .tx-console-box span {
+        display: block;
+        margin-top: 10px;
+        color: #9fc4df;
+        font-size: 12px;
+      }
+
+      .tx-console-gateway {
+        border-color: rgba(94, 234, 212, 0.34);
+        background:
+          linear-gradient(135deg, rgba(15, 118, 110, 0.28), rgba(37, 99, 235, 0.1)),
+          rgba(255, 255, 255, 0.06);
+      }
+
+      .tx-console-line {
+        height: 1px;
+        background: linear-gradient(90deg, rgba(94, 234, 212, 0.1), #5eead4, rgba(94, 234, 212, 0.1));
+      }
+
+      .tx-model-stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .tx-model-stack span {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.07);
+        padding: 8px 10px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .tx-model-stack span::after {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: #22c55e;
+        content: "";
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.12);
+      }
+
+      .tx-console-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        border-top: 1px solid rgba(255, 255, 255, 0.09);
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .tx-console-stats span {
+        background: rgba(8, 17, 31, 0.72);
+        padding: 13px 14px;
+        color: #93a9c4;
+        font-size: 12px;
+      }
+
+      .tx-console-stats b {
+        display: block;
+        margin-bottom: 4px;
+        color: #ffffff;
+        font-size: 15px;
+      }
+
+      .tx-section {
+        padding: 76px 0;
+      }
+
+      .tx-section-head {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(280px, 0.65fr);
+        gap: 42px;
+        align-items: end;
+        margin-bottom: 34px;
+      }
+
+      .tx-eyebrow {
+        margin: 0 0 12px;
+        color: var(--teal);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .tx-section h2 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 48px);
+        line-height: 1.14;
+        letter-spacing: 0;
+        font-weight: 900;
+      }
+
+      .tx-section-desc {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.85;
+      }
+
+      .tx-surface {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+      }
+
+      .tx-terminal-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid var(--line);
+        padding: 13px 16px;
+        background: #fbfdff;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .tx-dots {
+        display: flex;
+        gap: 7px;
+      }
+
+      .tx-dots i {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+      }
+
+      .tx-dots i:nth-child(1) {
+        background: var(--rose);
+      }
+
+      .tx-dots i:nth-child(2) {
+        background: var(--amber);
+      }
+
+      .tx-dots i:nth-child(3) {
+        background: var(--green);
+      }
+
+      .tx-endpoints {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        padding: 18px;
+      }
+
+      .tx-endpoint {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+        padding: 16px;
+      }
+
+      .tx-endpoint code {
+        display: block;
+        color: var(--ink);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 13px;
+        word-break: break-word;
+      }
+
+      .tx-endpoint span {
+        display: inline-flex;
+        margin-top: 12px;
+        border-radius: 999px;
+        background: var(--paper-soft);
+        padding: 5px 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .tx-why-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .tx-feature {
+        position: relative;
+        min-height: 238px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+        padding: 22px;
+        overflow: hidden;
+      }
+
+      .tx-feature::before {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        height: 3px;
+        background: var(--feature-color);
+        content: "";
+      }
+
+      .tx-feature:nth-child(1) {
+        --feature-color: var(--teal);
+      }
+
+      .tx-feature:nth-child(2) {
+        --feature-color: var(--blue);
+      }
+
+      .tx-feature:nth-child(3) {
+        --feature-color: var(--violet);
+      }
+
+      .tx-feature:nth-child(4) {
+        --feature-color: var(--amber);
+      }
+
+      .tx-feature-num {
+        color: var(--muted);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .tx-feature h3 {
+        margin: 46px 0 12px;
+        color: var(--ink);
+        font-size: 20px;
+        line-height: 1.35;
+      }
+
+      .tx-feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.75;
+      }
+
+      .tx-dark {
+        background:
+          linear-gradient(90deg, rgba(37, 99, 235, 0.16) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(20, 184, 166, 0.12) 1px, transparent 1px),
+          linear-gradient(135deg, var(--dark), var(--dark-2));
+        background-size:
+          96px 96px,
+          96px 96px,
+          auto;
+        color: white;
+      }
+
+      .tx-dark .tx-eyebrow {
+        color: #5eead4;
+      }
+
+      .tx-dark .tx-section-desc {
+        color: #bfd4e8;
+      }
+
+      .tx-promise-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+        gap: 22px;
+        align-items: stretch;
+      }
+
+      .tx-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .tx-metric {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 18px;
+      }
+
+      .tx-metric strong {
+        display: block;
+        font-size: 32px;
+        line-height: 1;
+      }
+
+      .tx-metric span {
+        display: block;
+        margin-top: 10px;
+        color: #b6cce2;
+        font-size: 13px;
+      }
+
+      .tx-promises {
+        display: grid;
+        gap: 12px;
+      }
+
+      .tx-promise {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 14px;
+        align-items: start;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 18px;
+      }
+
+      .tx-promise-mark {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border-radius: 8px;
+        background: #102f4d;
+        color: #5eead4;
+        font-weight: 900;
+      }
+
+      .tx-promise h3 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+
+      .tx-promise p {
+        margin: 0;
+        color: #bfd4e8;
+        line-height: 1.7;
+        font-size: 14px;
+      }
+
+      .tx-model-board {
+        display: grid;
+        grid-template-columns: 0.82fr 1.18fr;
+        gap: 22px;
+        align-items: start;
+      }
+
+      .tx-model-count {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+        padding: 26px;
+      }
+
+      .tx-model-count strong {
+        display: block;
+        font-size: clamp(58px, 9vw, 96px);
+        line-height: 0.96;
+      }
+
+      .tx-model-count span {
+        display: block;
+        margin-top: 14px;
+        color: var(--muted);
+        line-height: 1.75;
+      }
+
+      .tx-model-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .tx-model {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+        padding: 15px;
+      }
+
+      .tx-model b {
+        font-size: 15px;
+      }
+
+      .tx-model small {
+        color: var(--muted);
+      }
+
+      .tx-tag {
+        border-radius: 999px;
+        padding: 5px 8px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .tx-tag-teal {
+        background: #e6fffb;
+        color: var(--teal);
+      }
+
+      .tx-tag-blue {
+        background: #eff6ff;
+        color: var(--blue);
+      }
+
+      .tx-tag-violet {
+        background: #f5f3ff;
+        color: var(--violet);
+      }
+
+      .tx-seo {
+        margin-top: 36px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        padding: 24px;
+      }
+
+      .tx-seo h2 {
+        margin: 0 0 12px;
+        font-size: 24px;
+      }
+
+      .tx-seo p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.85;
+      }
+
+      .tx-final {
+        padding: 82px 0 96px;
+      }
+
+      .tx-final-box {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 24px;
+        align-items: center;
+        border: 1px solid #b7dfd8;
+        border-radius: 8px;
+        background:
+          linear-gradient(90deg, rgba(15, 118, 110, 0.12), transparent),
+          #ffffff;
+        padding: 34px;
+      }
+
+      .tx-final-box h2 {
+        margin: 0;
+        font-size: clamp(28px, 4vw, 42px);
+        line-height: 1.14;
+      }
+
+      .tx-final-box p {
+        max-width: 720px;
+        margin: 12px 0 0;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+
+      .tx-footer {
+        border-top: 1px solid var(--line);
+        padding: 24px 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .tx-footer-inner {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .tx-footer-links {
+        display: flex;
+        gap: 16px;
+      }
+
+      @media (max-width: 980px) {
+        .tx-links {
+          display: none;
+        }
+
+        .tx-nav {
+          grid-template-columns: 1fr auto;
+        }
+
+        .tx-actions {
+          justify-content: flex-end;
+        }
+
+        .tx-status {
+          display: none;
+        }
+
+        .tx-node {
+          opacity: 0.3;
+        }
+
+        .tx-console-stats,
+        .tx-why-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .tx-section-head,
+        .tx-promise-grid,
+        .tx-model-board,
+        .tx-final-box {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .tx-shell {
+          width: min(100% - 28px, 1180px);
+        }
+
+        .tx-nav {
+          min-height: 62px;
+          gap: 14px;
+        }
+
+        .tx-brand-name {
+          display: inline;
+          max-width: 92px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tx-hero {
+          min-height: auto;
+          padding: 72px 0 52px;
+        }
+
+        .tx-scene {
+          inset: 18px -260px 0;
+        }
+
+        .tx-node {
+          display: none;
+        }
+
+        .tx-hero h1 {
+          font-size: clamp(40px, 12vw, 54px);
+        }
+
+        .tx-lead {
+          font-size: 16px;
+        }
+
+        .tx-hero-actions {
+          flex-direction: column;
+        }
+
+        .tx-hero-actions .tx-btn,
+        .tx-final-box .tx-btn {
+          width: 100%;
+        }
+
+        .tx-console-top,
+        .tx-console-flow {
+          display: block;
+        }
+
+        .tx-console-top code {
+          display: block;
+          margin-top: 6px;
+        }
+
+        .tx-console-flow {
+          padding: 12px;
+        }
+
+        .tx-console-box,
+        .tx-model-stack {
+          min-height: auto;
+          padding: 12px;
+        }
+
+        .tx-console-box strong {
+          margin-top: 6px;
+          font-size: 18px;
+        }
+
+        .tx-console-box span {
+          display: none;
+        }
+
+        .tx-model-stack {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .tx-model-stack span {
+          display: block;
+          padding: 9px 6px;
+          text-align: center;
+          font-size: 12px;
+        }
+
+        .tx-model-stack span::after {
+          display: none;
+        }
+
+        .tx-console-line {
+          width: 1px;
+          height: 20px;
+          margin: 0 auto;
+          background: linear-gradient(180deg, rgba(94, 234, 212, 0.1), #5eead4, rgba(94, 234, 212, 0.1));
+        }
+
+        .tx-endpoints,
+        .tx-why-grid,
+        .tx-metrics,
+        .tx-model-list {
+          grid-template-columns: 1fr;
+        }
+
+        .tx-section {
+          padding: 64px 0;
+        }
+
+        .tx-feature {
+          min-height: auto;
+        }
+
+        .tx-feature h3 {
+          margin-top: 32px;
+        }
+
+        .tx-final-box {
+          padding: 24px;
+        }
+
+        .tx-footer-inner {
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="tx-page">
+      <header class="tx-topbar">
+        <div class="tx-shell tx-nav">
+          <a class="tx-brand" href="/" aria-label="Token向云首页">
+            <span class="tx-logo">T</span>
+            <span class="tx-brand-name">Token向云</span>
+          </a>
+
+          <nav class="tx-links" aria-label="主导航">
+            <a href="/">首页</a>
+            <a href="/login">控制台</a>
+            <a href="/key-usage">用量查询</a>
+            <a href="https://kkflow.org/guide/">接入教程</a>
+          </nav>
+
+          <div class="tx-actions">
+            <span class="tx-status">网关运行中</span>
+            <a class="tx-btn tx-btn-secondary" href="/login">登录</a>
+            <a class="tx-btn tx-btn-primary" href="/register">注册</a>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="tx-hero">
+          <div class="tx-scene" aria-hidden="true">
+            <div class="tx-scene-grid"></div>
+            <div class="tx-lane tx-lane-a">
+              <span class="tx-chip">/v1/chat/completions</span>
+              <span class="tx-chip">Claude</span>
+              <span class="tx-chip">Gemini</span>
+              <span class="tx-chip">GPT</span>
+              <span class="tx-chip">/v1/responses</span>
+              <span class="tx-chip">Embedding</span>
+              <span class="tx-chip">Image API</span>
+              <span class="tx-chip">Audio API</span>
+              <span class="tx-chip">/v1/messages</span>
+            </div>
+            <div class="tx-lane tx-lane-b">
+              <span class="tx-chip">API Key</span>
+              <span class="tx-chip">Token Usage</span>
+              <span class="tx-chip">Smart Routing</span>
+              <span class="tx-chip">Balance</span>
+              <span class="tx-chip">Team Quota</span>
+              <span class="tx-chip">Logs</span>
+              <span class="tx-chip">Failover</span>
+              <span class="tx-chip">Billing</span>
+            </div>
+            <div class="tx-node tx-node-one">
+              <div>
+                <strong>99.9%</strong>
+                <span>稳定接入体验</span>
+              </div>
+            </div>
+            <div class="tx-node tx-node-two">
+              <div>
+                <strong>20+</strong>
+                <span>模型能力覆盖</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tx-shell tx-hero-copy">
+            <div class="tx-kicker"><span>AI</span> Ready for production API</div>
+            <h1>把多家模型，收进一个 <em>API 网关</em></h1>
+            <p class="tx-lead">
+              Token向云为开发者和团队提供稳定的 AI API 聚合接入。一个 base URL、一个
+              API Key，统一调用 Claude、GPT、Gemini 等主流模型，并获得清晰的 Token
+              用量、余额和团队成本控制。
+            </p>
+            <div class="tx-hero-actions">
+              <a class="tx-btn tx-btn-primary" href="/login">获取 API 密钥</a>
+              <a class="tx-btn tx-btn-secondary" href="https://kkflow.org/guide/">查看接入教程</a>
+            </div>
+
+            <div class="tx-hero-console" aria-label="Token向云网关流转示意">
+              <div class="tx-console-top">
+                <span>Gateway routing surface</span>
+                <code>base_url=你的 Token向云 API 地址</code>
+              </div>
+              <div class="tx-console-flow">
+                <div class="tx-console-box">
+                  <small>Client</small>
+                  <strong>你的应用</strong>
+                  <span>AI 编程助手、知识库、自动化脚本</span>
+                </div>
+                <div class="tx-console-line"></div>
+                <div class="tx-console-box tx-console-gateway">
+                  <small>Token向云</small>
+                  <strong>统一 API 网关</strong>
+                  <span>Key 管理 · 用量统计 · 余额计费 · 智能转发</span>
+                </div>
+                <div class="tx-console-line"></div>
+                <div class="tx-model-stack" aria-label="模型供应商">
+                  <span>Claude</span>
+                  <span>GPT</span>
+                  <span>Gemini</span>
+                </div>
+              </div>
+              <div class="tx-console-stats" aria-label="平台核心能力">
+                <span><b>统一协议</b>OpenAI / Claude / Gemini</span>
+                <span><b>实时账单</b>请求、Token、费用明细</span>
+                <span><b>灵活密钥</b>应用和成员独立 Key</span>
+                <span><b>稳定转发</b>减少多平台接入成本</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tx-section tx-shell">
+          <div class="tx-section-head">
+            <div>
+              <p class="tx-eyebrow">// endpoint_surface</p>
+              <h2>少改代码，直接迁移现有 AI 应用。</h2>
+            </div>
+            <p class="tx-section-desc">
+              面向真实生产接入场景设计。你不需要为每家模型单独维护密钥、账单和适配层，
+              只要把请求统一交给 Token向云网关。
+            </p>
+          </div>
+
+          <div class="tx-surface">
+            <div class="tx-terminal-head">
+              <div class="tx-dots"><i></i><i></i><i></i></div>
+              <span>replace base URL and keep your client code</span>
+            </div>
+            <div class="tx-endpoints">
+              <div class="tx-endpoint">
+                <code>POST /v1/chat/completions</code>
+                <span>Chat</span>
+              </div>
+              <div class="tx-endpoint">
+                <code>POST /v1/messages</code>
+                <span>Claude</span>
+              </div>
+              <div class="tx-endpoint">
+                <code>POST /v1/responses</code>
+                <span>Responses</span>
+              </div>
+              <div class="tx-endpoint">
+                <code>GET /v1beta/models</code>
+                <span>Gemini</span>
+              </div>
+              <div class="tx-endpoint">
+                <code>POST /v1/embeddings</code>
+                <span>Embedding</span>
+              </div>
+              <div class="tx-endpoint">
+                <code>POST /v1/images/generations</code>
+                <span>Image</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tx-section tx-shell" id="why">
+          <div class="tx-section-head">
+            <div>
+              <p class="tx-eyebrow">// why Token向云</p>
+              <h2>不是再加一个平台，而是减少你维护的平台。</h2>
+            </div>
+            <p class="tx-section-desc">
+              对开发者来说，真正耗时的不是发出一次请求，而是长久维护稳定性、账单、密钥、
+              配额和异常排查。Token向云把这些工作集中起来。
+            </p>
+          </div>
+
+          <div class="tx-why-grid">
+            <article class="tx-feature">
+              <div class="tx-feature-num">01</div>
+              <h3>统一接入</h3>
+              <p>一个 API Key 调用多家模型，减少客户端配置、环境变量和多套 SDK 适配。</p>
+            </article>
+            <article class="tx-feature">
+              <div class="tx-feature-num">02</div>
+              <h3>成本透明</h3>
+              <p>请求、Token、模型和费用明细集中展示，团队用量可以回溯，也便于预算控制。</p>
+            </article>
+            <article class="tx-feature">
+              <div class="tx-feature-num">03</div>
+              <h3>密钥隔离</h3>
+              <p>为不同应用和成员分配独立 Key，便于限额、停用、追踪和权限治理。</p>
+            </article>
+            <article class="tx-feature">
+              <div class="tx-feature-num">04</div>
+              <h3>长期运营</h3>
+              <p>围绕稳定访问、错误排查和模型接入持续维护，适合真实项目长期使用。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="tx-section tx-dark">
+          <div class="tx-shell tx-promise-grid">
+            <div>
+              <p class="tx-eyebrow">// core_promise</p>
+              <h2>清晰、稳定、可追踪。</h2>
+              <p class="tx-section-desc">
+                我们更重视长期使用体验。你需要的不只是一个接口地址，而是一套能解释成本、
+                定位问题、支持团队协作的 AI API 基础设施。
+              </p>
+              <div class="tx-metrics" aria-label="运营指标">
+                <div class="tx-metric">
+                  <strong>20+</strong>
+                  <span>模型和接口能力持续接入</span>
+                </div>
+                <div class="tx-metric">
+                  <strong>1:1</strong>
+                  <span>充值余额和消费明细清楚可查</span>
+                </div>
+                <div class="tx-metric">
+                  <strong>API</strong>
+                  <span>统一接入，降低迁移成本</span>
+                </div>
+                <div class="tx-metric">
+                  <strong>实时</strong>
+                  <span>请求、Token、费用同步统计</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tx-promises">
+              <article class="tx-promise">
+                <div class="tx-promise-mark">&gt;</div>
+                <div>
+                  <h3>面向开发工具和自动化流程</h3>
+                  <p>适配常见客户端、脚本、AI 编程助手、知识库问答和企业内部自动化场景。</p>
+                </div>
+              </article>
+              <article class="tx-promise">
+                <div class="tx-promise-mark">&gt;</div>
+                <div>
+                  <h3>按实际使用量管理预算</h3>
+                  <p>每个 Key 都能追踪消耗，团队不再靠截图、猜测或人工对账管理成本。</p>
+                </div>
+              </article>
+              <article class="tx-promise">
+                <div class="tx-promise-mark">&gt;</div>
+                <div>
+                  <h3>出现错误可以定位</h3>
+                  <p>围绕请求状态、模型、Key 和时间维度排查问题，减少线上接入的不确定性。</p>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="tx-section tx-shell" id="models">
+          <div class="tx-section-head">
+            <div>
+              <p class="tx-eyebrow">// supported_models</p>
+              <h2>主流模型能力，一套网关统一管理。</h2>
+            </div>
+            <p class="tx-section-desc">
+              从文本、代码、图片到语音能力，按业务场景选择合适模型。后续模型更新也可以在
+              同一套接入方式下持续扩展。
+            </p>
+          </div>
+
+          <div class="tx-model-board">
+            <div class="tx-model-count">
+              <strong>20+</strong>
+              <span>
+                覆盖 Claude、GPT、Gemini、Embedding、Image、Audio 等模型和接口能力。
+              </span>
+            </div>
+
+            <div class="tx-model-list" aria-label="支持的模型能力">
+              <div class="tx-model">
+                <div><b>Claude</b><br /><small>代码、长文本、推理</small></div>
+                <span class="tx-tag tx-tag-teal">可用</span>
+              </div>
+              <div class="tx-model">
+                <div><b>GPT</b><br /><small>通用对话和工具调用</small></div>
+                <span class="tx-tag tx-tag-blue">可用</span>
+              </div>
+              <div class="tx-model">
+                <div><b>Gemini</b><br /><small>多模态和高性价比</small></div>
+                <span class="tx-tag tx-tag-violet">可用</span>
+              </div>
+              <div class="tx-model">
+                <div><b>Embedding</b><br /><small>检索、知识库、排序</small></div>
+                <span class="tx-tag tx-tag-teal">可用</span>
+              </div>
+              <div class="tx-model">
+                <div><b>Image API</b><br /><small>图片生成与编辑</small></div>
+                <span class="tx-tag tx-tag-blue">可用</span>
+              </div>
+              <div class="tx-model">
+                <div><b>Audio API</b><br /><small>语音合成和转写</small></div>
+                <span class="tx-tag tx-tag-violet">可用</span>
+              </div>
+            </div>
+          </div>
+
+          <article class="tx-seo">
+            <h2>Token向云 AI API 聚合接口网关</h2>
+            <p>
+              Token向云为 AI 应用开发者、团队和自动化工具提供统一的大模型 API 接入服务。
+              你可以通过一个 API Key 接入 Claude API、GPT API、Gemini API 等主流模型，
+              使用统一的 base URL、Token 用量统计、余额管理、API Key 管理和请求明细来控制
+              AI 调用成本。适用于 AI 编程助手、知识库问答、内容生成、数据分析、图片生成、
+              语音处理、企业内部工具和多模型测试等场景。
+            </p>
+          </article>
+        </section>
+
+        <section class="tx-final tx-shell">
+          <div class="tx-final-box">
+            <div>
+              <h2>现在把你的 AI 应用接到 Token向云。</h2>
+              <p>
+                登录控制台创建 API Key，按教程替换 base URL，即可开始使用统一的 AI API
+                聚合网关。
+              </p>
+            </div>
+            <a class="tx-btn tx-btn-primary" href="/login">进入控制台</a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="tx-footer">
+        <div class="tx-shell tx-footer-inner">
+          <div>© 2026 Token向云. All Rights Reserved.</div>
+          <div class="tx-footer-links">
+            <a href="https://kkflow.org/guide/">接入教程</a>
+            <a href="/login">控制台</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
