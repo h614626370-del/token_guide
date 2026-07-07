@@ -625,9 +625,7 @@ const HelpTip = defineComponent({
 })
 
 const modelOptions = [
-  { value: 'gpt-5.4', label: 'gpt-5.4 · 默认推荐' },
-  { value: 'gpt-5.5', label: 'gpt-5.5 · 代码任务' },
-  { value: 'gpt-5.4-mini', label: 'gpt-5.4-mini · 轻量测试' },
+  { value: 'gpt-5.5', label: 'gpt-5.5 · 默认推荐' },
   { value: 'gpt-5.3-codex-spark', label: 'gpt-5.3-codex-spark · 代码轻量' },
 ]
 

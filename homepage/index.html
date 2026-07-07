@@ -24,15 +24,36 @@
       content="一个 base URL、一个 API Key，统一调用 Claude、GPT、Gemini 等主流模型，清晰管理 Token 用量、余额和团队成本。"
     />
     <meta property="og:url" content="https://kkflow.org/" />
+    <meta
+      property="og:image"
+      content="https://kkflow.org/logo-256.png"
+    />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Token向云 - 稳定的 AI API 聚合网关" />
     <meta
       name="twitter:description"
       content="统一 AI API 聚合接入，支持主流大模型、API Key 管理、Token 用量统计和按量计费。"
     />
+    <meta
+      name="twitter:image"
+      content="https://kkflow.org/logo-256.png"
+    />
     <link
       rel="icon"
-      href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%230f766e"/><text x="32" y="40" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" font-weight="800" fill="white">T</text></svg>'
+      type="image/png"
+      sizes="80x80"
+      href="/logo-80.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="256x256"
+      href="/logo-256.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="256x256"
+      href="/logo-256.png"
     />
     <script type="application/ld+json">
       {
@@ -136,20 +157,15 @@
       }
 
       .tx-logo {
-        display: grid;
+        display: block;
         width: 34px;
         height: 34px;
         flex: 0 0 auto;
-        place-items: center;
-        border: 1px solid rgba(15, 118, 110, 0.2);
+        border: 1px solid rgba(15, 118, 110, 0.16);
         border-radius: 8px;
-        background:
-          linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent),
-          linear-gradient(135deg, var(--teal), var(--blue));
-        color: white;
-        font-size: 15px;
-        font-weight: 950;
-        box-shadow: 0 14px 26px rgba(15, 118, 110, 0.2);
+        background: #fffaf3;
+        object-fit: cover;
+        box-shadow: 0 14px 26px rgba(15, 118, 110, 0.14);
       }
 
       .tx-brand-name {
@@ -1125,7 +1141,14 @@
       <header class="tx-topbar">
         <div class="tx-shell tx-nav">
           <a class="tx-brand" href="/" aria-label="Token向云首页">
-            <span class="tx-logo">T</span>
+            <img
+              class="tx-logo"
+              src="/logo-80.png"
+              width="34"
+              height="34"
+              alt=""
+              aria-hidden="true"
+            />
             <span class="tx-brand-name">Token向云</span>
           </a>
 
