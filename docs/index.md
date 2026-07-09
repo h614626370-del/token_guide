@@ -58,7 +58,7 @@ Token向云当前只接入 OpenAI 与 Claude 两类接口协议，暂未接入 G
 | 登录账号 | [https://kkflow.org/login](https://kkflow.org/login) |
 | 余额充值 | 登录后从会员中心进入 |
 | 接口网关 | [https://kkflow.org/](https://kkflow.org/) |
-| OpenAI 兼容模型列表测试 | [https://kkflow.org/v1/models](https://kkflow.org/v1/models) |
+| OpenAI 兼容模型列表测试 | `https://kkflow.org/v1/models` |
 
 ## 常用接入地址
 
@@ -66,16 +66,16 @@ Token向云当前只接入 OpenAI 与 Claude 两类接口协议，暂未接入 G
 | --- | --- |
 | 主站入口 | [https://kkflow.org/](https://kkflow.org/) |
 | 文档入口 | [https://kkflow.org/guide/](https://kkflow.org/guide/) |
-| OpenAI 兼容 Base URL | [https://kkflow.org/v1](https://kkflow.org/v1) |
-| 文本模型 Responses | [https://kkflow.org/v1/responses](https://kkflow.org/v1/responses) |
-| Chat Completions | [https://kkflow.org/v1/chat/completions](https://kkflow.org/v1/chat/completions) |
-| 图片生成 | [https://kkflow.org/v1/images/generations](https://kkflow.org/v1/images/generations) |
-| 图片编辑 | [https://kkflow.org/v1/images/edits](https://kkflow.org/v1/images/edits) |
+| OpenAI 兼容 Base URL | `https://kkflow.org/v1` |
+| 文本模型 Responses | `https://kkflow.org/v1/responses` |
+| Chat Completions | `https://kkflow.org/v1/chat/completions` |
+| 图片生成 | `https://kkflow.org/v1/images/generations` |
+| 图片编辑 | `https://kkflow.org/v1/images/edits` |
 
 ## 接入边界
 
-- OpenAI 兼容客户端一般使用 [https://kkflow.org/v1](https://kkflow.org/v1)。
-- Claude Code 使用 [https://kkflow.org/v1](https://kkflow.org/v1) 作为 `ANTHROPIC_BASE_URL`。
+- OpenAI 兼容客户端一般使用 `https://kkflow.org/v1`。
+- Claude Code 使用 `https://kkflow.org/v1` 作为 `ANTHROPIC_BASE_URL`。
 - Gemini CLI 暂不在当前指南范围内，因为平台目前没有接入 Gemini。
 - OpenCode 是开源工具，但能不能接入取决于它是否支持你要使用的 provider 或 OpenAI 兼容配置；不能理解为“所有开源工具都一定可以接入”。
 
@@ -84,7 +84,7 @@ Token向云当前只接入 OpenAI 与 Claude 两类接口协议，暂未接入 G
 1. 从 [https://kkflow.org/register](https://kkflow.org/register) 注册账号，或从 [https://kkflow.org/login](https://kkflow.org/login) 登录已有账号。
 2. 在会员中心完成余额充值，确认订单状态和余额到账。
 3. 创建 API 密钥，并确认密钥状态、分组、额度、速率限制和有效期。
-4. 在客户端中填写 Base URL：[https://kkflow.org/v1](https://kkflow.org/v1)。
+4. 在客户端中填写 Base URL：`https://kkflow.org/v1`。
 5. 按工具类型选择配置方式：Codex CLI 使用 OpenAI Responses，Claude Code 使用 Claude 兼容环境变量，OpenCode 使用 OpenAI compatible provider。
 6. 先请求 `/v1/models` 确认连通，再调用文本模型、图片生成或图片编辑接口。
 
@@ -96,11 +96,11 @@ Token向云当前只接入 OpenAI 与 Claude 两类接口协议，暂未接入 G
 
 ### OpenAI 兼容客户端的 Base URL 应该填什么？
 
-通常填写 [https://kkflow.org/v1](https://kkflow.org/v1)。不要只填写主站首页，也不要把路径写成 `/v1` 这种相对地址。
+通常填写 `https://kkflow.org/v1`。不要只填写主站首页，也不要把路径写成 `/v1` 这种相对地址。
 
 ### Claude Code 怎么接入？
 
-Claude Code 可以把 `ANTHROPIC_BASE_URL` 设置为 [https://kkflow.org/v1](https://kkflow.org/v1)，把 `ANTHROPIC_AUTH_TOKEN` 设置为自己的 API Key。完整示例见 [API 接入配置](./api)。
+Claude Code 可以把 `ANTHROPIC_BASE_URL` 设置为 `https://kkflow.org/v1`，把 `ANTHROPIC_AUTH_TOKEN` 设置为自己的 API Key。完整示例见 [API 接入配置](./api)。
 
 ### 图片生成和图片编辑用哪个模型？
 
