@@ -1,0 +1,16 @@
+.git
+.gitignore
+node_modules/
+dist/
+artifacts/
+apps/guide-api/.env
+apps/guide-api/.env.*
+!apps/guide-api/.env.example
+apps/guide-api/data/
+apps/guide-api/**/*.sqlite
+apps/guide-api/**/*.sqlite-*
+apps/guide-api/**/*.db
+apps/guide-api/**/*.db-*
+**/*.log
+preview-server*.log
+dev-server.log
