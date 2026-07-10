@@ -173,7 +173,7 @@ else {
   Invoke-Wsl docker build --platform linux/amd64 -f "$repoRootWsl/apps/guide-api/Dockerfile" -t $imageTag "$repoRootWsl"
 
   Write-Host "Saving image archive: $tarName"
-  $saveCommand = 'mkdir -p "{0}" && docker save "{1}" -o "{0}/{2}" && gzip -f "{0}/{2}" && sha256sum "{0}/{2}.gz" > "{0}/{2}.gz.sha256"' -f $tarPathWsl, $imageTag, $tarName
+  $saveCommand = 'mkdir -p "{0}" && docker save "{1}" -o "{0}/{2}" && gzip -f "{0}/{2}" && cd "{0}" && sha256sum "{2}.gz" > "{2}.gz.sha256"' -f $tarPathWsl, $imageTag, $tarName
   Invoke-Wsl sh -lc $saveCommand
 }
 

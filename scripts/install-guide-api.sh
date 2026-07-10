@@ -86,7 +86,14 @@ fi
 curl -fL "${AUTH_HEADER[@]}" -o "releases/${ASSET_SHA}" "${DOWNLOAD_BASE}/${ASSET_SHA}"
 
 echo "Verifying checksum ..."
-(cd releases && sha256sum -c "${ASSET_SHA}")
+expected_sha="$(awk '{print $1}' "releases/${ASSET_SHA}")"
+actual_sha="$(sha256sum "releases/${ASSET}" | awk '{print $1}')"
+if [[ -z "${expected_sha}" || "${actual_sha}" != "${expected_sha}" ]]; then
+  echo "Checksum mismatch for ${ASSET}" >&2
+  echo "expected: ${expected_sha}" >&2
+  echo "actual:   ${actual_sha}" >&2
+  exit 1
+fi
 
 if [[ ! -f .env ]]; then
   ADMIN_TOKEN="$(openssl rand -hex 24 2>/dev/null || date +%s%N)"
