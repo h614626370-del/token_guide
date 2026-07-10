@@ -101,7 +101,7 @@ services:
     env_file:
       - .env
     ports:
-      - "127.0.0.1:${PORT}:8787"
+      - "${PORT}:8787"
     volumes:
       - ./data:/data
 EOF
