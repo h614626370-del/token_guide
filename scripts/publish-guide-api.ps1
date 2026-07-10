@@ -7,6 +7,7 @@ param(
   [string]$ImageName = "kkflow-guide-api",
   [string]$GiteeToken = $env:GITEE_TOKEN,
   [string]$GiteeApiBase = "https://gitee.com/api/v5",
+  [switch]$SkipBuild,
   [switch]$SkipUpload
 )
 
@@ -58,13 +59,15 @@ function New-GiteeRelease {
     return Invoke-RestMethod -Method Post -Uri $uri -Body $bodyObject
   }
   catch {
-    $errorText = $_.ErrorDetails.Message
-    if ($errorText -match "already|exist") {
-      $encodedTag = [Uri]::EscapeDataString($TagName)
-      $releaseByTagUri = "{0}/repos/{1}/{2}/releases/tags/{3}?access_token={4}" -f $GiteeApiBase, $Owner, $Repo, $encodedTag, $GiteeToken
+    $originalError = $_
+    $encodedTag = [Uri]::EscapeDataString($TagName)
+    $releaseByTagUri = "{0}/repos/{1}/{2}/releases/tags/{3}?access_token={4}" -f $GiteeApiBase, $Owner, $Repo, $encodedTag, $GiteeToken
+    try {
       return Invoke-RestMethod -Method Get -Uri $releaseByTagUri
     }
-    throw
+    catch {
+      throw $originalError
+    }
   }
 }
 
@@ -99,25 +102,37 @@ $tarPath = Join-Path $artifactsDir $tarName
 $gzPath = "$tarPath.gz"
 $shaPath = "$gzPath.sha256"
 
-Require-Command wsl
+if (-not $SkipBuild) {
+  Require-Command wsl
+}
 if (-not $SkipUpload -and [string]::IsNullOrWhiteSpace($GiteeToken)) {
   throw "GITEE_TOKEN is required unless -SkipUpload is used."
 }
 
 New-Item -ItemType Directory -Force -Path $artifactsDir | Out-Null
 
-$repoRootWsl = To-WslPath $repoRoot
-$tarPathWsl = To-WslPath $artifactsDir
+if ($SkipBuild) {
+  Write-Host "SkipBuild enabled. Reusing existing archive:"
+  Write-Host "  $gzPath"
+  Write-Host "  $shaPath"
+}
+else {
+  $repoRootWsl = To-WslPath $repoRoot
+  $tarPathWsl = To-WslPath $artifactsDir
 
-Write-Host "Building Docker image in WSL: $imageTag"
-Invoke-Wsl docker build --platform linux/amd64 -f "$repoRootWsl/apps/guide-api/Dockerfile" -t $imageTag "$repoRootWsl"
+  Write-Host "Building Docker image in WSL: $imageTag"
+  Invoke-Wsl docker build --platform linux/amd64 -f "$repoRootWsl/apps/guide-api/Dockerfile" -t $imageTag "$repoRootWsl"
 
-Write-Host "Saving image archive: $tarName"
-$saveCommand = 'mkdir -p "{0}" && docker save "{1}" -o "{0}/{2}" && gzip -f "{0}/{2}" && sha256sum "{0}/{2}.gz" > "{0}/{2}.gz.sha256"' -f $tarPathWsl, $imageTag, $tarName
-Invoke-Wsl sh -lc $saveCommand
+  Write-Host "Saving image archive: $tarName"
+  $saveCommand = 'mkdir -p "{0}" && docker save "{1}" -o "{0}/{2}" && gzip -f "{0}/{2}" && sha256sum "{0}/{2}.gz" > "{0}/{2}.gz.sha256"' -f $tarPathWsl, $imageTag, $tarName
+  Invoke-Wsl sh -lc $saveCommand
+}
 
 if (-not (Test-Path -LiteralPath $gzPath)) {
   throw "Image archive was not created: $gzPath"
+}
+if (-not (Test-Path -LiteralPath $shaPath)) {
+  throw "Checksum file was not created: $shaPath"
 }
 
 Write-Host "Created:"
