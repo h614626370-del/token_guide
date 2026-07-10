@@ -1,4 +1,5 @@
 import { requireAdmin } from '../../http/admin-auth.js'
+import { createMemoryRateLimiter } from '../../http/rate-limit.js'
 import { getClientIp, getUserAgent, hashIp } from '../../http/request.js'
 import { created, fail, ok } from '../../http/responses.js'
 import { requireGuideUser } from '../../http/sub2api-user-auth.js'
@@ -15,6 +16,7 @@ export async function feedbackRoutes(app, { db, config }) {
   const repo = createFeedbackRepository(db)
   const adminAuth = requireAdmin(config)
   const guideUserAuth = requireGuideUser({ db, config, logger: app.log })
+  const feedbackRateLimit = createMemoryRateLimiter(config)
 
   app.get('/feedback/quota', { preHandler: guideUserAuth }, async (request, reply) => {
     return ok(reply, repo.quotaForUser(request.guideUser.id, todayChinaStartIso(), config.feedbackDailyLimit))
@@ -36,7 +38,7 @@ export async function feedbackRoutes(app, { db, config }) {
     })
   })
 
-  app.post('/feedback', { preHandler: guideUserAuth }, async (request, reply) => {
+  app.post('/feedback', { preHandler: [feedbackRateLimit, guideUserAuth] }, async (request, reply) => {
     const parsed = createFeedbackSchema.safeParse(request.body || {})
     if (!parsed.success) {
       return fail(reply, 400, 'INVALID_FEEDBACK', 'Feedback payload is invalid.', parsed.error.flatten())

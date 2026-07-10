@@ -3,6 +3,7 @@ import { fail } from './responses.js'
 
 export function createMemoryRateLimiter(config) {
   const buckets = new Map()
+  const maxBuckets = 5000
 
   return async function rateLimit(request, reply) {
     const now = Date.now()
@@ -12,7 +13,7 @@ export function createMemoryRateLimiter(config) {
 
     if (!current || current.resetAt <= now) {
       buckets.set(key, { count: 1, resetAt: now + config.rateWindowMs })
-      cleanupBuckets(buckets, now)
+      if (buckets.size >= 1000) cleanupBuckets(buckets, now, maxBuckets)
       return
     }
 
@@ -27,9 +28,13 @@ export function createMemoryRateLimiter(config) {
   }
 }
 
-function cleanupBuckets(buckets, now) {
-  if (buckets.size < 1000) return
+function cleanupBuckets(buckets, now, maxBuckets) {
   for (const [key, value] of buckets.entries()) {
     if (value.resetAt <= now) buckets.delete(key)
+  }
+  while (buckets.size > maxBuckets) {
+    const oldestKey = buckets.keys().next().value
+    if (oldestKey == null) break
+    buckets.delete(oldestKey)
   }
 }
