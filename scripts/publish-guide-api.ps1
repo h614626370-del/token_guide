@@ -4,9 +4,11 @@ param(
 
   [string]$Owner = "readhou",
   [string]$Repo = "token_guide",
+  [string]$TargetCommitish = "main",
   [string]$ImageName = "kkflow-guide-api",
   [string]$GiteeToken = $env:GITEE_TOKEN,
   [string]$GiteeApiBase = "https://gitee.com/api/v5",
+  [int]$AssetPartSizeMB = 95,
   [switch]$SkipBuild,
   [switch]$SkipUpload
 )
@@ -50,6 +52,7 @@ function New-GiteeRelease {
   $bodyObject = @{
     access_token = $GiteeToken
     tag_name = $TagName
+    target_commitish = $TargetCommitish
     name = $Name
     body = $Body
     prerelease = $false
@@ -89,6 +92,51 @@ function Upload-GiteeReleaseAsset {
   }
 }
 
+function Split-FileIntoParts {
+  param(
+    [string]$FilePath,
+    [int64]$PartSizeBytes
+  )
+
+  $partDir = "$FilePath.parts"
+  if (Test-Path -LiteralPath $partDir) {
+    Remove-Item -LiteralPath $partDir -Recurse -Force
+  }
+  New-Item -ItemType Directory -Path $partDir | Out-Null
+
+  $buffer = New-Object byte[] (1024 * 1024)
+  $inputStream = [System.IO.File]::OpenRead($FilePath)
+  $parts = New-Object System.Collections.Generic.List[string]
+  try {
+    $partIndex = 1
+    while ($inputStream.Position -lt $inputStream.Length) {
+      $partName = "{0}.part-{1:D3}" -f (Split-Path -Leaf $FilePath), $partIndex
+      $partPath = Join-Path $partDir $partName
+      $outputStream = [System.IO.File]::Open($partPath, [System.IO.FileMode]::CreateNew)
+      try {
+        $remaining = $PartSizeBytes
+        while ($remaining -gt 0 -and $inputStream.Position -lt $inputStream.Length) {
+          $readSize = [Math]::Min($buffer.Length, $remaining)
+          $read = $inputStream.Read($buffer, 0, [int]$readSize)
+          if ($read -le 0) { break }
+          $outputStream.Write($buffer, 0, $read)
+          $remaining -= $read
+        }
+      }
+      finally {
+        $outputStream.Dispose()
+      }
+      $parts.Add($partPath)
+      $partIndex += 1
+    }
+  }
+  finally {
+    $inputStream.Dispose()
+  }
+
+  return $parts.ToArray()
+}
+
 if ($Version -notmatch "^v?\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$") {
   throw "Version must look like v1.2.3 or 1.2.3."
 }
@@ -101,6 +149,7 @@ $tarName = "guide-api-$tag-linux-amd64.docker.tar"
 $tarPath = Join-Path $artifactsDir $tarName
 $gzPath = "$tarPath.gz"
 $shaPath = "$gzPath.sha256"
+$manifestPath = "$gzPath.parts.txt"
 
 if (-not $SkipBuild) {
   Require-Command wsl
@@ -159,8 +208,24 @@ if (-not $releaseId) {
   throw "Could not determine Gitee release id from response."
 }
 
-Write-Host "Uploading assets to release $releaseId ..."
-Upload-GiteeReleaseAsset -ReleaseId $releaseId -FilePath $gzPath
+Write-Host "Preparing release assets ..."
+$assetPartSizeBytes = [int64]$AssetPartSizeMB * 1024 * 1024
+$gzItem = Get-Item -LiteralPath $gzPath
+if ($gzItem.Length -gt $assetPartSizeBytes) {
+  Write-Host "Archive is larger than $AssetPartSizeMB MB. Splitting before upload ..."
+  $parts = Split-FileIntoParts -FilePath $gzPath -PartSizeBytes $assetPartSizeBytes
+  $partNames = $parts | ForEach-Object { Split-Path -Leaf $_ }
+  Set-Content -LiteralPath $manifestPath -Value $partNames -Encoding ascii
+  Write-Host "Uploading manifest and $($parts.Count) parts to release $releaseId ..."
+  Upload-GiteeReleaseAsset -ReleaseId $releaseId -FilePath $manifestPath
+  foreach ($part in $parts) {
+    Upload-GiteeReleaseAsset -ReleaseId $releaseId -FilePath $part
+  }
+}
+else {
+  Write-Host "Uploading archive to release $releaseId ..."
+  Upload-GiteeReleaseAsset -ReleaseId $releaseId -FilePath $gzPath
+}
 Upload-GiteeReleaseAsset -ReleaseId $releaseId -FilePath $shaPath
 
 Write-Host "Release complete: https://gitee.com/$Owner/$Repo/releases/tag/$tag"

@@ -71,7 +71,18 @@ if [[ -n "${GITEE_TOKEN:-}" ]]; then
 fi
 
 echo "Downloading ${ASSET} ..."
-curl -fL "${AUTH_HEADER[@]}" -o "releases/${ASSET}" "${DOWNLOAD_BASE}/${ASSET}"
+if curl -fL "${AUTH_HEADER[@]}" -o "releases/${ASSET}.parts.txt" "${DOWNLOAD_BASE}/${ASSET}.parts.txt"; then
+  echo "Found split archive manifest. Downloading parts ..."
+  : > "releases/${ASSET}"
+  while IFS= read -r part_name; do
+    [[ -z "${part_name}" ]] && continue
+    curl -fL "${AUTH_HEADER[@]}" -o "releases/${part_name}" "${DOWNLOAD_BASE}/${part_name}"
+    cat "releases/${part_name}" >> "releases/${ASSET}"
+  done < "releases/${ASSET}.parts.txt"
+else
+  rm -f "releases/${ASSET}.parts.txt"
+  curl -fL "${AUTH_HEADER[@]}" -o "releases/${ASSET}" "${DOWNLOAD_BASE}/${ASSET}"
+fi
 curl -fL "${AUTH_HEADER[@]}" -o "releases/${ASSET_SHA}" "${DOWNLOAD_BASE}/${ASSET_SHA}"
 
 echo "Verifying checksum ..."
