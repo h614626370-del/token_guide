@@ -3,7 +3,7 @@ set -euo pipefail
 
 VERSION="latest"
 IMAGE_REPOSITORY="614626370/kkflow-guide-api"
-INSTALL_DIR="/opt/kkflow-guide-api"
+INSTALL_DIR=""
 PORT="8787"
 PUBLIC_ORIGIN="https://kkflow.org"
 
@@ -15,7 +15,7 @@ Usage:
 Options:
   --version VERSION       Image tag, for example v1.0.0. Default: latest.
   --image IMAGE           Docker image repository. Default: 614626370/kkflow-guide-api.
-  --install-dir DIR       Install directory. Default: /opt/kkflow-guide-api.
+  --install-dir DIR       Install directory. Default: current directory.
   --port PORT             Host port. Default: 8787.
   --public-origin URL     Public origin. Default: https://kkflow.org.
 USAGE
@@ -32,6 +32,10 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+if [[ -z "${INSTALL_DIR}" ]]; then
+  INSTALL_DIR="$(pwd)"
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required. Please install Docker first." >&2
