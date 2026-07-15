@@ -14,7 +14,7 @@ Usage: bash install-sub2api-adapter.sh [options]
 Options:
   --dir PATH        Install directory. Default: ~/sub2api-adapter
   --listen ADDRESS  Adapter listen address. Default: 127.0.0.1:18080
-  --proxy URL       Container HTTP/HTTPS proxy, for example http://192.168.1.2:7897
+  --proxy URL       Online updater proxy, for example http://192.168.1.2:7897
   --image IMAGE     Docker image repository. Default: 614626370/sub2api-adapter
   --version TAG     Docker image tag. Default: latest
   -h, --help        Show this help
@@ -24,8 +24,8 @@ Examples:
   bash install-sub2api-adapter.sh --listen 0.0.0.0:18080
   bash install-sub2api-adapter.sh --proxy http://192.168.1.2:7897
 
-The --proxy option configures the containers. It cannot configure the Docker
-daemon used for the initial image pull.
+The --proxy option configures only the online updater. Model requests remain
+direct. It cannot configure the Docker daemon used for the initial image pull.
 EOF
 }
 
@@ -121,12 +121,6 @@ services:
       ADAPTER_UPDATE_TOKEN: ${ADAPTER_UPDATE_TOKEN:?ADAPTER_UPDATE_TOKEN is required}
       ADAPTER_IMAGE: ${ADAPTER_IMAGE:-614626370/sub2api-adapter}
       ADAPTER_UPDATE_CHANNEL: ${ADAPTER_UPDATE_CHANNEL:-latest}
-      HTTP_PROXY: ${HTTP_PROXY:-}
-      HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
-      http_proxy: ${HTTP_PROXY:-}
-      https_proxy: ${HTTPS_PROXY:-}
-      no_proxy: ${NO_PROXY:-localhost,127.0.0.1,::1}
     volumes:
       - ${ADAPTER_CONFIG_DIR:-./configs}:/app/configs:ro
       - adapter-data:/app/data
