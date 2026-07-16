@@ -1,0 +1,8 @@
+**
+!package.json
+!package-lock.json
+!apps/
+!apps/guide-api/
+!apps/guide-api/Dockerfile
+!apps/guide-api/src/
+!apps/guide-api/src/**

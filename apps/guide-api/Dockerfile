@@ -1,3 +1,8 @@
+# This dependency baseline contains the compiled native SQLite driver.
+# Update it only when package.json or package-lock.json changes runtime dependencies.
+ARG DEPENDENCY_IMAGE=614626370/kkflow-guide-api:v1.0.2
+FROM ${DEPENDENCY_IMAGE} AS dependencies
+
 FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production \
@@ -7,14 +12,9 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
-COPY apps/guide-api ./apps/guide-api
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY apps/guide-api/src ./apps/guide-api/src
 
 EXPOSE 8787
 VOLUME ["/data"]
