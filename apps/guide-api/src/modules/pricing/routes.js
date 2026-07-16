@@ -3,8 +3,10 @@ import { fail, ok } from '../../http/responses.js'
 import { createPricingService } from './service.js'
 import {
   listSourceQuerySchema,
+  upsertGroupSettingsSchema,
   updateRuntimeSettingsSchema,
   upsertGroupSettingSchema,
+  upsertModelSettingsSchema,
   upsertModelSettingSchema,
 } from './schema.js'
 
@@ -48,6 +50,14 @@ export async function pricingRoutes(app, { db, config }) {
     return ok(reply, service.upsertModelSetting(parsed.data))
   })
 
+  app.put('/admin/pricing/models/bulk', { preHandler: adminAuth }, async (request, reply) => {
+    const parsed = upsertModelSettingsSchema.safeParse(request.body || {})
+    if (!parsed.success) {
+      return fail(reply, 400, 'INVALID_MODEL_SETTINGS', 'Model display settings are invalid.', parsed.error.flatten())
+    }
+    return ok(reply, service.upsertModelSettings(parsed.data.items))
+  })
+
   app.delete('/admin/pricing/models/:id', { preHandler: adminAuth }, async (request, reply) => {
     if (!service.deleteModelSetting(request.params.id)) {
       return fail(reply, 404, 'MODEL_SETTING_NOT_FOUND', 'Model display setting not found.')
@@ -61,6 +71,14 @@ export async function pricingRoutes(app, { db, config }) {
       return fail(reply, 400, 'INVALID_GROUP_SETTING', 'Group display setting is invalid.', parsed.error.flatten())
     }
     return ok(reply, service.upsertGroupSetting(parsed.data))
+  })
+
+  app.put('/admin/pricing/groups/bulk', { preHandler: adminAuth }, async (request, reply) => {
+    const parsed = upsertGroupSettingsSchema.safeParse(request.body || {})
+    if (!parsed.success) {
+      return fail(reply, 400, 'INVALID_GROUP_SETTINGS', 'Group display settings are invalid.', parsed.error.flatten())
+    }
+    return ok(reply, service.upsertGroupSettings(parsed.data.items))
   })
 
   app.delete('/admin/pricing/groups/:id', { preHandler: adminAuth }, async (request, reply) => {

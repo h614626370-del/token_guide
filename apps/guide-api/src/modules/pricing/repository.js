@@ -160,6 +160,54 @@ export function createPricingRepository(db) {
   `)
   const deleteRuntimeSetting = db.prepare('DELETE FROM pricing_runtime_settings WHERE key = ?')
 
+  const saveModel = (input) => {
+    const now = new Date().toISOString()
+    const current = getModel.get(input.provider, input.model_name)
+    const row = {
+      provider: input.provider,
+      model_name: input.model_name,
+      display_name: emptyToNull(input.display_name),
+      is_visible: boolToInt(input.is_visible ?? current?.is_visible ?? false),
+      is_featured: boolToInt(input.is_featured ?? current?.is_featured ?? false),
+      sort_order: input.sort_order ?? current?.sort_order ?? 1000,
+      note: emptyToNull(input.note),
+      created_at: current?.created_at || now,
+      updated_at: now,
+    }
+    upsertModel.run(row)
+    return normalizeModel(getModel.get(input.provider, input.model_name))
+  }
+
+  const saveModels = db.transaction((inputs) => inputs.map(saveModel))
+
+  const saveGroup = (input) => {
+    const now = new Date().toISOString()
+    const current = getGroup.get(input.provider, input.source_id)
+    const rechargePayCny = positiveOrNull(input.recharge_pay_cny ?? current?.recharge_pay_cny)
+    const rechargeCreditUsd = positiveOrNull(input.recharge_credit_usd ?? current?.recharge_credit_usd)
+    const rechargeMultiplier = rechargePayCny && rechargeCreditUsd
+      ? rechargeCreditUsd / rechargePayCny
+      : input.recharge_multiplier ?? current?.recharge_multiplier ?? 1
+    const row = {
+      provider: input.provider,
+      source_id: input.source_id,
+      source_name: emptyToNull(input.source_name),
+      display_name: emptyToNull(input.display_name),
+      is_visible: nullableBoolToInt(input.is_visible ?? current?.is_visible ?? null),
+      recharge_multiplier: rechargeMultiplier,
+      recharge_pay_cny: rechargePayCny,
+      recharge_credit_usd: rechargeCreditUsd,
+      sort_order: input.sort_order ?? current?.sort_order ?? 1000,
+      note: emptyToNull(input.note),
+      created_at: current?.created_at || now,
+      updated_at: now,
+    }
+    upsertGroup.run(row)
+    return normalizeGroup(getGroup.get(input.provider, input.source_id))
+  }
+
+  const saveGroups = db.transaction((inputs) => inputs.map(saveGroup))
+
   return {
     listModelSettings() {
       return listModels.all().map(normalizeModel)
@@ -170,21 +218,11 @@ export function createPricingRepository(db) {
     },
 
     upsertModelSetting(input) {
-      const now = new Date().toISOString()
-      const current = getModel.get(input.provider, input.model_name)
-      const row = {
-        provider: input.provider,
-        model_name: input.model_name,
-        display_name: emptyToNull(input.display_name),
-        is_visible: boolToInt(input.is_visible ?? current?.is_visible ?? false),
-        is_featured: boolToInt(input.is_featured ?? current?.is_featured ?? false),
-        sort_order: input.sort_order ?? current?.sort_order ?? 1000,
-        note: emptyToNull(input.note),
-        created_at: current?.created_at || now,
-        updated_at: now,
-      }
-      upsertModel.run(row)
-      return normalizeModel(getModel.get(input.provider, input.model_name))
+      return saveModel(input)
+    },
+
+    upsertModelSettings(inputs) {
+      return saveModels(inputs)
     },
 
     deleteModelSetting(id) {
@@ -196,29 +234,11 @@ export function createPricingRepository(db) {
     },
 
     upsertGroupSetting(input) {
-      const now = new Date().toISOString()
-      const current = getGroup.get(input.provider, input.source_id)
-      const rechargePayCny = positiveOrNull(input.recharge_pay_cny ?? current?.recharge_pay_cny)
-      const rechargeCreditUsd = positiveOrNull(input.recharge_credit_usd ?? current?.recharge_credit_usd)
-      const rechargeMultiplier = rechargePayCny && rechargeCreditUsd
-        ? rechargeCreditUsd / rechargePayCny
-        : input.recharge_multiplier ?? current?.recharge_multiplier ?? 1
-      const row = {
-        provider: input.provider,
-        source_id: input.source_id,
-        source_name: emptyToNull(input.source_name),
-        display_name: emptyToNull(input.display_name),
-        is_visible: nullableBoolToInt(input.is_visible ?? current?.is_visible ?? null),
-        recharge_multiplier: rechargeMultiplier,
-        recharge_pay_cny: rechargePayCny,
-        recharge_credit_usd: rechargeCreditUsd,
-        sort_order: input.sort_order ?? current?.sort_order ?? 1000,
-        note: emptyToNull(input.note),
-        created_at: current?.created_at || now,
-        updated_at: now,
-      }
-      upsertGroup.run(row)
-      return normalizeGroup(getGroup.get(input.provider, input.source_id))
+      return saveGroup(input)
+    },
+
+    upsertGroupSettings(inputs) {
+      return saveGroups(inputs)
     },
 
     deleteGroupSetting(id) {

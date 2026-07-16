@@ -279,7 +279,11 @@
               <pre v-if="imageRawError">{{ imageRawError }}</pre>
             </div>
 
-            <div v-if="generatedImages.length" class="image-results">
+            <div
+              v-if="generatedImages.length"
+              class="image-results"
+              :class="{ 'is-single-result': generatedImages.length === 1 }"
+            >
               <figure v-for="(image, index) in generatedImages" :key="image.src">
                 <img :src="image.src" :alt="`生成图片 ${index + 1}`" />
                 <figcaption>
@@ -2954,6 +2958,7 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
+  align-content: start;
   min-height: 0;
   padding: 14px;
   border: 1px solid var(--studio-line);
@@ -2962,7 +2967,15 @@ button:disabled {
   background: var(--studio-panel);
 }
 
+.image-results.is-single-result {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .image-results figure {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--studio-line);
@@ -2973,9 +2986,14 @@ button:disabled {
 .image-results img {
   display: block;
   width: 100%;
-  aspect-ratio: 1;
+  height: clamp(360px, calc(100vh - 330px), 720px);
+  aspect-ratio: auto;
   object-fit: contain;
   background: #eef3f3;
+}
+
+.image-results.is-single-result img {
+  height: clamp(420px, calc(100vh - 318px), 760px);
 }
 
 .image-results figcaption {
@@ -3141,6 +3159,11 @@ button:disabled {
 
   .message-avatar {
     display: none;
+  }
+
+  .image-results img,
+  .image-results.is-single-result img {
+    height: clamp(300px, 58vh, 520px);
   }
 }
 

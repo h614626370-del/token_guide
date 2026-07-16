@@ -43,6 +43,11 @@ export function createPricingService({ db, config, logger }) {
       return repo.upsertModelSetting(input)
     },
 
+    upsertModelSettings(inputs) {
+      cache.reference = null
+      return repo.upsertModelSettings(inputs)
+    },
+
     deleteModelSetting(id) {
       cache.reference = null
       return repo.deleteModelSetting(id)
@@ -51,6 +56,11 @@ export function createPricingService({ db, config, logger }) {
     upsertGroupSetting(input) {
       cache.reference = null
       return repo.upsertGroupSetting(input)
+    },
+
+    upsertGroupSettings(inputs) {
+      cache.reference = null
+      return repo.upsertGroupSettings(inputs)
     },
 
     deleteGroupSetting(id) {

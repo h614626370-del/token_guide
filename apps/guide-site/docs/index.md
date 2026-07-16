@@ -20,19 +20,22 @@ titleTemplate: false
   </div>
 </section>
 
-::: tip 免费远程协助
-如果你看完文档后仍然无法完成配置，可以联系 Token向云客服获取免费远程协助。客服微信：`kkflow520`。也可以加入 Kkflow向云中转客户服务群：[金山文档 / WPS 云文档](https://www.kdocs.cn/l/csU8ZJybJe2V)。
-:::
-
-## Token向云是什么
-
-Token向云提供面向开发者和 AI 工具用户的 API 接入网关，重点解决 OpenAI 兼容接口、Claude 协议客户端、模型试用、API 密钥管理和会员余额充值等使用流程。用户可以先在主站完成注册、登录和余额充值，再创建 API 密钥，用于 Codex CLI、Claude Code、OpenCode、OpenClaw 等客户端配置。
-
-当前文档页不需要登录即可访问，适合在配置前快速确认接口地址、模型名称、客户端配置文件、常见错误和图片生成参数。主站登录入口为 [https://kkflow.org/](https://kkflow.org/)，文档说明入口为 [https://kkflow.org/guide/](https://kkflow.org/guide/)。
-
-::: tip 当前平台能力
-Token向云当前只接入 OpenAI 与 Claude 两类接口协议，暂未接入 Gemini。Gemini CLI、`/v1beta` 以及 Gemini 模型相关配置请先不要使用。
-:::
+<section class="guide-overview" aria-labelledby="guide-overview-title">
+  <div class="guide-overview__head">
+    <h2 id="guide-overview-title">为什么选择 Token向云</h2>
+    <p>Token向云统一解决海外模型网络连通、接口兼容和客户端接入问题。注册、充值并创建 API Key 后，即可接入 Codex CLI、Claude Code 等常用工具。</p>
+  </div>
+  <div class="guide-overview__points">
+    <p><strong>不用折腾环境</strong><span>无需代理或调试网络，按指南配置即可。</span></p>
+    <p><strong>优质网络线路</strong><span>优化国内访问海外模型的连通和响应体验。</span></p>
+    <p><strong>价格透明</strong><span>模型价格、套餐折扣与消耗倍率清晰可查。</span></p>
+    <p><strong>套餐额度自由</strong><span>无日限额和周限额，有效期内按需使用。</span></p>
+  </div>
+  <p class="guide-overview__support">
+    <strong>配置遇到问题？</strong>
+    <span>添加客服微信 <code>kkflow520</code> 获取免费远程协助，或加入 <a href="https://www.kdocs.cn/l/csU8ZJybJe2V">客户服务群</a>。</span>
+  </p>
+</section>
 
 ## 支持的 API 与工具
 

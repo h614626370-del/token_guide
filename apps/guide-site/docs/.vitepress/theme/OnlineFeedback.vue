@@ -163,20 +163,6 @@
 
         <aside class="feedback-side">
           <section class="feedback-panel">
-            <h2>处理状态</h2>
-            <dl>
-              <div>
-                <dt>已接收</dt>
-                <dd>提交后会生成反馈编号，并写入 guide-api 数据库。</dd>
-              </div>
-              <div>
-                <dt>管理员处理</dt>
-                <dd>管理员可回复、标记处理中或已处理；回复会显示在历史反馈里。</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section class="feedback-panel">
             <h2>提交建议</h2>
             <ul>
               <li>接口问题请带上模型名称和请求入口。</li>

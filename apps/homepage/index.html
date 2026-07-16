@@ -123,16 +123,59 @@
       }
 
       .tx-page {
+        position: relative;
+        isolation: isolate;
         min-height: 100vh;
         overflow: hidden;
         background:
-          linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
-          linear-gradient(180deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
-          linear-gradient(180deg, #ffffff 0%, #f8fafc 48%, #ffffff 100%);
+          linear-gradient(90deg, rgba(15, 23, 42, 0.034) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(15, 23, 42, 0.032) 1px, transparent 1px),
+          linear-gradient(180deg, #ffffff 0%, #f7fbfb 46%, #ffffff 100%);
         background-size:
           72px 72px,
           72px 72px,
           auto;
+      }
+
+      .tx-page::before,
+      .tx-page::after {
+        position: fixed;
+        z-index: 0;
+        content: "";
+        pointer-events: none;
+      }
+
+      .tx-page::before {
+        inset: -22vh -18vw;
+        background:
+          conic-gradient(from 210deg at 28% 24%, transparent 0 12%, rgba(94, 234, 212, 0.24) 18%, rgba(37, 99, 235, 0.16) 27%, transparent 39% 100%),
+          conic-gradient(from 36deg at 82% 62%, transparent 0 16%, rgba(15, 118, 110, 0.14) 25%, rgba(37, 99, 235, 0.1) 34%, transparent 48% 100%),
+          linear-gradient(118deg, transparent 0 20%, rgba(20, 184, 166, 0.12) 34%, transparent 56%),
+          linear-gradient(245deg, transparent 0 34%, rgba(37, 99, 235, 0.1) 51%, transparent 72%);
+        filter: blur(34px) saturate(1.08);
+        opacity: 0.82;
+        transform: translate3d(-1.5%, -1%, 0) rotate(-1deg);
+        animation: tx-atmosphere-flow 24s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+        will-change: transform;
+      }
+
+      .tx-page::after {
+        inset: -18vh -12vw;
+        background:
+          linear-gradient(100deg, transparent 0 12%, rgba(255, 255, 255, 0.78) 22%, transparent 36%),
+          linear-gradient(128deg, transparent 0 42%, rgba(94, 234, 212, 0.12) 50%, transparent 64%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.82), transparent 34%, rgba(255, 255, 255, 0.74));
+        opacity: 0.74;
+        transform: translate3d(1.2%, 0, 0) skewY(-3deg);
+        animation: tx-atmosphere-tide 32s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+        will-change: transform;
+      }
+
+      .tx-topbar,
+      main,
+      .tx-footer {
+        position: relative;
+        z-index: 1;
       }
 
       .tx-shell {
@@ -292,30 +335,129 @@
       .tx-hero::after {
         position: absolute;
         right: 0;
-        bottom: 22px;
+        bottom: -1px;
         left: 0;
         z-index: -1;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.16), transparent);
+        height: 170px;
+        background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.78) 76%, rgba(255, 255, 255, 0.9));
         content: "";
+        pointer-events: none;
       }
 
       .tx-scene {
         position: absolute;
-        inset: 38px max(-8vw, -120px) 28px;
+        inset: 0 max(-10vw, -160px) 0;
         z-index: -2;
         overflow: hidden;
+        opacity: 1;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(245, 252, 252, 0.56) 40%, rgba(255, 255, 255, 0.5) 94%),
+          linear-gradient(118deg, rgba(15, 118, 110, 0.08), transparent 32%),
+          linear-gradient(252deg, rgba(37, 99, 235, 0.065), transparent 35%);
+      }
+
+      .tx-scene::before,
+      .tx-scene::after {
+        position: absolute;
+        content: "";
+        pointer-events: none;
+      }
+
+      .tx-scene::before {
+        inset: -18% -10% auto;
+        height: 54%;
+        background:
+          conic-gradient(from 225deg at 56% 42%, transparent 0 9%, rgba(94, 234, 212, 0.38) 12%, rgba(37, 99, 235, 0.24) 21%, rgba(15, 23, 42, 0.07) 28%, transparent 39% 100%),
+          linear-gradient(105deg, transparent 0 18%, rgba(255, 255, 255, 0.88) 34%, transparent 52%);
+        filter: blur(26px) saturate(1.08);
+        opacity: 0.72;
+        transform: skewY(-7deg);
+      }
+
+      .tx-scene::after {
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 44%;
+        background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.64) 74%, rgba(255, 255, 255, 0.82));
+      }
+
+      .tx-prism-field {
+        position: absolute;
+        inset: 4% -8% 25%;
+        background:
+          linear-gradient(112deg, transparent 0 13%, rgba(20, 184, 166, 0.2) 18%, rgba(94, 234, 212, 0.09) 25%, transparent 35%),
+          linear-gradient(121deg, transparent 0 29%, rgba(37, 99, 235, 0.14) 36%, rgba(20, 184, 166, 0.11) 47%, transparent 59%),
+          linear-gradient(132deg, transparent 0 45%, rgba(15, 23, 42, 0.05) 51%, rgba(255, 255, 255, 0.72) 58%, transparent 72%);
+        filter: saturate(1.1);
         opacity: 0.9;
+        mask-image: linear-gradient(180deg, transparent, #000 16%, #000 72%, transparent);
+        pointer-events: none;
+        transform: translateY(-20px) skewY(-5deg);
+        animation: tx-prism-drift 14s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
       }
 
       .tx-scene-grid {
         position: absolute;
         inset: 0;
         background:
-          linear-gradient(90deg, rgba(37, 99, 235, 0.08) 1px, transparent 1px),
-          linear-gradient(180deg, rgba(15, 118, 110, 0.08) 1px, transparent 1px);
-        background-size: 110px 110px;
-        mask-image: linear-gradient(180deg, transparent, #000 18%, #000 76%, transparent);
+          linear-gradient(90deg, rgba(37, 99, 235, 0.075) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(15, 118, 110, 0.07) 1px, transparent 1px);
+        background-size: 96px 96px;
+        mask-image: linear-gradient(180deg, transparent, #000 16%, #000 70%, transparent);
+        opacity: 0.78;
+      }
+
+      .tx-route-map {
+        position: absolute;
+        inset: 16% 7% 18%;
+        pointer-events: none;
+      }
+
+      .tx-route-label {
+        position: absolute;
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.64);
+        padding: 0 12px;
+        color: rgba(52, 64, 84, 0.72);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        font-weight: 800;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+        backdrop-filter: blur(14px);
+        opacity: 0.58;
+      }
+
+      .tx-route-label::before {
+        display: none;
+      }
+
+      .tx-route-label:nth-child(1) {
+        top: 8%;
+        left: 9%;
+        transform: rotate(-5deg);
+      }
+
+      .tx-route-label:nth-child(2) {
+        top: 20%;
+        right: 15%;
+        transform: rotate(4deg);
+      }
+
+      .tx-route-label:nth-child(3) {
+        right: 8%;
+        bottom: 24%;
+        transform: rotate(-4deg);
+      }
+
+      .tx-route-label:nth-child(4) {
+        bottom: 15%;
+        left: 17%;
+        transform: rotate(3deg);
       }
 
       .tx-lane {
@@ -324,8 +466,8 @@
         left: -80px;
         display: flex;
         gap: 12px;
-        opacity: 0.72;
-        transform: rotate(-4deg);
+        opacity: 0.18;
+        transform: rotate(-3deg);
       }
 
       .tx-lane-a {
@@ -353,10 +495,37 @@
 
       @keyframes tx-lane {
         from {
-          transform: translateX(0) rotate(-4deg);
+          transform: translateX(0) rotate(-3deg);
         }
         to {
-          transform: translateX(-420px) rotate(-4deg);
+          transform: translateX(-420px) rotate(-3deg);
+        }
+      }
+
+      @keyframes tx-prism-drift {
+        from {
+          transform: translate3d(-1.5%, -20px, 0) skewY(-5deg);
+        }
+        to {
+          transform: translate3d(1.5%, -6px, 0) skewY(-5deg);
+        }
+      }
+
+      @keyframes tx-atmosphere-flow {
+        from {
+          transform: translate3d(-1.5%, -1%, 0) rotate(-1deg) scale(1);
+        }
+        to {
+          transform: translate3d(2%, 1.6%, 0) rotate(1deg) scale(1.03);
+        }
+      }
+
+      @keyframes tx-atmosphere-tide {
+        from {
+          transform: translate3d(1.2%, 0, 0) skewY(-3deg);
+        }
+        to {
+          transform: translate3d(-1.8%, 2.2%, 0) skewY(-4deg);
         }
       }
 
@@ -366,12 +535,12 @@
         width: 176px;
         height: 106px;
         place-items: center;
-        border: 1px solid rgba(219, 228, 238, 0.86);
+        border: 1px solid rgba(255, 255, 255, 0.72);
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.78);
+        background: rgba(255, 255, 255, 0.58);
         color: var(--muted);
-        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
-        backdrop-filter: blur(16px);
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.06);
+        backdrop-filter: blur(18px) saturate(1.2);
       }
 
       .tx-node strong {
@@ -390,7 +559,7 @@
 
       .tx-node-one {
         top: 18%;
-        left: 7%;
+        left: 11%;
       }
 
       .tx-node-two {
@@ -458,19 +627,21 @@
 
       .tx-hero-console {
         position: relative;
-        width: min(1480px, calc(100vw - 28px));
-        margin: 38px 50% 0;
+        width: min(1880px, calc(100vw - 32px));
+        margin: 30px 50% 0;
         overflow: hidden;
-        border: 1px solid rgba(94, 234, 212, 0.26);
+        border: 1px solid rgba(181, 244, 237, 0.34);
         border-radius: 8px;
         background:
-          linear-gradient(90deg, rgba(94, 234, 212, 0.07) 1px, transparent 1px),
-          linear-gradient(180deg, rgba(94, 234, 212, 0.05) 1px, transparent 1px),
-          linear-gradient(135deg, #06131f 0%, #0e2830 48%, #07111f 100%);
+          linear-gradient(90deg, rgba(94, 234, 212, 0.065) 1px, transparent 1px),
+          linear-gradient(180deg, rgba(94, 234, 212, 0.045) 1px, transparent 1px),
+          linear-gradient(135deg, rgba(6, 19, 31, 0.78) 0%, rgba(12, 45, 49, 0.68) 46%, rgba(7, 17, 31, 0.76) 100%);
         background-size: 64px 64px, 64px 64px, auto;
         box-shadow:
-          0 34px 100px rgba(15, 23, 42, 0.32),
-          inset 0 1px 0 rgba(255, 255, 255, 0.1);
+          0 32px 90px rgba(15, 23, 42, 0.2),
+          0 0 0 1px rgba(255, 255, 255, 0.07) inset,
+          inset 0 1px 0 rgba(255, 255, 255, 0.13);
+        backdrop-filter: blur(20px) saturate(1.28);
         color: #dbeafe;
         text-align: left;
         transform: translateX(-50%);
@@ -480,10 +651,11 @@
         position: absolute;
         inset: 0;
         background:
-          linear-gradient(115deg, transparent 0 28%, rgba(94, 234, 212, 0.13) 42%, transparent 58%),
-          linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 32%);
+          radial-gradient(circle at 50% 35%, rgba(94, 234, 212, 0.16), transparent 28%),
+          linear-gradient(115deg, transparent 0 24%, rgba(94, 234, 212, 0.08) 42%, transparent 60%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 32%);
         content: "";
-        opacity: 0.72;
+        opacity: 0.9;
         pointer-events: none;
       }
 
@@ -495,7 +667,7 @@
         justify-content: space-between;
         gap: 18px;
         border-bottom: 1px solid rgba(148, 255, 244, 0.12);
-        background: rgba(8, 17, 31, 0.76);
+        background: rgba(8, 17, 31, 0.46);
         padding: 14px 20px;
         color: #9fb6cc;
         font-size: 13px;
@@ -546,40 +718,18 @@
         z-index: 1;
         display: grid;
         grid-template-columns: minmax(230px, 0.86fr) minmax(360px, 1.26fr) minmax(280px, 1fr);
-        gap: 0;
+        gap: 12px;
         align-items: stretch;
-        min-height: 332px;
+        min-height: 344px;
+        padding: 14px;
       }
 
       .tx-console-flow::before {
-        position: absolute;
-        top: 50%;
-        right: 18%;
-        left: 18%;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.82), transparent);
-        content: "";
-        transform: translateY(-50%);
+        display: none;
       }
 
       .tx-console-flow::after {
-        position: absolute;
-        top: 50%;
-        left: 18%;
-        right: 18%;
-        z-index: 4;
-        height: 2px;
-        border-radius: 999px;
-        background:
-          linear-gradient(90deg, transparent 0 34%, #5eead4 44%, #ffffff 50%, #5eead4 56%, transparent 66% 100%);
-        background-position: -46% 0;
-        background-repeat: no-repeat;
-        background-size: 38% 100%;
-        box-shadow: 0 0 18px rgba(94, 234, 212, 0.62);
-        content: "";
-        pointer-events: none;
-        transform: translateY(-50%);
-        animation: tx-flow-signal 3.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+        display: none;
       }
 
       .tx-console-panel,
@@ -593,8 +743,10 @@
         display: grid;
         gap: 12px;
         align-content: start;
-        padding: 24px;
-        background: rgba(8, 17, 31, 0.46);
+        border: 1px solid rgba(148, 255, 244, 0.12);
+        border-radius: 8px;
+        padding: 22px;
+        background: rgba(8, 17, 31, 0.22);
       }
 
       .tx-console-panel:first-child {
@@ -645,7 +797,7 @@
         gap: 10px;
         border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.065);
+        background: rgba(255, 255, 255, 0.078);
         padding: 10px 11px;
         color: #ffffff;
         font-size: 13px;
@@ -720,10 +872,13 @@
         align-content: center;
         justify-items: center;
         overflow: hidden;
-        padding: 28px 30px;
+        border: 1px solid rgba(148, 255, 244, 0.14);
+        border-radius: 8px;
+        padding: 26px 28px;
         background:
-          linear-gradient(135deg, rgba(15, 118, 110, 0.34), rgba(37, 99, 235, 0.14)),
-          rgba(255, 255, 255, 0.055);
+          radial-gradient(circle at 50% 30%, rgba(94, 234, 212, 0.24), transparent 34%),
+          linear-gradient(135deg, rgba(15, 118, 110, 0.26), rgba(37, 99, 235, 0.11)),
+          rgba(255, 255, 255, 0.036);
         text-align: center;
       }
 
@@ -740,13 +895,11 @@
       }
 
       .tx-console-hub::after {
-        top: 50%;
-        right: -80px;
-        left: -80px;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.96), transparent);
-        transform: translateY(-50%);
-        animation: tx-line-glow 3.6s ease-in-out infinite;
+        inset: 16%;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(94, 234, 212, 0.2), transparent 66%);
+        filter: blur(18px);
+        opacity: 0.72;
       }
 
       .tx-console-hub > * {
@@ -822,14 +975,16 @@
         z-index: 1;
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 1px;
-        border-top: 1px solid rgba(148, 255, 244, 0.12);
-        background: rgba(255, 255, 255, 0.08);
+        gap: 10px;
+        padding: 0 14px 14px;
+        background: transparent;
       }
 
       .tx-console-stats span {
         display: block;
-        background: rgba(8, 17, 31, 0.72);
+        border: 1px solid rgba(148, 255, 244, 0.12);
+        border-radius: 8px;
+        background: rgba(8, 17, 31, 0.36);
         padding: 14px 16px;
         color: #93a9c4;
         font-size: 12px;
@@ -840,23 +995,6 @@
         margin-bottom: 4px;
         color: #ffffff;
         font-size: 15px;
-      }
-
-      @keyframes tx-flow-signal {
-        0% {
-          opacity: 0;
-          background-position: -46% 0;
-        }
-        18% {
-          opacity: 1;
-        }
-        78% {
-          opacity: 1;
-        }
-        100% {
-          opacity: 0;
-          background-position: 146% 0;
-        }
       }
 
       @keyframes tx-node-breathe {
@@ -885,31 +1023,18 @@
         }
       }
 
-      @keyframes tx-line-glow {
-        0%,
-        100% {
-          opacity: 0.58;
-        }
-        50% {
-          opacity: 1;
-        }
-      }
-
       @media (prefers-reduced-motion: reduce) {
+        .tx-page::before,
+        .tx-page::after,
         .tx-lane,
-        .tx-console-flow::after,
+        .tx-prism-field,
         .tx-console-top .tx-live-pill::before,
         .tx-console-apps span::before,
         .tx-console-apps span::after,
         .tx-console-routes span::after,
-        .tx-console-hub::after,
         .tx-hub-ring {
           animation: none;
-        }
-
-        .tx-console-flow::after {
-          opacity: 0.58;
-          background-position: 50% 0;
+          will-change: auto;
         }
       }
 
@@ -1489,12 +1614,14 @@
         }
 
         .tx-hero-console {
-          width: min(100% - 28px, 1180px);
+          width: min(100% - 20px, 1180px);
         }
 
         .tx-console-flow {
           grid-template-columns: 1fr;
+          gap: 10px;
           min-height: auto;
+          padding: 12px;
         }
 
         .tx-console-flow::before,
@@ -1511,8 +1638,7 @@
 
         .tx-console-panel:first-child,
         .tx-console-panel:last-child {
-          border-right: 0;
-          border-left: 0;
+          border: 1px solid rgba(148, 255, 244, 0.12);
         }
 
         .tx-console-panel:first-child,
@@ -1564,6 +1690,14 @@
 
         .tx-scene {
           inset: 18px -260px 0;
+        }
+
+        .tx-route-map {
+          display: none;
+        }
+
+        .tx-prism-field {
+          inset: 2% -70% 32%;
         }
 
         .tx-node {
@@ -1687,7 +1821,14 @@
       <main>
         <section class="tx-hero">
           <div class="tx-scene" aria-hidden="true">
+            <div class="tx-prism-field"></div>
             <div class="tx-scene-grid"></div>
+            <div class="tx-route-map">
+              <span class="tx-route-label">OpenAI compatible</span>
+              <span class="tx-route-label">Claude / Messages</span>
+              <span class="tx-route-label">Images / Responses</span>
+              <span class="tx-route-label">Usage / Billing</span>
+            </div>
             <div class="tx-lane tx-lane-a">
               <span class="tx-chip">/v1/chat/completions</span>
               <span class="tx-chip">Claude</span>

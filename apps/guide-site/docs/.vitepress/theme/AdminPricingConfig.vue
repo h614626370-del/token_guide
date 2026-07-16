@@ -68,7 +68,7 @@
           <thead>
             <tr>
               <th>展示</th>
-              <th>推荐</th>
+              <th title="在公开价格页显示推荐标记，并在默认排序中优先展示">推荐</th>
               <th>模型</th>
               <th>供应商</th>
               <th>显示名</th>
@@ -87,7 +87,7 @@
                 </label>
               </td>
               <td>
-                <label class="switch-field">
+                <label class="switch-field" title="在公开价格页显示推荐标记，并在默认排序中优先展示">
                   <input v-model="row.is_featured" type="checkbox" />
                   <span>{{ row.is_featured ? '是' : '否' }}</span>
                 </label>
@@ -518,15 +518,14 @@ async function saveModel(row: ModelDraft) {
 async function saveVisibleModels() {
   savingAllModels.value = true
   try {
-    for (const row of filteredModels.value) {
-      const saved = await adminFetch<ModelSetting>('/admin/pricing/models', {
-        method: 'PUT',
-        body: modelPayload(row),
-      })
-      applySavedModel(saved)
-    }
+    const rows = [...filteredModels.value]
+    const savedItems = await adminFetch<ModelSetting[]>('/admin/pricing/models/bulk', {
+      method: 'PUT',
+      body: { items: rows.map(modelPayload) },
+    })
+    savedItems.forEach(applySavedModel)
     refreshModelListOrder()
-    setStatus('success', '当前模型列表已保存。')
+    setStatus('success', `已一次保存 ${savedItems.length} 个模型。`)
   } catch (error) {
     setStatus('error', error instanceof Error ? error.message : '批量保存失败')
   } finally {
@@ -602,15 +601,14 @@ async function saveGroup(row: GroupDraft) {
 async function saveVisibleGroups() {
   savingAllGroups.value = true
   try {
-    for (const row of filteredGroups.value) {
-      const saved = await adminFetch<GroupSetting>('/admin/pricing/groups', {
-        method: 'PUT',
-        body: groupPayload(row),
-      })
-      applySavedGroup(saved)
-    }
+    const rows = [...filteredGroups.value]
+    const savedItems = await adminFetch<GroupSetting[]>('/admin/pricing/groups/bulk', {
+      method: 'PUT',
+      body: { items: rows.map(groupPayload) },
+    })
+    savedItems.forEach(applySavedGroup)
     refreshGroupListOrder()
-    setStatus('success', '当前分组列表已保存。')
+    setStatus('success', `已一次保存 ${savedItems.length} 个分组。`)
   } catch (error) {
     setStatus('error', error instanceof Error ? error.message : '批量保存失败')
   } finally {
@@ -881,11 +879,16 @@ function providerLabel(provider: string) {
 }
 
 function compareModelRows(a: ModelDraft, b: ModelDraft) {
-  return compareProviders(a.provider, b.provider)
-    || (safeInt(a.sort_order, 1000) - safeInt(b.sort_order, 1000))
-    || (Number(b.is_featured) - Number(a.is_featured))
-    || (Number(b.is_visible) - Number(a.is_visible))
+  return (Number(b.is_visible) - Number(a.is_visible))
+    || compareProviders(a.provider, b.provider)
+    || compareModelIds(a, b)
     || a.model_name.localeCompare(b.model_name, 'en', { numeric: true, sensitivity: 'base' })
+}
+
+function compareModelIds(a: ModelDraft, b: ModelDraft) {
+  const aId = Number.isSafeInteger(a.id) ? Number(a.id) : Number.MAX_SAFE_INTEGER
+  const bId = Number.isSafeInteger(b.id) ? Number(b.id) : Number.MAX_SAFE_INTEGER
+  return aId - bId
 }
 
 function compareStableModelRows(a: ModelDraft, b: ModelDraft) {

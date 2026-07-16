@@ -16,6 +16,10 @@ export const upsertModelSettingSchema = z.object({
   note: z.string().trim().max(1000).optional().nullable(),
 })
 
+export const upsertModelSettingsSchema = z.object({
+  items: z.array(upsertModelSettingSchema).min(1).max(1000),
+})
+
 export const upsertGroupSettingSchema = z.object({
   provider: providerSchema,
   source_id: z.string().trim().min(1).max(80),
@@ -27,6 +31,10 @@ export const upsertGroupSettingSchema = z.object({
   recharge_credit_usd: z.coerce.number().positive().max(1000000).optional().nullable(),
   sort_order: z.coerce.number().int().min(0).max(100000).optional(),
   note: z.string().trim().max(1000).optional().nullable(),
+})
+
+export const upsertGroupSettingsSchema = z.object({
+  items: z.array(upsertGroupSettingSchema).min(1).max(1000),
 })
 
 export const listSourceQuerySchema = z.object({

@@ -20,6 +20,8 @@
 | `GET` | `/guide-api/admin/pricing/config` | 查看价格展示配置 |
 | `GET` | `/guide-api/admin/pricing/source?refresh=true` | 查看从 sub2api 读取到的模型和分组 |
 | `PUT` | `/guide-api/admin/pricing/settings` | 保存 sub2api 数据源、同步平台和汇率配置 |
+| `PUT` | `/guide-api/admin/pricing/models/bulk` | 在单个事务中批量保存模型展示配置 |
+| `PUT` | `/guide-api/admin/pricing/groups/bulk` | 在单个事务中批量保存分组展示配置 |
 | `POST` | `/guide-api/admin/pricing/refresh` | 管理员强制刷新价格参考缓存 |
 | `PUT` | `/guide-api/admin/pricing/models` | 新增或更新模型展示配置 |
 | `DELETE` | `/guide-api/admin/pricing/models/:id` | 删除模型展示配置 |

@@ -12,6 +12,7 @@
     "docs:preview": "npm run site:preview",
     "api:dev": "node --watch apps/guide-api/src/server.js",
     "api:start": "node apps/guide-api/src/server.js",
+    "api:test": "node --test apps/guide-api/test",
     "deploy": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./deploy.ps1",
     "deploy:guide": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-guide.ps1",
     "release:guide-api": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-guide-api.ps1"

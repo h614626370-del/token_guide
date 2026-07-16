@@ -178,7 +178,10 @@
               <div class="model-parent-title">
                 <span class="avatar">{{ group.model.provider_short }}</span>
                 <div>
-                  <h3>{{ group.model.display_name }}</h3>
+                  <h3>
+                    <span>{{ group.model.display_name }}</span>
+                    <em v-if="group.model.is_featured" class="featured-label">推荐</em>
+                  </h3>
                   <p>{{ group.model.provider_label }} · {{ group.model.model_name }}</p>
                 </div>
               </div>
@@ -709,6 +712,7 @@ function groupNumericPrice(group: ModelPriceGroup, key: PriceKey) {
 
 function compareModelRows(a: PricingRow, b: PricingRow) {
   return providerRank(a.model.provider) - providerRank(b.model.provider)
+    || Number(b.model.is_featured) - Number(a.model.is_featured)
     || a.model.sort_order - b.model.sort_order
     || a.model.display_name.localeCompare(b.model.display_name, 'zh-CN', { numeric: true, sensitivity: 'base' })
 }
@@ -1670,11 +1674,29 @@ td span {
 }
 
 .model-parent-title h3 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
   margin: 0;
   overflow-wrap: anywhere;
   color: #102033;
   font-size: 15px;
   line-height: 1.35;
+}
+
+.featured-label {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  border-radius: 4px;
+  padding: 0 6px;
+  color: #875305;
+  background: #fff1d8;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .model-parent-title p {
@@ -1937,6 +1959,11 @@ td span {
 :global(.dark) .discount-pill.rmb {
   color: #bcd8ff;
   background: rgba(87, 151, 233, 0.2);
+}
+
+:global(.dark) .featured-label {
+  color: #ffd893;
+  background: rgba(184, 111, 10, 0.24);
 }
 
 :global(.dark) .summary-grid div,
