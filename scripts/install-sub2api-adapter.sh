@@ -4,7 +4,7 @@ set -Eeuo pipefail
 IMAGE="614626370/sub2api-adapter"
 VERSION="latest"
 LISTEN_ADDR="127.0.0.1:18080"
-INSTALL_DIR="${HOME}/sub2api-adapter"
+INSTALL_DIR="$(pwd)"
 PROXY_URL=""
 
 usage() {
@@ -12,7 +12,7 @@ usage() {
 Usage: bash install-sub2api-adapter.sh [options]
 
 Options:
-  --dir PATH        Install directory. Default: ~/sub2api-adapter
+  --dir PATH        Install directory. Default: current directory
   --listen ADDRESS  Adapter listen address. Default: 127.0.0.1:18080
   --proxy URL       Online updater proxy, for example http://192.168.1.2:7897
   --image IMAGE     Docker image repository. Default: 614626370/sub2api-adapter
