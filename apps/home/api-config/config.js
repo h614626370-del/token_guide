@@ -1,0 +1,21 @@
+window.LLAPI_HOME_CONFIG = {
+  brandName: "灵链",
+  brandApiName: "{{brandName}} API",
+  brandEnglishName: "LINGLIAN",
+  brandTagline: "AI gateway for builders",
+  statusText: "网关运行中",
+  siteUrl: "https://llapi.org",
+  apiBaseUrl: "{{siteUrl}}/v1",
+  guideUrl: "{{siteUrl}}/guide/",
+  logoUrl: "./api-assets/logo.svg",
+  socialImageUrl: "/api-assets/logo.svg",
+  loginUrl: "/login",
+  registerUrl: "/register",
+  dashboardUrl: "/dashboard",
+  pageTitle: "{{brandName}} - 一站式 AI API 聚合接入",
+  seoDescription: "{{brandName}}提供一站式 AI API 聚合接入，通过一个 Base URL 和一个 API Key 调用 Claude、GPT、Gemini 等主流模型，并统一管理用量、余额与团队成本。",
+  seoKeywords: "{{brandName}},AI API,AI API网关,大模型接口,Claude API,GPT API,Gemini API,API Key,Token统计,AI中转,模型聚合",
+  ogDescription: "把多家模型收进一套接口。统一 Base URL、API Key、Token 用量、余额与团队成本。",
+  twitterDescription: "用一套 API 接入 Claude、GPT、Gemini、图片、语音与向量能力。",
+  copyrightYear: 2026
+};

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="958" height="958" viewBox="-229 -183.5 958 958"
+     fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">AI frame logo</title>
+  <desc id="desc">A metallic gray letter A inside an open square frame with purple accents, set on a softly shaded white rounded square with transparent surroundings.</desc>
+
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#fafaf9"/>
+      <stop offset="0.58" stop-color="#f5f5f4"/>
+      <stop offset="1" stop-color="#eceeef"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="55" y1="35" x2="430" y2="435"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d2d4d7"/>
+      <stop offset="0.46" stop-color="#b7b9bd"/>
+      <stop offset="1" stop-color="#96999e"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="220" y1="0" x2="518" y2="420"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9f12d1"/>
+      <stop offset="0.48" stop-color="#d13bee"/>
+      <stop offset="1" stop-color="#a314cf"/>
+    </linearGradient>
+    <filter id="lift" x="-12%" y="-12%" width="130%" height="135%"
+            color-interpolation-filters="sRGB">
+      <feDropShadow dx="2" dy="6" stdDeviation="4.5"
+                    flood-color="#343238" flood-opacity="0.2"/>
+    </filter>
+    <filter id="tile-shadow" x="-12%" y="-12%" width="130%" height="140%"
+            color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="0" stdDeviation="14"
+                    flood-color="#36383c" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded app-icon tile. Everything outside it remains transparent. -->
+  <rect x="-194" y="-148.5" width="888" height="888" rx="200"
+        fill="url(#tile)" stroke="#ffffff" stroke-width="2"
+        stroke-opacity="0.7" filter="url(#tile-shadow)"/>
+
+  <g transform="translate(-9 56.5)" filter="url(#lift)">
+    <!-- Left and lower sides of the open frame. -->
+    <path d="M0 65L68 0V408H309L250 473H0V65Z" fill="url(#metal)"/>
+
+    <!-- Upper side of the frame. -->
+    <path d="M280 0H518V62H220L280 0Z" fill="url(#purple)"/>
+
+    <!-- Right side and its folded purple end. -->
+    <path d="M450 100H518V362H450V100Z" fill="url(#metal)"/>
+    <path d="M450 362H518V410L450 478V362Z" fill="url(#purple)"/>
+
+    <!-- Letter A. The triangular counter is cut out with the even-odd rule. -->
+    <path fill-rule="evenodd" clip-rule="evenodd"
+          d="M108 362L225 100H301L410 362H340L320 309H198L176 362H108ZM263 170L302 261H224L263 170Z"
+          fill="url(#metal)"/>
+  </g>
+</svg>
