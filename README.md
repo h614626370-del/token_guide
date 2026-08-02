@@ -5,7 +5,7 @@
 ## 目录
 
 - `apps/guide-site/docs/`: VitePress 指南站源码，线上路径为 `https://kkflow.org/guide/`
-- `apps/homepage/index.html`: 根域名官网首页，部署到 `https://kkflow.org/`
+- `apps/向云home/index.html`: 根域名官网首页，部署到 `https://kkflow.org/`
 - `apps/guide-api/`: 指南站独立 API 服务，默认路径前缀为 `/guide-api/`，承载在线反馈和模型价格聚合
 - `config/`: Nginx、systemd 等部署示例
 - `scripts/`: 辅助脚本
@@ -60,7 +60,7 @@ npm run api:dev
 上传：
 
 ```text
-apps/homepage/index.html -> /www/wwwroot/kkflow.org/index.html
+apps/向云home/index.html -> /www/wwwroot/kkflow.org/index.html
 ```
 
 Nginx 需要让根路径精确匹配静态首页，并保留其他路径反代到 sub2api：
@@ -77,6 +77,6 @@ location = / {
 
 ## 注意
 
-- `apps/homepage/index.html` 是完整独立页面，适合部署到根域名。
+- `apps/向云home/index.html` 是完整独立页面，适合部署到根域名。
 - 如需维护 sub2api 后台“首页内容”片段，应从完整首页提取 `<style>` 和 `<body>` 内部内容生成对应片段，不要直接粘贴完整 HTML。
 - 不提交 `node_modules/`、`dist/`、SQLite 数据库文件、日志文件或任何密钥。

@@ -14,8 +14,8 @@
 ## 关键目录
 
 - `apps/guide-site/docs/`: VitePress 文档源码。
-- `apps/homepage/index.html`: 独立官网首页，上传到 `/www/wwwroot/kkflow.org/index.html`。
-- `apps/homepage/`: 官网首页资源。如需 sub2api 后台“首页内容”片段，应从完整首页提取生成。
+- `apps/向云home/index.html`: 独立官网首页，上传到 `/www/wwwroot/kkflow.org/index.html`。
+- `apps/向云home/`: 官网首页资源。如需 sub2api 后台“首页内容”片段，应从完整首页提取生成。
 - `apps/guide-api/`: 指南站 API 服务，当前包含反馈模块和模型价格聚合模块。
 - `config/`: Nginx / systemd 示例配置。
 - `scripts/`: 辅助脚本。
@@ -40,9 +40,9 @@ npm run deploy -- -Key
 
 ## 首页维护约定
 
-- 修改官网首页时，优先维护 `apps/homepage/index.html`。
+- 修改官网首页时，优先维护 `apps/向云home/index.html`。
 - 如果需要同步 sub2api 后台“首页内容”，从 `index.html` 提取 `<style>` 和 `<body>` 内部内容生成片段。
-- `apps/homepage/index.html` 是完整 HTML，适合独立部署；不要直接粘到 sub2api 后台输入框。
+- `apps/向云home/index.html` 是完整 HTML，适合独立部署；不要直接粘到 sub2api 后台输入框。
 - 根首页部署依赖 Nginx 精确匹配：
 
 ```nginx
@@ -73,9 +73,9 @@ npm run docs:build
 构建成功后：
 
 - 指南站产物位于 `dist/guide/`，将该目录内的全部内容上传到服务器 `/www/wwwroot/kkflow.org/guide/`。
-- 官网首页是 `apps/homepage/index.html`，单独上传到 `/www/wwwroot/kkflow.org/index.html`。
+- 官网首页是 `apps/向云home/index.html`，单独上传到 `/www/wwwroot/kkflow.org/index.html`。
 - `dist/` 是构建产物，不提交 Git。
-- 只更新指南站时不必上传首页；修改过 `apps/homepage/index.html` 时才同步首页文件。
+- 只更新指南站时不必上传首页；修改过 `apps/向云home/index.html` 时才同步首页文件。
 
 ## guide-api Docker 发布
 
