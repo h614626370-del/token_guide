@@ -189,7 +189,11 @@ function stopPolling() {
   pollTimer = null
 }
 
-const busy = computed(() => loading.value || checking.value || applying.value || restarting.value || Boolean(status.value?.job.phase === 'pulling' || status.value?.job.phase === 'recreating'))
+const jobActive = computed(() => Boolean(status.value?.job.phase === 'checking'
+  || status.value?.job.phase === 'pulling'
+  || status.value?.job.phase === 'recreating'
+  || status.value?.job.phase === 'restarting'))
+const busy = computed(() => loading.value || checking.value || applying.value || restarting.value || jobActive.value)
 const primaryUpdateText = computed(() => {
   if (checking.value) return '检测中…'
   if (applying.value) return '更新中…'
@@ -263,7 +267,7 @@ const shortImageId = computed(() => status.value?.current_image_id?.replace(/^sh
       <div v-if="notice.message" :class="['tool-alert', notice.type === 'error' ? 'tool-alert--error' : 'tool-alert--success']">
         {{ notice.message }}
       </div>
-      <div v-if="status?.apply_block_reason && status.latest_tag && status.update_available" class="tool-alert tool-alert--error">
+      <div v-if="status?.apply_block_reason && status.latest_tag && status.update_available && !jobActive" class="tool-alert tool-alert--error">
         {{ status.apply_block_reason }}
       </div>
 

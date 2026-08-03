@@ -24,6 +24,15 @@ export interface DockerContainerInspect {
     Healthcheck?: Record<string, unknown>
   }
   HostConfig: Record<string, unknown>
+  State?: {
+    Status?: string
+    Running?: boolean
+    ExitCode?: number
+    Error?: string
+    Health?: {
+      Status?: string
+    }
+  }
   NetworkSettings?: {
     Networks?: Record<string, {
       IPAMConfig?: unknown
@@ -267,6 +276,97 @@ export function createDockerClient(socketPath: string) {
 }
 
 export type DockerClient = ReturnType<typeof createDockerClient>
+
+const UPDATE_HELPER_SCRIPT = String.raw`
+const http = require('node:http')
+const socketPath = process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock'
+const oldId = process.env.OLD_CONTAINER_ID
+const newId = process.env.NEW_CONTAINER_ID
+const desiredName = process.env.DESIRED_CONTAINER_NAME
+
+function request(method, path) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ socketPath, path, method, timeout: 30000 }, (res) => {
+      const chunks = []
+      res.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8')
+        if ((res.statusCode || 500) >= 300 && res.statusCode !== 304 && res.statusCode !== 404) {
+          reject(new Error('Docker API ' + method + ' ' + path + ' failed (' + res.statusCode + '): ' + body.slice(0, 300)))
+          return
+        }
+        resolve(body)
+      })
+    })
+    req.on('timeout', () => req.destroy(new Error('Docker API request timed out')))
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+async function waitUntilReady() {
+  for (let attempt = 0; attempt < 75; attempt += 1) {
+    const body = await request('GET', '/containers/' + encodeURIComponent(newId) + '/json')
+    const inspect = JSON.parse(body)
+    const running = Boolean(inspect.State && inspect.State.Running)
+    const health = inspect.State && inspect.State.Health && inspect.State.Health.Status
+    if (!running) throw new Error('New container stopped before becoming ready')
+    if (!health || health === 'healthy') return
+    if (health === 'unhealthy') throw new Error('New container health check failed')
+    await sleep(1000)
+  }
+  throw new Error('Timed out waiting for the new container health check')
+}
+
+async function rollback(error) {
+  console.error(error && error.stack ? error.stack : error)
+  try { await request('DELETE', '/containers/' + encodeURIComponent(newId) + '?force=1&v=0') } catch {}
+  try { await request('POST', '/containers/' + encodeURIComponent(oldId) + '/rename?name=' + encodeURIComponent(desiredName)) } catch {}
+  try { await request('POST', '/containers/' + encodeURIComponent(oldId) + '/start') } catch {}
+  process.exitCode = 1
+}
+
+async function main() {
+  await sleep(800)
+  try {
+    await request('POST', '/containers/' + encodeURIComponent(oldId) + '/stop?t=15')
+    await request('POST', '/containers/' + encodeURIComponent(newId) + '/start')
+    await waitUntilReady()
+    await request('DELETE', '/containers/' + encodeURIComponent(oldId) + '?force=1&v=0')
+  } catch (error) {
+    await rollback(error)
+  }
+}
+
+main().catch(rollback)
+`
+
+export function buildUpdateHelperPayload(input: {
+  imageRef: string
+  oldContainerId: string
+  newContainerId: string
+  desiredName: string
+  dockerSocketPath: string
+}) {
+  return {
+    Image: input.imageRef,
+    User: '0',
+    Env: [
+      `DOCKER_SOCKET_PATH=${input.dockerSocketPath}`,
+      `OLD_CONTAINER_ID=${input.oldContainerId}`,
+      `NEW_CONTAINER_ID=${input.newContainerId}`,
+      `DESIRED_CONTAINER_NAME=${input.desiredName}`,
+    ],
+    Cmd: ['node', '-e', UPDATE_HELPER_SCRIPT],
+    HostConfig: {
+      AutoRemove: true,
+      NetworkMode: 'none',
+      Binds: [`${input.dockerSocketPath}:${input.dockerSocketPath}`],
+    },
+  }
+}
 
 function formatDockerError(action: string, statusCode: number, body: unknown) {
   const detail = dockerErrorDetail(body)

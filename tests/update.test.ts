@@ -1,5 +1,8 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildRecreatePayload } from '../server/domain/update/docker'
+import { buildRecreatePayload, buildUpdateHelperPayload } from '../server/domain/update/docker'
 import {
   applyUpdate,
   checkForUpdate,
@@ -131,7 +134,7 @@ describe('update service', () => {
     vi.useRealTimers()
   })
 
-  it('stops the old container before starting the replacement during updates', async () => {
+  it('hands replacement startup to an independent helper container', async () => {
     vi.stubEnv('HOSTNAME', 'old-container-id')
     const fetcher = vi.fn(async () => ({
       ok: true,
@@ -167,6 +170,7 @@ describe('update service', () => {
       inspectContainer: async (idOrName: string) => {
         if (idOrName === 'old-container-id') return oldContainer
         if (idOrName === 'sub2api-guide') return staleContainer
+        if (idOrName === 'sub2api-guide-updater') return null
         return oldContainer
       },
       inspectImage: async () => ({
@@ -178,7 +182,7 @@ describe('update service', () => {
       renameContainer: async (idOrName: string, newName: string) => operations.push(`rename:${idOrName}:${newName}`),
       createContainer: async (name: string) => {
         operations.push(`create:${name}`)
-        return 'new-container-id'
+        return name === 'sub2api-guide' ? 'new-container-id' : 'helper-container-id'
       },
       stopContainer: async (idOrName: string) => operations.push(`stop:${idOrName}`),
       startContainer: async (idOrName: string) => operations.push(`start:${idOrName}`),
@@ -187,16 +191,76 @@ describe('update service', () => {
     await checkForUpdate(undefined, fetcher)
     await applyUpdate(undefined, { docker: docker as any, fetcher })
 
-    const status = await waitForUpdateJob(docker as any)
-    expect(status.job.phase).toBe('success')
+    const status = await waitForUpdateHandoff(docker as any)
+    expect(status.job.phase).toBe('recreating')
     expect(operations).toEqual(expect.arrayContaining([
       'remove:stale-new-container-id',
       'create:sub2api-guide',
-      'stop:old-container-id',
-      'start:new-container-id',
-      'remove:old-container-id',
+      'create:sub2api-guide-updater',
+      'start:helper-container-id',
     ]))
-    expect(operations.indexOf('stop:old-container-id')).toBeLessThan(operations.indexOf('start:new-container-id'))
+    expect(operations).not.toContain('stop:old-container-id')
+    expect(operations).not.toContain('start:new-container-id')
+  })
+
+  it('reconciles a persisted update after the replacement container starts', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sub2api-update-'))
+    const statePath = join(directory, 'update-state.json')
+    vi.stubEnv('NUXT_UPDATE_STATE_PATH', statePath)
+    vi.stubEnv('HOSTNAME', 'old-container-id')
+
+    const fetcher = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ tag_name: 'v2.0.4' }),
+    })) as unknown as typeof fetch
+    const oldContainer = {
+      Id: 'old-container-id',
+      Image: 'sha256:old-image',
+      Name: '/sub2api-guide',
+      Config: {
+        Image: '614626370/sub2api-guide:v2.0.0',
+        Env: ['NUXT_APP_VERSION=v2.0.0'],
+      },
+      HostConfig: {},
+    }
+    let createCount = 0
+    const oldDocker = {
+      isAvailable: async () => true,
+      inspectContainer: async (idOrName: string) => idOrName === 'sub2api-guide-updater' ? null : oldContainer,
+      inspectImage: async () => ({ Id: 'sha256:old-image', Config: { Env: ['NUXT_APP_VERSION=v2.0.0'] } }),
+      pullImage: async () => {},
+      removeContainer: async () => {},
+      renameContainer: async () => {},
+      createContainer: async () => (++createCount === 1 ? 'new-container-id' : 'helper-container-id'),
+      startContainer: async () => {},
+    }
+
+    await checkForUpdate(undefined, fetcher)
+    await applyUpdate(undefined, { docker: oldDocker as any, fetcher })
+    await waitForUpdateHandoff(oldDocker as any)
+    expect(JSON.parse(readFileSync(statePath, 'utf8')).job.running).toBe(true)
+
+    resetUpdateStateForTests(false)
+    const newContainer = {
+      ...oldContainer,
+      Id: 'new-container-id',
+      Image: 'sha256:new-image',
+      Config: {
+        Image: '614626370/sub2api-guide:v2.0.4',
+        Env: ['NUXT_APP_VERSION=v2.0.4'],
+      },
+    }
+    const newDocker = {
+      isAvailable: async () => true,
+      inspectContainer: async () => newContainer,
+      inspectImage: async () => ({ Id: 'sha256:new-image', Config: { Env: ['NUXT_APP_VERSION=v2.0.4'] } }),
+    }
+    const status = await getUpdateStatus(undefined, newDocker as any)
+
+    expect(status.current_version).toBe('v2.0.4')
+    expect(status.job.phase).toBe('success')
+    expect(status.job.message).toContain('已更新到 v2.0.4')
+    rmSync(directory, { recursive: true, force: true })
   })
 })
 
@@ -204,6 +268,15 @@ async function waitForUpdateJob(docker: any) {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const status = await getUpdateStatus(undefined, docker)
     if (status.job.phase === 'success' || status.job.phase === 'error') return status
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  return await getUpdateStatus(undefined, docker)
+}
+
+async function waitForUpdateHandoff(docker: any) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const status = await getUpdateStatus(undefined, docker)
+    if (status.job.phase === 'recreating' || status.job.phase === 'error') return status
     await new Promise(resolve => setTimeout(resolve, 0))
   }
   return await getUpdateStatus(undefined, docker)
@@ -241,5 +314,25 @@ describe('docker recreate payload', () => {
       RestartPolicy: { Name: 'unless-stopped' },
       Binds: ['/www/data:/data'],
     })
+  })
+
+  it('builds an isolated helper that owns the stop-start handoff', () => {
+    const payload = buildUpdateHelperPayload({
+      imageRef: '614626370/sub2api-guide:v2.2.0',
+      oldContainerId: 'old-id',
+      newContainerId: 'new-id',
+      desiredName: 'sub2api-guide',
+      dockerSocketPath: '/var/run/docker.sock',
+    })
+
+    expect(payload.User).toBe('0')
+    expect(payload.Env).toContain('OLD_CONTAINER_ID=old-id')
+    expect(payload.Env).toContain('NEW_CONTAINER_ID=new-id')
+    expect(payload.HostConfig).toMatchObject({
+      AutoRemove: true,
+      NetworkMode: 'none',
+      Binds: ['/var/run/docker.sock:/var/run/docker.sock'],
+    })
+    expect(() => new Function(payload.Cmd[2])).not.toThrow()
   })
 })

@@ -1,7 +1,10 @@
 import type { H3Event } from 'h3'
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { getGuideConfig } from '../../utils/config'
 import {
   buildRecreatePayload,
+  buildUpdateHelperPayload,
   createDockerClient,
   resolveSelfContainer,
   type DockerClient,
@@ -59,6 +62,12 @@ interface UpdateJobState extends UpdateJobView {
   running: boolean
 }
 
+interface UpdateStateStore {
+  latest: LatestRelease | null
+  checkedAt: string | null
+  job: UpdateJobState
+}
+
 interface LatestRelease {
   version: string
   tag: string
@@ -76,31 +85,76 @@ interface CurrentInstallation {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __sub2apiUpdateState: {
-    latest: LatestRelease | null
-    checkedAt: string | null
-    job: UpdateJobState
-  } | undefined
+  var __sub2apiUpdateState: UpdateStateStore | undefined
+}
+
+let persistedJobNeedsReconcile = false
+
+function createDefaultState(): UpdateStateStore {
+  return {
+    latest: null,
+    checkedAt: null,
+    job: {
+      running: false,
+      phase: 'idle',
+      message: '尚未执行更新操作。',
+      target_version: null,
+      started_at: null,
+      finished_at: null,
+      logs: [],
+      error: null,
+    },
+  }
 }
 
 function getState() {
   if (!globalThis.__sub2apiUpdateState) {
-    globalThis.__sub2apiUpdateState = {
-      latest: null,
-      checkedAt: null,
-      job: {
-        running: false,
-        phase: 'idle',
-        message: '尚未执行更新操作。',
-        target_version: null,
-        started_at: null,
-        finished_at: null,
-        logs: [],
-        error: null,
-      },
-    }
+    const persisted = readPersistedState()
+    globalThis.__sub2apiUpdateState = persisted || createDefaultState()
+    persistedJobNeedsReconcile = Boolean(persisted?.job.running)
   }
   return globalThis.__sub2apiUpdateState
+}
+
+function updateStatePath() {
+  const explicit = String(process.env.NUXT_UPDATE_STATE_PATH || '').trim()
+  if (explicit) return resolve(explicit)
+  if (process.env.NODE_ENV === 'test') return null
+  const databasePath = String(process.env.NUXT_DATABASE_PATH || 'data/guide.sqlite').trim()
+  return resolve(dirname(databasePath), 'update-state.json')
+}
+
+function readPersistedState(): UpdateStateStore | null {
+  const file = updateStatePath()
+  if (!file) return null
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<UpdateStateStore>
+    if (!parsed.job || typeof parsed.job.phase !== 'string') return null
+    return {
+      latest: parsed.latest || null,
+      checkedAt: parsed.checkedAt || null,
+      job: {
+        ...createDefaultState().job,
+        ...parsed.job,
+        logs: Array.isArray(parsed.job.logs) ? parsed.job.logs.slice(-80) : [],
+      },
+    }
+  } catch {
+    return null
+  }
+}
+
+function persistState() {
+  const file = updateStatePath()
+  if (!file || !globalThis.__sub2apiUpdateState) return
+  try {
+    mkdirSync(dirname(file), { recursive: true })
+    const temporary = `${file}.${process.pid}.tmp`
+    writeFileSync(temporary, JSON.stringify(globalThis.__sub2apiUpdateState), 'utf8')
+    renameSync(temporary, file)
+  } catch {
+    // Updating must still work when the optional progress file cannot be written.
+  }
 }
 
 function jobView(job: UpdateJobState): UpdateJobView {
@@ -122,6 +176,7 @@ function appendLog(message: string) {
   if (state.job.logs.length > 80) {
     state.job.logs = state.job.logs.slice(-80)
   }
+  persistState()
 }
 
 function beginJob(phase: UpdatePhase, message: string, targetVersion: string | null = null) {
@@ -152,6 +207,30 @@ function finishJob(phase: 'success' | 'error', message: string, error: string | 
   appendLog(message)
 }
 
+function setJobProgress(phase: UpdatePhase, message: string) {
+  const state = getState()
+  state.job.phase = phase
+  state.job.message = message
+  appendLog(message)
+}
+
+function reconcilePersistedJob(current: CurrentInstallation) {
+  const state = getState()
+  if (!persistedJobNeedsReconcile || !state.job.running) return
+  persistedJobNeedsReconcile = false
+
+  const target = state.job.target_version
+  if (target && !isUpdateAvailable(current.version, target)) {
+    finishJob('success', `已更新到 ${toImageTag(target)}，新容器运行正常。`)
+    return
+  }
+
+  const message = target
+    ? `更新到 ${toImageTag(target)} 的过程中服务已恢复，但当前仍是 ${toImageTag(current.version)}。旧版本已自动回滚。`
+    : '更新过程中服务发生重启，任务未能完成。'
+  finishJob('error', message, message)
+}
+
 export function getUpdateConfig(event?: H3Event) {
   const config = getGuideConfig(event)
   const runtime = useRuntimeConfig(event)
@@ -173,6 +252,7 @@ export async function getUpdateStatus(event?: H3Event, docker?: DockerClient | n
     : docker
   const dockerAvailable = client ? await client.isAvailable() : false
   const current = await resolveCurrentInstallation(config, dockerAvailable ? client : null)
+  reconcilePersistedJob(current)
   const latest = state.latest
   const updateAvailable = latest ? isUpdateAvailable(current.version, latest.version) : false
   const applyBlockReason = getApplyBlockReason({
@@ -443,10 +523,10 @@ async function runApplyJob(input: {
     const currentName = self.Name.replace(/^\//, '') || containerName
     const originalName = containerName
     const tempName = `${originalName}-old-${Date.now().toString(36)}`
+    const helperName = `${originalName}-updater`
     const recreate = buildRecreatePayload(self, imageRef)
 
-    getState().job.phase = 'recreating'
-    getState().job.message = '正在用新镜像重建容器…'
+    setJobProgress('recreating', '正在准备新容器并移交更新任务…')
     const existingDesired = await docker.inspectContainer(originalName)
     if (existingDesired && existingDesired.Id !== self.Id) {
       appendLog(`移除上次失败残留容器 ${originalName}`)
@@ -457,7 +537,7 @@ async function runApplyJob(input: {
     await docker.renameContainer(self.Id, tempName)
 
     let newId = ''
-    let oldStopped = false
+    let helperId = ''
     try {
       appendLog(`创建新容器 ${originalName} <- ${imageRef}`)
       // Ensure version env is present on the new container.
@@ -467,16 +547,30 @@ async function runApplyJob(input: {
       recreate.body.Env = withoutVersion
 
       newId = await docker.createContainer(originalName, recreate.body)
-      appendLog('停止旧容器，释放端口…')
-      await docker.stopContainer(self.Id, 15)
-      oldStopped = true
-      appendLog(`启动新容器 ${newId.slice(0, 12)}`)
-      await docker.startContainer(newId)
-      appendLog('移除旧容器…')
-      await docker.removeContainer(self.Id, true)
-      finishJob('success', `已更新到 ${imageRef}，新容器已启动。`)
+      const staleHelper = await docker.inspectContainer(helperName)
+      if (staleHelper) {
+        appendLog(`移除残留更新助手 ${helperName}`)
+        await docker.removeContainer(staleHelper.Id, true)
+      }
+      helperId = await docker.createContainer(helperName, buildUpdateHelperPayload({
+        imageRef,
+        oldContainerId: self.Id,
+        newContainerId: newId,
+        desiredName: originalName,
+        dockerSocketPath: getUpdateConfig().dockerSocketPath,
+      }))
+      setJobProgress('recreating', '更新任务已移交：即将停止旧容器、启动新版并执行健康检查。')
+      await docker.startContainer(helperId)
+      appendLog(`更新助手 ${helperId.slice(0, 12)} 已启动。`)
     } catch (error) {
-      appendLog('重建失败，尝试恢复旧容器…')
+      appendLog('移交更新任务失败，尝试恢复旧容器…')
+      if (helperId) {
+        try {
+          await docker.removeContainer(helperId, true)
+        } catch {
+          // best effort cleanup
+        }
+      }
       if (newId) {
         try {
           appendLog(`移除未启动的新容器 ${newId.slice(0, 12)}`)
@@ -491,17 +585,7 @@ async function runApplyJob(input: {
       } catch {
         // best effort rollback
       }
-      if (oldStopped) {
-        try {
-          await docker.startContainer(self.Id)
-          appendLog('旧容器已重新启动。')
-        } catch {
-          // best effort rollback
-        }
-      }
-      if (!oldStopped) {
-        appendLog('旧容器未停止，继续保持运行。')
-      }
+      appendLog('旧容器未停止，继续保持运行。')
       try {
         const stale = await docker.inspectContainer(originalName)
         if (stale && stale.Id !== self.Id) {
@@ -595,6 +679,11 @@ function isProbablyVersionTag(tag: string) {
 }
 
 /** Test helper to reset in-memory update state. */
-export function resetUpdateStateForTests() {
+export function resetUpdateStateForTests(removePersisted = true) {
   globalThis.__sub2apiUpdateState = undefined
+  persistedJobNeedsReconcile = false
+  if (removePersisted) {
+    const file = updateStatePath()
+    if (file) rmSync(file, { force: true })
+  }
 }
