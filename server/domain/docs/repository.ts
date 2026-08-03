@@ -118,10 +118,37 @@ function parseFrontmatter(markdown: string, fallbackTitle: string): DocContent {
   }
 }
 
+function contentCandidates(file: string) {
+  return [
+    path.join(process.cwd(), 'content', file),
+    path.join(process.cwd(), '.output', 'content', file),
+    path.join(process.cwd(), 'server', 'content', file),
+  ]
+}
+
 function readDefaultDoc(definition: DocDefinition) {
-  const filePath = path.join(process.cwd(), 'content', definition.file)
-  const markdown = fs.readFileSync(filePath, 'utf8')
-  return parseFrontmatter(markdown, definition.label)
+  for (const filePath of contentCandidates(definition.file)) {
+    try {
+      if (!fs.existsSync(filePath)) continue
+      const markdown = fs.readFileSync(filePath, 'utf8')
+      return parseFrontmatter(markdown, definition.label)
+    } catch {
+      // try next candidate
+    }
+  }
+
+  // 运行镜像若未打包 content/，仍返回可编辑占位，避免整个后台文档接口 500
+  return {
+    title: definition.label,
+    description: '',
+    body: [
+      `# ${definition.label}`,
+      '',
+      '> 默认 Markdown 源文件未找到（容器内缺少 `content/` 目录）。',
+      '> 可直接在此编辑并发布；完整默认文稿请升级到包含 content 的镜像。',
+      '',
+    ].join('\n'),
+  }
 }
 
 function draftFromRow(row: ContentOverrideRow | undefined | null): DocContent | null {

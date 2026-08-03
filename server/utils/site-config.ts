@@ -29,7 +29,10 @@ function runtimeDefaults(event?: H3Event): SiteSettingsInput & { site_url: strin
 }
 
 function absoluteUrl(origin: string, path: string) {
-  return new URL(path, `${origin.replace(/\/+$/, '')}/`).toString().replace(/\/$/, path === '/' ? '/' : '')
+  const value = String(path || '').trim()
+  // 已是完整 URL 时不要再用站点 origin 重写，避免后台配置的外链 Logo 被改掉
+  if (/^https?:\/\//i.test(value)) return value
+  return new URL(value || '/', `${origin.replace(/\/+$/, '')}/`).toString().replace(/\/$/, value === '/' ? '/' : '')
 }
 
 function toPublic(settings: SiteSettingsInput, siteUrl: string): PublicSiteConfig {

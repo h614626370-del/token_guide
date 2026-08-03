@@ -3,9 +3,14 @@ import { KeyRound, LogIn } from 'lucide-vue-next'
 
 const admin = useAdminSessionState()
 const token = ref('')
+const checking = ref(true)
 
 onMounted(async () => {
-  if (!admin.session.value) await admin.refresh()
+  try {
+    await admin.refresh()
+  } finally {
+    checking.value = false
+  }
 })
 
 async function submit() {
@@ -16,7 +21,15 @@ async function submit() {
 </script>
 
 <template>
-  <slot v-if="admin.session.value?.admin" />
+  <section v-if="checking" class="admin-login-panel">
+    <div class="admin-login-panel__mark"><KeyRound :size="24" /></div>
+    <div>
+      <span>Administrator</span>
+      <h1>正在确认登录状态</h1>
+      <p>请稍候。</p>
+    </div>
+  </section>
+  <slot v-else-if="admin.session.value?.admin" />
   <section v-else class="admin-login-panel">
     <div class="admin-login-panel__mark"><KeyRound :size="24" /></div>
     <div>

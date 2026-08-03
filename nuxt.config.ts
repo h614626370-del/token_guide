@@ -49,9 +49,10 @@ export default defineNuxtConfig({
         { name: 'referrer', content: 'strict-origin-when-cross-origin' },
         { name: 'theme-color', content: '#ffffff' },
       ],
+      // 默认占位；实际图标由 app.vue 根据站点配置 logo_path 覆盖
       link: [
         { rel: 'icon', type: 'image/png', href: '/logo-80.png' },
-        { rel: 'apple-touch-icon', href: '/logo-256.png' },
+        { rel: 'apple-touch-icon', href: '/logo-80.png' },
       ],
     },
   },

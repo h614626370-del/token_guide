@@ -180,7 +180,8 @@ echo
 echo "健康检查："
 echo "  curl -fsS http://127.0.0.1:${HOST_PORT}/api/health"
 echo
-echo "管理后台："
-echo "  ${SITE_URL}/admin"
+echo "管理后台（本机）："
+echo "  http://127.0.0.1:${HOST_PORT}/admin"
 echo "  使用上面的 NUXT_ADMIN_TOKEN 登录"
+echo "公网域名可在 .env 的 NUXT_PUBLIC_SITE_URL 修改，或登录后到 /admin/settings 配置。"
 echo "=========================================="

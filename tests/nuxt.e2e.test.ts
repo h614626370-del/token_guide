@@ -235,7 +235,8 @@ describe('authentication and same-origin API protection', () => {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        origin: new URL(url('/')).origin,
+        origin: new URL(url('/')).origin.replace('http://', 'https://'),
+        'x-forwarded-proto': 'https',
       },
       body: JSON.stringify({ token: adminToken }),
     })
@@ -246,19 +247,19 @@ describe('authentication and same-origin API protection', () => {
     expect(setCookie.toLowerCase()).toContain('samesite=lax')
     const adminCookie = cookieFrom(login)
 
-    const session = await fetch('/api/session', { headers: { cookie: adminCookie } })
+    const session = await fetch('/api/session', { headers: { cookie: adminCookie, 'x-forwarded-proto': 'https' } })
     expect(await json(session)).toMatchObject({ ok: true, data: { admin: true } })
 
-    const pricingConfig = await fetch('/api/admin/pricing/config', { headers: { cookie: adminCookie } })
+    const pricingConfig = await fetch('/api/admin/pricing/config', { headers: { cookie: adminCookie, 'x-forwarded-proto': 'https' } })
     expect(pricingConfig.status).toBe(200)
 
     const logout = await fetch('/api/session/admin', {
       method: 'DELETE',
-      headers: { cookie: adminCookie },
+      headers: { cookie: adminCookie, 'x-forwarded-proto': 'https' },
     })
     expect(logout.status).toBe(200)
     const loggedOutCookie = cookieFrom(logout)
-    const loggedOutSession = await fetch('/api/session', { headers: { cookie: loggedOutCookie } })
+    const loggedOutSession = await fetch('/api/session', { headers: { cookie: loggedOutCookie, 'x-forwarded-proto': 'https' } })
     expect(await json(loggedOutSession)).toMatchObject({ ok: true, data: { admin: false } })
   })
 

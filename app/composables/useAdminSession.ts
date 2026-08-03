@@ -14,7 +14,11 @@ export function useAdminSessionState() {
         method: 'POST',
         body: { token },
       })
-      await guide.refresh()
+      const next = await guide.refresh()
+      if (!next?.admin) {
+        loginError.value = '登录成功但会话未生效，请确认站点已使用 HTTPS，或刷新后重试。'
+        return false
+      }
       return true
     } catch (cause) {
       loginError.value = apiErrorMessage(cause, '管理员登录失败')

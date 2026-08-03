@@ -87,7 +87,7 @@ async function loadDocs() {
     if (nextId) await selectDoc(nextId)
   } catch (cause) {
     notice.type = 'error'
-    notice.message = apiErrorMessage(cause, '文档列表读取失败')
+    notice.message = apiErrorMessage(cause, '文档列表读取失败。若刚部署，请确认镜像已包含 content/ 并重启容器。')
   } finally {
     loading.value = false
   }

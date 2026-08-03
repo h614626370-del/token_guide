@@ -1,8 +1,17 @@
 import type { H3Event } from 'h3'
-import { useSession } from 'h3'
+import { getRequestHeader, getRequestURL, useSession } from 'h3'
 import { apiError } from './api'
 import { getGuideConfig } from './config'
 import { fetchCurrentSub2apiUser } from './sub2api-auth'
+
+function requestIsHttps(event: H3Event) {
+  if (getRequestURL(event).protocol === 'https:') return true
+  const forwarded = String(getRequestHeader(event, 'x-forwarded-proto') || '')
+    .split(',')[0]
+    ?.trim()
+    .toLowerCase()
+  return forwarded === 'https'
+}
 
 export interface GuideUser {
   id: string
@@ -30,13 +39,15 @@ function sessionPassword(event: H3Event) {
 
 export function useGuideSession(event: H3Event) {
   const config = getGuideConfig(event)
+  // __Host- + Secure 只能在 HTTPS 下使用；HTTP 反代未配 TLS 时回退普通 Cookie，避免登录态丢失
+  const https = requestIsHttps(event)
   return useSession<GuideSessionData>(event, {
     password: sessionPassword(event),
-    name: config.isProduction ? '__Host-guide_session' : 'guide_session',
+    name: https && config.isProduction ? '__Host-guide_session' : 'guide_session',
     maxAge: 12 * 60 * 60,
     cookie: {
       httpOnly: true,
-      secure: config.isProduction,
+      secure: https,
       sameSite: 'lax',
       path: '/',
     },
