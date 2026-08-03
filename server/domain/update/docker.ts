@@ -137,7 +137,7 @@ export function createDockerClient(socketPath: string) {
         Image?: string
       }>>('GET', `/containers/json?all=${all ? '1' : '0'}`)
       if (response.statusCode >= 300) {
-        throw new Error(`Docker list containers failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('list containers', response.statusCode, response.body))
       }
       const items = Array.isArray(response.body) ? response.body : []
       return items.map((item): DockerContainerSummary => ({
@@ -154,7 +154,7 @@ export function createDockerClient(socketPath: string) {
       )
       if (response.statusCode === 404) return null
       if (response.statusCode >= 300) {
-        throw new Error(`Docker inspect failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('inspect', response.statusCode, response.body))
       }
       return response.body as DockerContainerInspect
     },
@@ -166,7 +166,7 @@ export function createDockerClient(socketPath: string) {
       )
       if (response.statusCode === 404) return null
       if (response.statusCode >= 300) {
-        throw new Error(`Docker image inspect failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('image inspect', response.statusCode, response.body))
       }
       return response.body as DockerImageInspect
     },
@@ -183,7 +183,7 @@ export function createDockerClient(socketPath: string) {
         { raw: true, timeoutMs: 600_000 },
       )
       if (response.statusCode >= 300) {
-        throw new Error(`Docker pull failed (${response.statusCode}): ${String(response.body).slice(0, 300)}`)
+        throw new Error(formatDockerError('pull', response.statusCode, response.body))
       }
 
       const text = String(response.body || '')
@@ -206,7 +206,7 @@ export function createDockerClient(socketPath: string) {
         `/containers/${encodeURIComponent(idOrName)}/rename?name=${encodeURIComponent(newName)}`,
       )
       if (response.statusCode >= 300 && response.statusCode !== 204) {
-        throw new Error(`Docker rename failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('rename', response.statusCode, response.body))
       }
     },
 
@@ -216,7 +216,7 @@ export function createDockerClient(socketPath: string) {
         `/containers/${encodeURIComponent(idOrName)}/stop?t=${timeoutSeconds}`,
       )
       if (response.statusCode >= 300 && response.statusCode !== 304 && response.statusCode !== 204) {
-        throw new Error(`Docker stop failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('stop', response.statusCode, response.body))
       }
     },
 
@@ -226,7 +226,7 @@ export function createDockerClient(socketPath: string) {
         `/containers/${encodeURIComponent(idOrName)}?force=${force ? '1' : '0'}&v=0`,
       )
       if (response.statusCode >= 300 && response.statusCode !== 204 && response.statusCode !== 404) {
-        throw new Error(`Docker remove failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('remove', response.statusCode, response.body))
       }
     },
 
@@ -237,10 +237,7 @@ export function createDockerClient(socketPath: string) {
         body,
       )
       if (response.statusCode >= 300) {
-        const message = typeof response.body === 'object' && response.body && 'message' in response.body
-          ? String((response.body as { message?: string }).message || '')
-          : String(response.body)
-        throw new Error(`Docker create failed (${response.statusCode}): ${message}`)
+        throw new Error(formatDockerError('create', response.statusCode, response.body))
       }
       const id = typeof response.body === 'object' && response.body ? response.body.Id : ''
       if (!id) throw new Error('Docker create did not return a container id.')
@@ -253,7 +250,7 @@ export function createDockerClient(socketPath: string) {
         `/containers/${encodeURIComponent(idOrName)}/start`,
       )
       if (response.statusCode >= 300 && response.statusCode !== 204 && response.statusCode !== 304) {
-        throw new Error(`Docker start failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('start', response.statusCode, response.body))
       }
     },
 
@@ -263,13 +260,26 @@ export function createDockerClient(socketPath: string) {
         `/containers/${encodeURIComponent(idOrName)}/restart?t=${timeoutSeconds}`,
       )
       if (response.statusCode >= 300 && response.statusCode !== 204) {
-        throw new Error(`Docker restart failed (${response.statusCode}).`)
+        throw new Error(formatDockerError('restart', response.statusCode, response.body))
       }
     },
   }
 }
 
 export type DockerClient = ReturnType<typeof createDockerClient>
+
+function formatDockerError(action: string, statusCode: number, body: unknown) {
+  const detail = dockerErrorDetail(body)
+  return `Docker ${action} failed (${statusCode})${detail ? `: ${detail}` : ''}.`
+}
+
+function dockerErrorDetail(body: unknown) {
+  if (!body) return ''
+  if (typeof body === 'object' && 'message' in body) {
+    return String((body as { message?: unknown }).message || '').slice(0, 500)
+  }
+  return String(body).slice(0, 500)
+}
 
 export function buildRecreatePayload(inspect: DockerContainerInspect, imageRef: string) {
   const hostConfig = { ...(inspect.HostConfig || {}) } as Record<string, unknown>

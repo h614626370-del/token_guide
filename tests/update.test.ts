@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildRecreatePayload } from '../server/domain/update/docker'
 import {
+  applyUpdate,
   checkForUpdate,
   getUpdateStatus,
   resetUpdateStateForTests,
@@ -30,6 +31,7 @@ vi.stubGlobal('useRuntimeConfig', () => ({
 afterEach(() => {
   resetUpdateStateForTests()
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
   vi.stubGlobal('useRuntimeConfig', () => ({
     appVersion: '2.0.0',
     updateImageRepository: '614626370/sub2api-guide',
@@ -128,7 +130,84 @@ describe('update service', () => {
     expect(exitProcess).toHaveBeenCalledWith(0)
     vi.useRealTimers()
   })
+
+  it('stops the old container before starting the replacement during updates', async () => {
+    vi.stubEnv('HOSTNAME', 'old-container-id')
+    const fetcher = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        tag_name: 'v2.0.4',
+        published_at: '2026-08-03T00:00:00Z',
+        html_url: 'https://github.com/example/releases/tag/v2.0.4',
+      }),
+    })) as unknown as typeof fetch
+    const oldContainer = {
+      Id: 'old-container-id',
+      Image: 'sha256:old-image',
+      Name: '/sub2api-guide-old-leftover',
+      Config: {
+        Image: '614626370/sub2api-guide:v2.0.0',
+        Env: ['NUXT_APP_VERSION=v2.0.0', 'PORT=3000'],
+      },
+      HostConfig: {
+        PortBindings: { '3000/tcp': [{ HostIp: '127.0.0.1', HostPort: '3000' }] },
+        RestartPolicy: { Name: 'unless-stopped' },
+      },
+      NetworkSettings: { Networks: { bridge: { Aliases: null as any } } },
+    }
+    const staleContainer = {
+      ...oldContainer,
+      Id: 'stale-new-container-id',
+      Image: 'sha256:new-image',
+      Name: '/sub2api-guide',
+    }
+    const operations: string[] = []
+    const docker = {
+      isAvailable: async () => true,
+      inspectContainer: async (idOrName: string) => {
+        if (idOrName === 'old-container-id') return oldContainer
+        if (idOrName === 'sub2api-guide') return staleContainer
+        return oldContainer
+      },
+      inspectImage: async () => ({
+        Id: 'sha256:old-image',
+        Config: { Env: ['NUXT_APP_VERSION=v2.0.0'] },
+      }),
+      pullImage: async () => operations.push('pull'),
+      removeContainer: async (idOrName: string) => operations.push(`remove:${idOrName}`),
+      renameContainer: async (idOrName: string, newName: string) => operations.push(`rename:${idOrName}:${newName}`),
+      createContainer: async (name: string) => {
+        operations.push(`create:${name}`)
+        return 'new-container-id'
+      },
+      stopContainer: async (idOrName: string) => operations.push(`stop:${idOrName}`),
+      startContainer: async (idOrName: string) => operations.push(`start:${idOrName}`),
+    }
+
+    await checkForUpdate(undefined, fetcher)
+    await applyUpdate(undefined, { docker: docker as any, fetcher })
+
+    const status = await waitForUpdateJob(docker as any)
+    expect(status.job.phase).toBe('success')
+    expect(operations).toEqual(expect.arrayContaining([
+      'remove:stale-new-container-id',
+      'create:sub2api-guide',
+      'stop:old-container-id',
+      'start:new-container-id',
+      'remove:old-container-id',
+    ]))
+    expect(operations.indexOf('stop:old-container-id')).toBeLessThan(operations.indexOf('start:new-container-id'))
+  })
 })
+
+async function waitForUpdateJob(docker: any) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const status = await getUpdateStatus(undefined, docker)
+    if (status.job.phase === 'success' || status.job.phase === 'error') return status
+    await new Promise(resolve => setTimeout(resolve, 0))
+  }
+  return await getUpdateStatus(undefined, docker)
+}
 
 describe('docker recreate payload', () => {
   it('rewrites image and preserves environment', () => {

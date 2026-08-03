@@ -440,15 +440,24 @@ async function runApplyJob(input: {
       throw new Error(`未找到当前容器（期望名称：${containerName}）。`)
     }
 
-    const originalName = self.Name.replace(/^\//, '') || containerName
+    const currentName = self.Name.replace(/^\//, '') || containerName
+    const originalName = containerName
     const tempName = `${originalName}-old-${Date.now().toString(36)}`
     const recreate = buildRecreatePayload(self, imageRef)
 
     getState().job.phase = 'recreating'
     getState().job.message = '正在用新镜像重建容器…'
+    const existingDesired = await docker.inspectContainer(originalName)
+    if (existingDesired && existingDesired.Id !== self.Id) {
+      appendLog(`移除上次失败残留容器 ${originalName}`)
+      await docker.removeContainer(existingDesired.Id, true)
+    }
+
     appendLog(`重命名旧容器为 ${tempName}`)
     await docker.renameContainer(self.Id, tempName)
 
+    let newId = ''
+    let oldStopped = false
     try {
       appendLog(`创建新容器 ${originalName} <- ${imageRef}`)
       // Ensure version env is present on the new container.
@@ -457,18 +466,48 @@ async function runApplyJob(input: {
       withoutVersion.push(`NUXT_APP_VERSION=${targetVersion.startsWith('v') ? targetVersion : `v${normalizeVersion(targetVersion)}`}`)
       recreate.body.Env = withoutVersion
 
-      const newId = await docker.createContainer(originalName, recreate.body)
+      newId = await docker.createContainer(originalName, recreate.body)
+      appendLog('停止旧容器，释放端口…')
+      await docker.stopContainer(self.Id, 15)
+      oldStopped = true
       appendLog(`启动新容器 ${newId.slice(0, 12)}`)
       await docker.startContainer(newId)
-      appendLog('停止并移除旧容器…')
-      await docker.stopContainer(self.Id, 15)
+      appendLog('移除旧容器…')
       await docker.removeContainer(self.Id, true)
       finishJob('success', `已更新到 ${imageRef}，新容器已启动。`)
     } catch (error) {
-      appendLog('重建失败，尝试回滚容器名称…')
+      appendLog('重建失败，尝试恢复旧容器…')
+      if (newId) {
+        try {
+          appendLog(`移除未启动的新容器 ${newId.slice(0, 12)}`)
+          await docker.removeContainer(newId, true)
+        } catch {
+          // best effort cleanup
+        }
+      }
       try {
         await docker.renameContainer(self.Id, originalName)
-        await docker.startContainer(self.Id)
+        appendLog(`旧容器名称已从 ${currentName} 恢复为 ${originalName}`)
+      } catch {
+        // best effort rollback
+      }
+      if (oldStopped) {
+        try {
+          await docker.startContainer(self.Id)
+          appendLog('旧容器已重新启动。')
+        } catch {
+          // best effort rollback
+        }
+      }
+      if (!oldStopped) {
+        appendLog('旧容器未停止，继续保持运行。')
+      }
+      try {
+        const stale = await docker.inspectContainer(originalName)
+        if (stale && stale.Id !== self.Id) {
+          await docker.removeContainer(stale.Id, true)
+          await docker.renameContainer(self.Id, originalName)
+        }
       } catch {
         // best effort rollback
       }
