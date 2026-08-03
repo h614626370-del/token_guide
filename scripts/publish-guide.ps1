@@ -54,11 +54,25 @@ if ($SkipBuild) {
   Invoke-Docker image inspect $imageRef
 }
 else {
+  $proxyBuildArgs = @()
+  foreach ($name in @('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy')) {
+    $value = [Environment]::GetEnvironmentVariable($name)
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+      $proxyBuildArgs += @('--build-arg', "$name=$value")
+    }
+  }
+
   $args = @(
     'build',
     '--platform', 'linux/amd64',
     '-f', $dockerfile,
-    '--build-arg', "APP_VERSION=$tag",
+    '--build-arg', "APP_VERSION=$tag"
+  )
+  if ($proxyBuildArgs.Count -gt 0 -and -not $NativeDocker) {
+    $args += @('--network', 'host')
+  }
+  $args += @(
+    $proxyBuildArgs
     '-t', $imageRef
   )
   if (-not $NoLatest) { $args += @('-t', $latestRef) }
