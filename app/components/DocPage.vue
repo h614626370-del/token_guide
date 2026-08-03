@@ -9,12 +9,21 @@ const contentPath = computed(() => props.contentPath)
 const { data: page } = await useAsyncData(() => `guide:${contentPath.value}`, () => {
   return queryCollection('guides').path(contentPath.value).first()
 })
+const { data: databasePage } = await useAsyncData(() => `guide-override:${contentPath.value}`, async () => {
+  const response = await $fetch<{ ok: true, data: { title: string, description: string, body: string } | null }>('/api/docs', {
+    query: { path: contentPath.value },
+  })
+  return response.data
+})
 
 if (!page.value) {
   throw createError({ statusCode: 404, statusMessage: 'Guide page not found' })
 }
 
 const renderedPage = computed(() => rewriteContent(page.value))
+const databaseBody = computed(() => databasePage.value ? replaceDefaults(databasePage.value.body) : '')
+const pageTitle = computed(() => databasePage.value?.title ? replaceDefaults(databasePage.value.title) : renderedPage.value?.title || props.section)
+const pageDescription = computed(() => databasePage.value ? replaceDefaults(databasePage.value.description) : renderedPage.value?.description || '')
 
 function rewriteContent<T>(value: T): T {
   if (typeof value === 'string') return replaceDefaults(value) as T
@@ -42,15 +51,25 @@ function replaceDefaults(value: string) {
 }
 
 useSeoMeta({
-  title: () => renderedPage.value?.title || props.section,
-  description: () => renderedPage.value?.description || '',
+  title: () => pageTitle.value,
+  description: () => pageDescription.value,
 })
 </script>
 
 <template>
   <article class="page-shell doc-content">
+    <MDC
+      v-if="databasePage"
+      :value="databaseBody"
+      :data="{
+        projectName: site.project_name,
+        siteTitle: site.site_title,
+        mainSiteUrl: site.main_site_url,
+        apiBaseUrl: site.api_base_url,
+      }"
+    />
     <ContentRenderer
-      v-if="renderedPage"
+      v-else-if="renderedPage"
       :value="renderedPage"
       :data="{
         projectName: site.project_name,

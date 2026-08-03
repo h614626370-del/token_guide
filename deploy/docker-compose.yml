@@ -1,6 +1,3 @@
-# 示例文件。正式本机部署请使用：
-#   curl -sSL https://raw.githubusercontent.com/h614626370-del/token_guide/main/deploy/docker-deploy.sh | bash
-# 完整模板见 deploy/docker-compose.yml
 services:
   guide:
     image: ${IMAGE_REPOSITORY:-614626370/sub2api-guide}:${IMAGE_TAG:-latest}
@@ -12,10 +9,12 @@ services:
       NUXT_APP_VERSION: ${IMAGE_TAG:-latest}
       NUXT_UPDATE_IMAGE_REPOSITORY: ${IMAGE_REPOSITORY:-614626370/sub2api-guide}
       NUXT_UPDATE_CONTAINER_NAME: sub2api-guide
+    # DOCKER_GID 由 docker-deploy.sh 写入 .env；对应宿主机 docker.sock 组 ID
     group_add:
       - "${DOCKER_GID:-0}"
     ports:
       - "127.0.0.1:${HOST_PORT:-3000}:3000"
     volumes:
       - ./data:/data
+      # 后台「系统更新」需要；不需要可删除下一行
       - /var/run/docker.sock:/var/run/docker.sock

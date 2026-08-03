@@ -19,10 +19,13 @@ RUN npm run typecheck && npm run build && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 
+ARG APP_VERSION=2.0.0
+
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
-    NUXT_DATABASE_PATH=/data/guide.sqlite
+    NUXT_DATABASE_PATH=/data/guide.sqlite \
+    NUXT_APP_VERSION=$APP_VERSION
 
 WORKDIR /app
 

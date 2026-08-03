@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, BadgeDollarSign, LayoutDashboard, LogOut, MessageSquareText, Settings } from 'lucide-vue-next'
+import { ArrowLeft, BadgeDollarSign, FileText, LayoutDashboard, LogOut, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
 
 const route = useRoute()
 const admin = useAdminSessionState()
@@ -7,8 +7,10 @@ const site = useSiteConfigState()
 const links = [
   { label: '概览', to: '/admin', icon: LayoutDashboard },
   { label: '站点配置', to: '/admin/settings', icon: Settings },
+  { label: '指南内容', to: '/admin/docs', icon: FileText },
   { label: '价格配置', to: '/admin/pricing', icon: BadgeDollarSign },
   { label: '反馈处理', to: '/admin/feedback', icon: MessageSquareText },
+  { label: '系统更新', to: '/admin/update', icon: RefreshCcw },
 ]
 
 async function logout() {

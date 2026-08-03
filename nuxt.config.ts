@@ -1,7 +1,7 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-08-03',
   devtools: { enabled: false },
-  modules: ['@nuxt/content'],
+  modules: ['@nuxt/content', '@nuxtjs/mdc'],
   css: ['~/assets/css/main.css', '~/assets/css/tools.css'],
   runtimeConfig: {
     sessionPassword: '',
@@ -19,6 +19,11 @@ export default defineNuxtConfig({
     rateMax: 5,
     trustedProxyIps: '127.0.0.1,::1',
     usdToCny: 6.8102,
+    appVersion: process.env.NUXT_APP_VERSION || '2.0.0',
+    updateImageRepository: '614626370/sub2api-guide',
+    updateGithubRepo: 'h614626370-del/token_guide',
+    updateContainerName: 'sub2api-guide',
+    dockerSocketPath: '/var/run/docker.sock',
     public: {
       siteUrl: 'https://guide.kkflow.org',
       sub2apiOrigin: 'https://kkflow.org',

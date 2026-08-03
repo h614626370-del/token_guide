@@ -59,5 +59,10 @@ export function getGuideConfig(event?: H3Event) {
     rateMax: Number(runtime.rateMax || 5),
     trustedProxyIps,
     usdToCny: Number(runtime.usdToCny || 6.8102),
+    appVersion: String(runtime.appVersion || process.env.NUXT_APP_VERSION || '2.0.0'),
+    updateImageRepository: String(runtime.updateImageRepository || '614626370/sub2api-guide'),
+    updateGithubRepo: String(runtime.updateGithubRepo || 'h614626370-del/token_guide'),
+    updateContainerName: String(runtime.updateContainerName || 'sub2api-guide'),
+    dockerSocketPath: String(runtime.dockerSocketPath || '/var/run/docker.sock'),
   }
 }

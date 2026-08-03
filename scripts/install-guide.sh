@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+# 兼容入口：本机准备 + 启动（不远程 SSH）。
+# 推荐直接使用 deploy/docker-deploy.sh 做准备，再 docker compose up -d。
 set -euo pipefail
 
 VERSION="latest"
-IMAGE_REPOSITORY="614626370/kkflow-guide"
+IMAGE_REPOSITORY="614626370/sub2api-guide"
 INSTALL_DIR=""
 PORT="3000"
 SITE_URL="https://guide.kkflow.org"
@@ -12,9 +14,11 @@ usage() {
   cat <<USAGE
 Usage: install-guide.sh [options]
 
+本机安装（非远程）：准备文件并 docker compose up -d。
+
 Options:
   --version VERSION          Image tag. Default: latest.
-  --image IMAGE              Image repository. Default: 614626370/kkflow-guide.
+  --image IMAGE              Image repository. Default: 614626370/sub2api-guide.
   --install-dir DIR          Install directory. Default: current directory.
   --port PORT                Loopback host port. Default: 3000.
   --site-url URL             Public guide origin. Default: https://guide.kkflow.org.
@@ -47,95 +51,36 @@ else
   exit 1
 fi
 
-random_hex() {
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -hex 32
-  else
-    od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
-  fi
-}
-
-read_env() {
-  local key="$1"
-  [[ -f .env ]] || return 0
-  sed -n "s/^${key}=//p" .env | tail -n 1
-}
-
-append_env_if_missing() {
-  local key="$1"
-  local value="$2"
-  if ! grep -q "^${key}=" .env 2>/dev/null; then
-    printf '%s=%s\n' "${key}" "${value}" >> .env
-  fi
-}
-
-mkdir -p "${INSTALL_DIR}/data"
+mkdir -p "${INSTALL_DIR}"
 cd "${INSTALL_DIR}"
 
-if [[ -f data/guide-api.sqlite && ! -f data/guide.sqlite ]]; then
-  cp -p data/guide-api.sqlite data/guide.sqlite
-  echo "Copied legacy SQLite data to data/guide.sqlite; the original file was retained."
+export IMAGE_REPOSITORY IMAGE_TAG="${VERSION}" HOST_PORT="${PORT}" SITE_URL SUB2API_ORIGIN
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/../deploy/docker-deploy.sh" ]]; then
+  bash "${SCRIPT_DIR}/../deploy/docker-deploy.sh"
+else
+  curl -fsSL https://raw.githubusercontent.com/h614626370-del/token_guide/main/deploy/docker-deploy.sh | bash
 fi
 
-if [[ ! -f .env ]]; then
-  touch .env
-fi
-chmod 600 .env
+echo "Pulling image..."
+# shellcheck disable=SC1091
+set -a
+# 读取 .env 中的镜像信息
+# shellcheck disable=SC1091
+source <(grep -E '^(IMAGE_REPOSITORY|IMAGE_TAG|HOST_PORT)=' .env | sed 's/\r$//')
+set +a
+IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-614626370/sub2api-guide}"
+IMAGE_TAG="${IMAGE_TAG:-latest}"
+HOST_PORT="${HOST_PORT:-3000}"
 
-LEGACY_ADMIN_TOKEN="$(read_env GUIDE_API_ADMIN_TOKEN)"
-LEGACY_IP_SALT="$(read_env GUIDE_API_IP_HASH_SALT)"
-LEGACY_SUB2_ADMIN_KEY="$(read_env GUIDE_API_SUB2API_ADMIN_API_KEY)"
-
-append_env_if_missing NODE_ENV production
-append_env_if_missing HOST 0.0.0.0
-append_env_if_missing PORT 3000
-append_env_if_missing NUXT_PUBLIC_SITE_URL "${SITE_URL}"
-append_env_if_missing NUXT_PUBLIC_SUB2API_ORIGIN "${SUB2API_ORIGIN}"
-append_env_if_missing NUXT_PUBLIC_SITE_NAME "Token向云指南"
-append_env_if_missing NUXT_SESSION_PASSWORD "$(random_hex)"
-append_env_if_missing NUXT_ADMIN_TOKEN "${LEGACY_ADMIN_TOKEN:-$(random_hex)}"
-append_env_if_missing NUXT_IP_HASH_SALT "${LEGACY_IP_SALT:-$(random_hex)}"
-append_env_if_missing NUXT_DATABASE_PATH /data/guide.sqlite
-append_env_if_missing NUXT_SUB2API_ADMIN_API_KEY "${LEGACY_SUB2_ADMIN_KEY}"
-append_env_if_missing NUXT_PRICING_PLATFORMS openai,anthropic,gemini,antigravity,grok
-append_env_if_missing NUXT_PRICING_CACHE_TTL_MS 300000
-append_env_if_missing NUXT_UPSTREAM_TIMEOUT_MS 8000
-append_env_if_missing NUXT_PLAYGROUND_TEXT_TIMEOUT_MS 120000
-append_env_if_missing NUXT_PLAYGROUND_IMAGE_TIMEOUT_MS 300000
-append_env_if_missing NUXT_FEEDBACK_DAILY_LIMIT 5
-append_env_if_missing NUXT_RATE_WINDOW_MS 600000
-append_env_if_missing NUXT_RATE_MAX 5
-append_env_if_missing NUXT_USD_TO_CNY 6.8102
-append_env_if_missing NUXT_TRUSTED_PROXY_IPS 127.0.0.1,::1
-
-if [[ "$(id -u)" == "0" ]]; then
-  chown -R 1000:1000 data
-fi
-
-IMAGE_REF="${IMAGE_REPOSITORY}:${VERSION}"
-echo "Pulling ${IMAGE_REF}"
-docker pull "${IMAGE_REF}"
-
-cat > docker-compose.yml <<EOF
-services:
-  guide:
-    image: ${IMAGE_REF}
-    container_name: kkflow-guide
-    restart: unless-stopped
-    env_file:
-      - .env
-    ports:
-      - "127.0.0.1:${PORT}:3000"
-    volumes:
-      - ./data:/data
-EOF
-
+docker pull "${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 "${COMPOSE[@]}" up -d --remove-orphans
 
 echo "Checking health"
 for _ in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null; then
-    echo "Guide is running at ${SITE_URL} using ${IMAGE_REF}."
+  if curl -fsS "http://127.0.0.1:${HOST_PORT}/api/health" >/dev/null; then
+    echo "Guide is running at ${SITE_URL} using ${IMAGE_REPOSITORY}:${IMAGE_TAG}."
     exit 0
   fi
   sleep 1

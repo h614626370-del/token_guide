@@ -20,6 +20,7 @@ https://guide.kkflow.org
 - `/admin/settings`：项目名称、品牌、主站路由和支持信息
 - `/admin/pricing`：价格来源与展示配置
 - `/admin/feedback`：反馈处理
+- `/admin/update`：检测更新、下载最新镜像并立即重启
 - `/auth/embed`：接收 sub2api 嵌入 JWT，换取本域 HttpOnly 会话
 - `/api/*`：统一同源 API
 
@@ -34,7 +35,7 @@ config/    Nginx 与 systemd 示例
 scripts/   安装、部署和发布脚本
 ```
 
-`apps/guide-site` 和 `apps/guide-api` 已被统一应用取代。`apps/` 下其他静态首页目录不是统一指南镜像的一部分。
+`apps/guide-site` 和 `apps/guide-api` 已被统一应用取代。`homeApps/` 下其他静态首页目录不是统一指南镜像的一部分。
 
 ## 本地开发
 
@@ -93,48 +94,78 @@ sub2api 会追加 `token`、`ui_mode` 等参数。统一服务会在服务端校
 
 Nginx 必须对 `/auth/embed` 关闭访问日志，避免 JWT 查询参数进入日志。示例见 `config/guide.nginx.example.conf`。
 
-## Docker 部署
+## Docker 部署（本机）
 
-构建镜像：
+推荐与 sub2api 相同的本机安装方式：**准备脚本只写文件和密钥，不远程 SSH**；由你在当前机器执行 `docker compose up -d`。
 
-```powershell
-docker build -t kkflow-guide .
-```
-
-生产服务器可以使用一键安装脚本：
+### 使用自动化部署脚本快速搭建
 
 ```bash
-mkdir -p /www/kkflow-guide
-cd /www/kkflow-guide
-curl -fsSL https://raw.githubusercontent.com/h614626370-del/token_guide/main/scripts/install-guide.sh \
-  | bash -s -- --version latest
+# 创建部署目录
+mkdir -p sub2api-guide-deploy && cd sub2api-guide-deploy
+
+# 下载并运行部署准备脚本
+curl -sSL https://raw.githubusercontent.com/h614626370-del/token_guide/main/deploy/docker-deploy.sh | bash
+
+# 启动服务
+docker compose up -d
+
+# 查看日志
+docker compose logs -f guide
 ```
 
-安装结果只有一个容器、一个本机端口和一个数据卷：
+### 脚本功能
+
+- 下载 `docker-compose.yml` 和 `.env.example`
+- 自动生成安全凭证（`NUXT_SESSION_PASSWORD`、`NUXT_ADMIN_TOKEN`、`NUXT_IP_HASH_SALT`）
+- 创建 `.env` 并填入自动生成的密钥
+- 创建 `data/` 数据目录（使用本地目录，便于备份和迁移）
+- 探测 Docker Socket 组 ID，便于后台系统更新
+- 显示生成的凭证供你记录
+
+### 可选参数（准备脚本环境变量）
+
+```bash
+IMAGE_TAG=v2.0.0 \
+HOST_PORT=3000 \
+SITE_URL=https://guide.kkflow.org \
+SUB2API_ORIGIN=https://kkflow.org \
+curl -sSL https://raw.githubusercontent.com/h614626370-del/token_guide/main/deploy/docker-deploy.sh | bash
+```
+
+### 安装结果
 
 ```text
-127.0.0.1:3000 -> kkflow-guide:3000
-./data          -> /data
+127.0.0.1:3000 -> sub2api-guide:3000
+./data         -> /data
 /data/guide.sqlite
 ```
 
-如果安装目录中存在旧 `data/guide-api.sqlite` 且新库不存在，安装脚本会保留旧文件并复制为 `data/guide.sqlite`，随后由现有迁移逻辑继续升级。
+健康检查：
 
-## 发布与远程部署
+```bash
+curl -fsS http://127.0.0.1:3000/api/health
+```
 
-发布统一镜像和 GitHub Release：
+管理后台：`/admin`，使用脚本打印的 `NUXT_ADMIN_TOKEN` 登录。
+
+若主机存在 `/var/run/docker.sock`，compose 会挂载它以便后台「系统更新」。Socket 权限接近宿主机 Docker 管理能力，请仅在受信环境启用；不需要时可编辑 `docker-compose.yml` 去掉该 volume。
+
+旧库兼容：若存在 `data/guide-api.sqlite` 且没有 `data/guide.sqlite`，准备脚本会复制为 `data/guide.sqlite` 并保留原文件。
+
+### 本地构建镜像（开发用）
+
+```powershell
+docker build -t sub2api-guide .
+```
+
+### 发布镜像
 
 ```powershell
 npm run release -- -Version v2.0.0
 ```
 
-远程服务器升级：
-
-```powershell
-npm run deploy -- -HostName your-server -Version v2.0.0
-```
-
-部署前脚本会依次执行类型检查、测试和生产构建。首次配置 SSH 公钥可使用 `npm run deploy -- -Key`。
+发布后在服务器重新执行准备脚本（或改 `.env` 的 `IMAGE_TAG`）再 `docker compose up -d` 即可升级。
 
 ## 数据与密钥
 

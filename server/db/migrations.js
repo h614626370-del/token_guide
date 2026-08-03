@@ -176,4 +176,64 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 7,
+    name: 'create_content_overrides',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS content_overrides (
+          id TEXT PRIMARY KEY,
+          path TEXT NOT NULL UNIQUE,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          body TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_content_overrides_path
+          ON content_overrides(path);
+      `)
+    },
+  },
+  {
+    id: 8,
+    name: 'extend_content_overrides_for_drafts_and_versions',
+    up(db) {
+      const columns = new Set(db.prepare('PRAGMA table_info(content_overrides)').all().map((row) => row.name))
+      const addColumn = (name, sql) => {
+        if (!columns.has(name)) {
+          db.exec(`ALTER TABLE content_overrides ADD COLUMN ${sql};`)
+        }
+      }
+
+      addColumn('draft_title', 'draft_title TEXT')
+      addColumn('draft_description', 'draft_description TEXT')
+      addColumn('draft_body', 'draft_body TEXT')
+      addColumn('draft_updated_at', 'draft_updated_at TEXT')
+      addColumn('published_at', 'published_at TEXT')
+      addColumn('last_action', 'last_action TEXT')
+
+      db.exec(`
+        UPDATE content_overrides
+        SET published_at = COALESCE(published_at, updated_at),
+            last_action = COALESCE(last_action, 'legacy_publish');
+
+        CREATE TABLE IF NOT EXISTS content_versions (
+          version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          doc_id TEXT NOT NULL,
+          path TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          body TEXT NOT NULL,
+          source TEXT NOT NULL CHECK (source IN ('published', 'draft', 'default')),
+          action TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_content_versions_doc_created
+          ON content_versions(doc_id, created_at DESC);
+      `)
+    },
+  },
 ]

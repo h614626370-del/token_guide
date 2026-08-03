@@ -20,9 +20,10 @@
 - `server/utils/`：会话、代理、配置和安全辅助函数。
 - `public/`：静态资源。
 - `config/`：Nginx 与 systemd 示例。
-- `scripts/`：统一服务安装、部署和发布脚本。
+- `deploy/`：本机 Docker 部署准备脚本与 compose 模板。
+- `scripts/`：镜像发布与可选一键安装脚本。
 
-`apps/` 下其他静态首页目录不进入统一指南镜像，除非任务明确要求，不要改动或删除。
+`homeApps/` 下其他静态首页目录不进入统一指南镜像，除非任务明确要求，不要改动或删除。
 
 ## 常用命令
 
@@ -33,8 +34,14 @@ npm test
 npm run test:ui
 npm run build
 npm run preview
-npm run deploy -- -HostName your-server -Version v2.0.0
 npm run release -- -Version v2.0.0
+```
+
+本机部署准备：
+
+```bash
+curl -sSL https://raw.githubusercontent.com/h614626370-del/token_guide/main/deploy/docker-deploy.sh | bash
+docker compose up -d
 ```
 
 ## 认证与代理约定
@@ -55,7 +62,7 @@ npm run release -- -Version v2.0.0
 - 旧 `data/guide-api.sqlite` 升级时复制为 `data/guide.sqlite`，原文件保留。
 - 站点品牌与主站路由保存在 `site_settings`，修改结构时必须继续使用追加迁移。
 - 生产部署只有一个 Nuxt 服务和一个 SQLite 卷。
-- Docker 构建上下文不包含 `apps/`、数据、日志或环境文件。
+- Docker 构建上下文不包含 `homeApps/`、数据、日志或环境文件。
 
 ## Git 与敏感信息
 
