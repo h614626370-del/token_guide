@@ -20,7 +20,9 @@ export function compareVersions(left: string, right: string) {
   }
 
   for (let index = 0; index < 3; index += 1) {
-    const diff = a.parts[index] - b.parts[index]
+    const leftPart = a.parts[index] ?? 0
+    const rightPart = b.parts[index] ?? 0
+    const diff = leftPart - rightPart
     if (diff !== 0) return diff
   }
 
