@@ -6,7 +6,6 @@ services:
     env_file:
       - .env
     environment:
-      NUXT_APP_VERSION: ${IMAGE_TAG:-latest}
       NUXT_UPDATE_IMAGE_REPOSITORY: ${IMAGE_REPOSITORY:-614626370/sub2api-guide}
       NUXT_UPDATE_CONTAINER_NAME: sub2api-guide
     # DOCKER_GID 由 docker-deploy.sh 写入 .env；对应宿主机 docker.sock 组 ID

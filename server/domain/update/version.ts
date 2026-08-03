@@ -39,6 +39,9 @@ export function isUpdateAvailable(current: string, latest: string) {
   if (currentNormalized === 'dev' || currentNormalized === '0.0.0') {
     return latestNormalized !== currentNormalized
   }
+  if (currentNormalized === 'latest') {
+    return latestNormalized !== currentNormalized
+  }
   return compareVersions(latestNormalized, currentNormalized) > 0
 }
 

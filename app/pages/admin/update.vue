@@ -201,20 +201,48 @@ const primaryUpdateDisabled = computed(() => {
   if (status.value?.update_available && !status.value.can_apply) return true
   return false
 })
+const phaseLabels: Record<UpdateStatusView['job']['phase'], string> = {
+  idle: '空闲',
+  checking: '检测中',
+  pulling: '下载镜像中',
+  recreating: '重建容器中',
+  restarting: '重启中',
+  success: '已完成',
+  error: '失败',
+}
+const versionSourceLabels: Record<UpdateStatusView['current_version_source'], string> = {
+  image: '镜像内置版本',
+  runtime: '运行环境变量',
+  image_tag: '镜像标签',
+  unknown: '未识别',
+}
+const currentVersionHint = computed(() => {
+  if (!status.value) return ''
+  if (status.value.current_runtime_version && status.value.current_runtime_version !== status.value.current_version) {
+    return `运行环境变量为 ${status.value.current_runtime_version}，已按镜像内置版本识别。`
+  }
+  return `来源：${versionSourceLabels[status.value.current_version_source]}。`
+})
+const updateStateText = computed(() => {
+  if (!status.value?.latest_tag) return '未检测'
+  return status.value.update_available ? '可更新' : '已是最新'
+})
+const shortImageId = computed(() => status.value?.current_image_id?.replace(/^sha256:/, '').slice(0, 12) || '—')
 </script>
 
 <template>
   <AdminAccessGate>
     <div class="admin-page admin-update-page">
       <header class="admin-page-heading">
-        <span>System update</span>
+        <span>系统维护</span>
         <h1>系统更新</h1>
-        <p>检测 GitHub / 镜像仓库新版本，下载最新镜像并重建容器。</p>
+        <p>检测 GitHub Release 与 Docker 镜像版本，下载新镜像并重建当前容器。</p>
         <div class="admin-page-heading__actions admin-update-actions">
           <button
             class="primary-command admin-update-primary"
             type="button"
             :disabled="primaryUpdateDisabled"
+            :title="status?.apply_block_reason || ''"
             @click="runUpdateFlow"
           >
             <Download v-if="status?.update_available || applying" :size="16" />
@@ -235,12 +263,24 @@ const primaryUpdateDisabled = computed(() => {
       <div v-if="notice.message" :class="['tool-alert', notice.type === 'error' ? 'tool-alert--error' : 'tool-alert--success']">
         {{ notice.message }}
       </div>
+      <div v-if="status?.apply_block_reason && status.latest_tag && status.update_available" class="tool-alert tool-alert--error">
+        {{ status.apply_block_reason }}
+      </div>
 
       <section v-if="status" class="admin-update-grid">
         <article class="admin-section">
           <header><h2>当前版本</h2><Server :size="18" /></header>
           <dl class="admin-update-meta">
-            <div><dt>运行版本</dt><dd>{{ status.current_version }}</dd></div>
+            <div>
+              <dt>应用版本</dt>
+              <dd>
+                {{ status.current_version }}
+                <span class="admin-update-note">{{ currentVersionHint }}</span>
+              </dd>
+            </div>
+            <div><dt>容器环境变量</dt><dd>{{ status.current_runtime_version || '—' }}</dd></div>
+            <div><dt>当前镜像</dt><dd>{{ status.current_image || '—' }}</dd></div>
+            <div><dt>镜像 ID</dt><dd>{{ shortImageId }}</dd></div>
             <div><dt>容器名称</dt><dd>{{ status.container_name }}</dd></div>
             <div><dt>镜像仓库</dt><dd>{{ status.image_repository }}</dd></div>
             <div><dt>发布仓库</dt><dd>{{ status.github_repo }}</dd></div>
@@ -257,9 +297,13 @@ const primaryUpdateDisabled = computed(() => {
               <dt>更新状态</dt>
               <dd>
                 <span :class="['source-status', status.update_available ? 'source-status--partial' : 'source-status--live']">
-                  {{ status.update_available ? '有可用更新' : '已是最新' }}
+                  {{ updateStateText }}
                 </span>
               </dd>
+            </div>
+            <div v-if="status.apply_block_reason">
+              <dt>操作提示</dt>
+              <dd>{{ status.apply_block_reason }}</dd>
             </div>
           </dl>
           <p v-if="status.latest_url" class="admin-update-link">
@@ -281,7 +325,7 @@ const primaryUpdateDisabled = computed(() => {
             <div><dt>Socket 路径</dt><dd>{{ status.docker_socket }}</dd></div>
           </dl>
           <p class="admin-update-hint">
-            「下载最新并更新」需要容器可访问 Docker Socket（安装脚本默认挂载
+            「下载并更新」需要容器可访问 Docker Socket（安装脚本默认挂载
             <code>/var/run/docker.sock</code>）。仅重启在无 Docker 时会回退为进程退出，依赖
             <code>restart: unless-stopped</code>。
           </p>
@@ -291,7 +335,7 @@ const primaryUpdateDisabled = computed(() => {
           <header><h2>任务进度</h2><Terminal :size="18" /></header>
           <div class="admin-update-job">
             <div>
-              <strong>{{ status.job.phase }}</strong>
+              <strong>{{ phaseLabels[status.job.phase] }}</strong>
               <span>{{ status.job.message || '暂无任务' }}</span>
             </div>
             <div v-if="status.job.target_version">目标版本：{{ status.job.target_version }}</div>

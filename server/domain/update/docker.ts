@@ -10,6 +10,7 @@ export interface DockerContainerSummary {
 
 export interface DockerContainerInspect {
   Id: string
+  Image?: string
   Name: string
   Config: {
     Image?: string
@@ -39,6 +40,16 @@ export interface DockerContainerInspect {
       MacAddress?: string
       DriverOpts?: unknown
     }>
+  }
+}
+
+export interface DockerImageInspect {
+  Id: string
+  RepoTags?: string[]
+  RepoDigests?: string[]
+  Config?: {
+    Env?: string[]
+    Labels?: Record<string, string>
   }
 }
 
@@ -146,6 +157,18 @@ export function createDockerClient(socketPath: string) {
         throw new Error(`Docker inspect failed (${response.statusCode}).`)
       }
       return response.body as DockerContainerInspect
+    },
+
+    async inspectImage(idOrName: string) {
+      const response = await request<DockerImageInspect>(
+        'GET',
+        `/images/${encodeURIComponent(idOrName)}/json`,
+      )
+      if (response.statusCode === 404) return null
+      if (response.statusCode >= 300) {
+        throw new Error(`Docker image inspect failed (${response.statusCode}).`)
+      }
+      return response.body as DockerImageInspect
     },
 
     async pullImage(repository: string, tag: string, onProgress?: (line: string) => void) {

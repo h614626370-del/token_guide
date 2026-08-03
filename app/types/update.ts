@@ -10,6 +10,10 @@ export interface UpdateJobView {
 
 export interface UpdateStatusView {
   current_version: string
+  current_runtime_version: string
+  current_image: string | null
+  current_image_id: string | null
+  current_version_source: 'image' | 'runtime' | 'image_tag' | 'unknown'
   latest_version: string | null
   latest_tag: string | null
   latest_published_at: string | null
@@ -23,5 +27,6 @@ export interface UpdateStatusView {
   docker_available: boolean
   can_apply: boolean
   can_restart: boolean
+  apply_block_reason: string | null
   job: UpdateJobView
 }

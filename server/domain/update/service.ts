@@ -8,6 +8,7 @@ import {
 } from './docker'
 import {
   isUpdateAvailable,
+  isSemverLike,
   normalizeVersion,
   toImageTag,
 } from './version'
@@ -23,6 +24,10 @@ export type UpdatePhase =
 
 export interface UpdateStatus {
   current_version: string
+  current_runtime_version: string
+  current_image: string | null
+  current_image_id: string | null
+  current_version_source: 'image' | 'runtime' | 'image_tag' | 'unknown'
   latest_version: string | null
   latest_tag: string | null
   latest_published_at: string | null
@@ -36,6 +41,7 @@ export interface UpdateStatus {
   docker_available: boolean
   can_apply: boolean
   can_restart: boolean
+  apply_block_reason: string | null
   job: UpdateJobView
 }
 
@@ -58,6 +64,14 @@ interface LatestRelease {
   tag: string
   publishedAt: string | null
   url: string | null
+}
+
+interface CurrentInstallation {
+  version: string
+  runtimeVersion: string
+  image: string | null
+  imageId: string | null
+  source: UpdateStatus['current_version_source']
 }
 
 declare global {
@@ -158,23 +172,36 @@ export async function getUpdateStatus(event?: H3Event, docker?: DockerClient | n
     ? createDockerClient(config.dockerSocketPath)
     : docker
   const dockerAvailable = client ? await client.isAvailable() : false
+  const current = await resolveCurrentInstallation(config, dockerAvailable ? client : null)
   const latest = state.latest
+  const updateAvailable = latest ? isUpdateAvailable(current.version, latest.version) : false
+  const applyBlockReason = getApplyBlockReason({
+    latest,
+    dockerAvailable,
+    updateAvailable,
+    jobRunning: state.job.running,
+  })
 
   return {
-    current_version: config.currentVersion,
+    current_version: current.version,
+    current_runtime_version: current.runtimeVersion,
+    current_image: current.image,
+    current_image_id: current.imageId,
+    current_version_source: current.source,
     latest_version: latest?.version || null,
     latest_tag: latest?.tag || null,
     latest_published_at: latest?.publishedAt || null,
     latest_url: latest?.url || null,
-    update_available: latest ? isUpdateAvailable(config.currentVersion, latest.version) : false,
+    update_available: updateAvailable,
     checked_at: state.checkedAt,
     image_repository: config.imageRepository,
     github_repo: config.githubRepo,
     container_name: config.containerName,
     docker_socket: config.dockerSocketPath,
     docker_available: dockerAvailable,
-    can_apply: Boolean(latest && dockerAvailable && isUpdateAvailable(config.currentVersion, latest.version) && !state.job.running),
+    can_apply: Boolean(latest && dockerAvailable && updateAvailable && !state.job.running),
     can_restart: !state.job.running,
+    apply_block_reason: applyBlockReason,
     job: jobView(state.job),
   }
 }
@@ -189,14 +216,16 @@ export async function checkForUpdate(event?: H3Event, fetcher: typeof fetch = fe
   beginJob('checking', '正在检测最新版本…')
   try {
     const latest = await fetchLatestRelease(config.githubRepo, config.imageRepository, fetcher)
+    const docker = createDockerClient(config.dockerSocketPath)
+    const current = await resolveCurrentInstallation(config, await docker.isAvailable() ? docker : null)
     state.latest = latest
     state.checkedAt = new Date().toISOString()
-    const available = isUpdateAvailable(config.currentVersion, latest.version)
+    const available = isUpdateAvailable(current.version, latest.version)
     finishJob(
       'success',
       available
         ? `发现新版本 ${latest.tag}。`
-        : `当前已是最新版本（${toImageTag(config.currentVersion)}）。`,
+        : `当前已是最新版本（${toImageTag(current.version)}）。`,
     )
     return await getUpdateStatus(event)
   } catch (error) {
@@ -225,7 +254,8 @@ export async function applyUpdate(event?: H3Event, options?: {
 
   const latest = getState().latest
   if (!latest) throw new Error('未能获取最新版本信息。')
-  if (!isUpdateAvailable(config.currentVersion, latest.version)) {
+  const current = await resolveCurrentInstallation(config, docker)
+  if (!isUpdateAvailable(current.version, latest.version)) {
     throw new Error('当前没有可应用的新版本。')
   }
 
@@ -246,6 +276,101 @@ export async function applyUpdate(event?: H3Event, options?: {
   })
 
   return await getUpdateStatus(event, docker)
+}
+
+async function resolveCurrentInstallation(
+  config: ReturnType<typeof getUpdateConfig>,
+  docker: DockerClient | null,
+): Promise<CurrentInstallation> {
+  const runtimeVersion = String(config.currentVersion || '').trim() || 'unknown'
+  const fallback: CurrentInstallation = {
+    version: runtimeVersion,
+    runtimeVersion,
+    image: null,
+    imageId: null,
+    source: isUsableVersion(runtimeVersion) ? 'runtime' : 'unknown',
+  }
+
+  if (!docker) return fallback
+
+  try {
+    const self = await resolveSelfContainer(docker, config.containerName)
+    if (!self) return fallback
+
+    const image = self.Config.Image || null
+    const imageId = self.Image || null
+    const inspectedImage = await docker.inspectImage(imageId || image || '')
+    const imageVersion = envValue(inspectedImage?.Config?.Env || [], 'NUXT_APP_VERSION')
+      || inspectedImage?.Config?.Labels?.['org.opencontainers.image.version']
+      || ''
+    const imageTagVersion = versionFromImageRef(image || '')
+
+    if (isUsableVersion(imageVersion)) {
+      return {
+        version: imageVersion,
+        runtimeVersion,
+        image,
+        imageId,
+        source: 'image',
+      }
+    }
+
+    if (isUsableVersion(runtimeVersion)) {
+      return {
+        version: runtimeVersion,
+        runtimeVersion,
+        image,
+        imageId,
+        source: 'runtime',
+      }
+    }
+
+    if (imageTagVersion) {
+      return {
+        version: imageTagVersion,
+        runtimeVersion,
+        image,
+        imageId,
+        source: 'image_tag',
+      }
+    }
+
+    return {
+      ...fallback,
+      image,
+      imageId,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function envValue(env: string[], key: string) {
+  const prefix = `${key}=`
+  return env.find(item => item.startsWith(prefix))?.slice(prefix.length) || ''
+}
+
+function isUsableVersion(value: string) {
+  const normalized = normalizeVersion(value)
+  return normalized === 'dev' || normalized === '0.0.0' || isSemverLike(normalized)
+}
+
+function versionFromImageRef(image: string) {
+  const tag = image.includes(':') ? image.split(':').pop() || '' : ''
+  return isSemverLike(tag) ? tag : ''
+}
+
+function getApplyBlockReason(input: {
+  latest: LatestRelease | null
+  dockerAvailable: boolean
+  updateAvailable: boolean
+  jobRunning: boolean
+}) {
+  if (input.jobRunning) return '已有更新任务正在执行。'
+  if (!input.latest) return '请先检测最新版本。'
+  if (!input.dockerAvailable) return 'Docker Socket 不可用，无法在页面内重建容器。'
+  if (!input.updateAvailable) return '当前版本已是最新。'
+  return null
 }
 
 export async function restartService(event?: H3Event, options?: {

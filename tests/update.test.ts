@@ -47,6 +47,7 @@ describe('update version helpers', () => {
     expect(compareVersions('v2.0.0', '2.0.0')).toBe(0)
     expect(isUpdateAvailable('2.0.0', 'v2.1.0')).toBe(true)
     expect(isUpdateAvailable('2.1.0', '2.0.9')).toBe(false)
+    expect(isUpdateAvailable('latest', 'v2.1.0')).toBe(true)
   })
 })
 
@@ -60,6 +61,41 @@ describe('update service', () => {
     expect(status.docker_available).toBe(false)
     expect(status.can_apply).toBe(false)
     expect(status.can_restart).toBe(true)
+  })
+
+  it('resolves the real version from the current docker image when runtime says latest', async () => {
+    vi.stubGlobal('useRuntimeConfig', () => ({
+      appVersion: 'latest',
+      updateImageRepository: '614626370/sub2api-guide',
+      updateGithubRepo: 'h614626370-del/token_guide',
+      updateContainerName: 'sub2api-guide',
+      dockerSocketPath: '/var/run/docker.sock',
+    }))
+
+    const status = await getUpdateStatus(undefined, {
+      isAvailable: async () => true,
+      inspectContainer: async () => ({
+        Id: 'container-id',
+        Image: 'sha256:image-id',
+        Name: '/sub2api-guide',
+        Config: {
+          Image: '614626370/sub2api-guide:latest',
+          Env: ['NUXT_APP_VERSION=latest'],
+        },
+        HostConfig: {},
+      }),
+      inspectImage: async () => ({
+        Id: 'sha256:image-id',
+        Config: {
+          Env: ['NUXT_APP_VERSION=v2.0.0'],
+        },
+      }),
+    } as any)
+
+    expect(status.current_version).toBe('v2.0.0')
+    expect(status.current_runtime_version).toBe('latest')
+    expect(status.current_image).toBe('614626370/sub2api-guide:latest')
+    expect(status.current_version_source).toBe('image')
   })
 
   it('checks github releases for a newer version', async () => {

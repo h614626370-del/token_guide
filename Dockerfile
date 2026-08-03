@@ -31,6 +31,8 @@ FROM node:22-bookworm-slim AS runtime
 
 ARG APP_VERSION=2.0.0
 
+LABEL org.opencontainers.image.version=$APP_VERSION
+
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
