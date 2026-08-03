@@ -1079,6 +1079,46 @@
   cursor: pointer;
 }
 
+.admin-update-actions {
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(26, 31, 37, 0.06);
+}
+
+.admin-update-actions .primary-command,
+.admin-update-actions .secondary-command {
+  min-height: 36px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.admin-update-actions .secondary-command {
+  padding: 0 12px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.admin-update-actions .secondary-command:hover:not(:disabled) {
+  border-color: var(--line);
+}
+
+.admin-update-primary {
+  min-width: 136px;
+  box-shadow: 0 7px 16px rgba(18, 22, 28, 0.14);
+}
+
+.admin-update-actions .danger-command {
+  color: #8f2d2d;
+}
+
+.admin-update-actions .danger-command:hover:not(:disabled) {
+  border-color: #e2c2c2;
+  color: #761d1d;
+  background: #fff1f1;
+}
+
 .admin-status-band {
   display: grid;
   min-height: 100px;
@@ -1293,6 +1333,10 @@
     position: static;
     margin-top: 16px;
     flex-wrap: wrap;
+  }
+
+  .admin-update-actions {
+    display: inline-flex;
   }
 }
 

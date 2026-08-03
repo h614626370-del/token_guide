@@ -70,6 +70,38 @@ async function checkUpdate() {
   }
 }
 
+async function runUpdateFlow() {
+  if (status.value?.update_available) {
+    await applyUpdate()
+    return
+  }
+
+  checking.value = true
+  notice.type = 'idle'
+  notice.message = ''
+  try {
+    const response = await $fetch<ApiSuccess<UpdateStatusView>>('/api/admin/update/check', {
+      method: 'POST',
+    })
+    status.value = response.data
+    syncPolling(response.data)
+    if (!response.data.update_available) {
+      notice.type = 'success'
+      notice.message = '当前已是最新版本。'
+      return
+    }
+  } catch (cause) {
+    notice.type = 'error'
+    notice.message = apiErrorMessage(cause, '检测更新失败')
+    await loadStatus()
+    return
+  } finally {
+    checking.value = false
+  }
+
+  await applyUpdate()
+}
+
 async function applyUpdate() {
   if (!status.value?.update_available) return
   if (!window.confirm(`确认下载并更新到 ${status.value.latest_tag}？更新过程中服务会短暂中断。`)) {
@@ -158,6 +190,17 @@ function stopPolling() {
 }
 
 const busy = computed(() => loading.value || checking.value || applying.value || restarting.value || Boolean(status.value?.job.phase === 'pulling' || status.value?.job.phase === 'recreating'))
+const primaryUpdateText = computed(() => {
+  if (checking.value) return '检测中…'
+  if (applying.value) return '更新中…'
+  if (status.value?.update_available) return status.value.latest_tag ? `更新到 ${status.value.latest_tag}` : '下载并更新'
+  return '检查并更新'
+})
+const primaryUpdateDisabled = computed(() => {
+  if (busy.value) return true
+  if (status.value?.update_available && !status.value.can_apply) return true
+  return false
+})
 </script>
 
 <template>
@@ -167,21 +210,22 @@ const busy = computed(() => loading.value || checking.value || applying.value ||
         <span>System update</span>
         <h1>系统更新</h1>
         <p>检测 GitHub / 镜像仓库新版本，下载最新镜像并重建容器。</p>
-        <div class="admin-page-heading__actions">
+        <div class="admin-page-heading__actions admin-update-actions">
+          <button
+            class="primary-command admin-update-primary"
+            type="button"
+            :disabled="primaryUpdateDisabled"
+            @click="runUpdateFlow"
+          >
+            <Download v-if="status?.update_available || applying" :size="16" />
+            <RefreshCcw v-else :size="16" />
+            {{ primaryUpdateText }}
+          </button>
           <button class="secondary-command" type="button" :disabled="busy" @click="checkUpdate">
             <RefreshCcw :size="16" />
-            {{ checking ? '检测中…' : '检测更新' }}
+            {{ checking ? '检测中…' : '仅检查' }}
           </button>
-          <button
-            class="primary-command"
-            type="button"
-            :disabled="busy || !status?.can_apply"
-            @click="applyUpdate"
-          >
-            <Download :size="16" />
-            {{ applying ? '更新中…' : '下载最新并更新' }}
-          </button>
-          <button class="secondary-command" type="button" :disabled="busy || !status?.can_restart" @click="restartNow">
+          <button class="secondary-command danger-command" type="button" :disabled="busy || !status?.can_restart" @click="restartNow">
             <RotateCcw :size="16" />
             {{ restarting ? '重启中…' : '立即重启' }}
           </button>
