@@ -4,6 +4,7 @@ import { apiErrorMessage } from '~/types/api'
 export function useGuideSessionState() {
   const session = useState<GuideSessionView | null>('guide-session', () => null)
   const loading = useState('guide-session-loading', () => false)
+  const initialized = useState('guide-session-initialized', () => false)
   const error = useState('guide-session-error', () => '')
 
   async function refresh() {
@@ -18,9 +19,15 @@ export function useGuideSessionState() {
       error.value = apiErrorMessage(cause, '登录状态读取失败')
       return null
     } finally {
+      initialized.value = true
       loading.value = false
     }
   }
 
-  return { session, loading, error, refresh }
+  async function ensureLoaded() {
+    if (initialized.value || loading.value) return session.value
+    return await refresh()
+  }
+
+  return { session, loading, initialized, error, refresh, ensureLoaded }
 }

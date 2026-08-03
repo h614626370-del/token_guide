@@ -147,7 +147,7 @@ async function administratorCookie() {
 }
 
 describe('Nuxt application routes', () => {
-  it.each(['/', '/member', '/integration', '/playground', '/pricing', '/feedback', '/admin'])('renders %s', async (path) => {
+  it.each(['/', '/member', '/integration', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
@@ -566,6 +566,17 @@ describe('authentication and same-origin API protection', () => {
     expect(publicAsset.headers.get('content-type')).toContain('image/png')
     expect(Buffer.from(await publicAsset.arrayBuffer())).toEqual(transparentPng)
 
+    const list = await fetch('/api/admin/assets', { headers: { cookie } })
+    expect(list.status).toBe(200)
+    const listBody = await json(list)
+    expect(listBody).toMatchObject({
+      ok: true,
+      data: [expect.objectContaining({
+        filename: uploadedBody.data.filename,
+        url: uploadedBody.data.url,
+      })],
+    })
+
     const invalidBody = new FormData()
     invalidBody.append('file', new Blob([Buffer.from('not an image')], { type: 'image/png' }), 'fake.png')
     const invalidUpload = await fetch('/api/admin/assets/upload', {
@@ -574,5 +585,12 @@ describe('authentication and same-origin API protection', () => {
       body: invalidBody,
     })
     expect(invalidUpload.status).toBe(400)
+
+    const deleted = await fetch(`/api/admin/assets/${uploadedBody.data.filename}`, {
+      method: 'DELETE',
+      headers: { cookie },
+    })
+    expect(deleted.status).toBe(200)
+    expect((await fetch(publicPath)).status).toBe(404)
   })
 })

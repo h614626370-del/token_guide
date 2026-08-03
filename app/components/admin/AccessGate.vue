@@ -3,15 +3,8 @@ import { KeyRound, LogIn } from 'lucide-vue-next'
 
 const admin = useAdminSessionState()
 const token = ref('')
-const checking = ref(true)
 
-onMounted(async () => {
-  try {
-    await admin.refresh()
-  } finally {
-    checking.value = false
-  }
-})
+onMounted(() => { void admin.ensureLoaded() })
 
 async function submit() {
   if (!token.value.trim()) return
@@ -21,7 +14,7 @@ async function submit() {
 </script>
 
 <template>
-  <section v-if="checking" class="admin-login-panel">
+  <section v-if="!admin.initialized.value" class="admin-login-panel">
     <div class="admin-login-panel__mark"><KeyRound :size="24" /></div>
     <div>
       <span>Administrator</span>

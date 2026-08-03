@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { H3Event } from 'h3'
 import { getGuideConfig } from '../../utils/config'
@@ -17,6 +17,10 @@ export interface UploadedAsset {
   url: string
   content_type: string
   size: number
+}
+
+export interface AssetListItem extends UploadedAsset {
+  created_at: string
 }
 
 export interface PublicAsset {
@@ -90,6 +94,46 @@ export async function readPublicAsset(filename: string, event?: H3Event): Promis
     }
   } catch {
     return null
+  }
+}
+
+export async function listUploadedAssets(event?: H3Event): Promise<AssetListItem[]> {
+  const root = uploadsRoot(event)
+  try {
+    const entries = await readdir(root, { withFileTypes: true })
+    const items = await Promise.all(entries
+      .filter(entry => entry.isFile() && isSafeAssetFilename(entry.name))
+      .map(async (entry) => {
+        const info = await stat(path.join(root, entry.name))
+        const ext = path.extname(entry.name).slice(1).toLowerCase()
+        return {
+          filename: entry.name,
+          url: publicUploadUrl(entry.name, event),
+          content_type: contentTypeFromExt(ext),
+          size: info.size,
+          created_at: info.mtime.toISOString(),
+        }
+      }))
+    return items
+      .filter(item => item.content_type)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+  } catch {
+    return []
+  }
+}
+
+export async function deleteUploadedAsset(filename: string, event?: H3Event) {
+  if (!isSafeAssetFilename(filename)) return false
+  const root = uploadsRoot(event)
+  const fullPath = path.join(root, filename)
+  const resolved = path.resolve(fullPath)
+  if (!resolved.startsWith(`${path.resolve(root)}${path.sep}`)) return false
+
+  try {
+    await unlink(resolved)
+    return true
+  } catch {
+    return false
   }
 }
 
