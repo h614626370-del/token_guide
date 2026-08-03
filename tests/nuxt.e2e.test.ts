@@ -1,0 +1,535 @@
+import { createServer } from 'node:http'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { afterAll, describe, expect, it } from 'vitest'
+import { fetch, setup, url } from '@nuxt/test-utils/e2e'
+
+const adminToken = 'integration-admin-token'
+const sessionPassword = 'integration-session-password-at-least-32-characters'
+const temporaryDirectory = mkdtempSync(join(tmpdir(), 'kkflow-guide-e2e-'))
+const databasePath = join(temporaryDirectory, 'guide.sqlite')
+const jwt = `e30.${Buffer.from(JSON.stringify({ exp: 4_102_444_800 })).toString('base64url')}.signature`
+const savedApiKey = 'sk-saved-1234567890'
+const upstreamRequests: Array<{ path: string, authorization: string, body: any }> = []
+
+const upstream = createServer(async (request, response) => {
+  const requestUrl = new URL(request.url || '/', 'http://127.0.0.1')
+  const authorization = request.headers.authorization || ''
+  let requestBody: any = null
+  if (request.method === 'POST') {
+    const chunks: Buffer[] = []
+    for await (const chunk of request) chunks.push(Buffer.from(chunk))
+    const raw = Buffer.concat(chunks).toString('utf8')
+    requestBody = raw ? JSON.parse(raw) : null
+  }
+  upstreamRequests.push({ path: requestUrl.pathname, authorization, body: requestBody })
+  response.setHeader('content-type', 'application/json')
+  if (requestUrl.pathname === '/api/v1/auth/me' && authorization === `Bearer ${jwt}`) {
+    response.end(JSON.stringify({
+      code: 0,
+      data: {
+        id: 614,
+        email: 'member@example.com',
+        username: 'Integration Member',
+        role: 'user',
+      },
+    }))
+    return
+  }
+  if (requestUrl.pathname === '/api/v1/keys' && authorization === `Bearer ${jwt}`) {
+    response.end(JSON.stringify({
+      code: 0,
+      data: {
+        items: [{
+          id: 7,
+          key: savedApiKey,
+          name: 'Integration key',
+          status: 'active',
+          group_id: 11,
+          group: { id: 11, name: 'OpenAI', platform: 'openai' },
+        }],
+        total: 1,
+      },
+    }))
+    return
+  }
+  if (requestUrl.pathname === '/api/v1/keys/7' && authorization === `Bearer ${jwt}`) {
+    response.end(JSON.stringify({
+      code: 0,
+      data: {
+        id: 7,
+        key: savedApiKey,
+        name: 'Integration key',
+        status: 'active',
+        group_id: 11,
+      },
+    }))
+    return
+  }
+  if (requestUrl.pathname === '/v1/responses' && authorization === `Bearer ${savedApiKey}`) {
+    response.end(JSON.stringify({
+      id: 'resp_test',
+      object: 'response',
+      model: requestBody?.model,
+      output_text: 'Proxy response',
+    }))
+    return
+  }
+  if (requestUrl.pathname === '/v1/images/generations' && authorization === 'Bearer sk-custom-abcdef') {
+    response.end(JSON.stringify({
+      created: 1_700_000_000,
+      data: [{ url: 'https://images.example/generated.png' }],
+    }))
+    return
+  }
+  response.statusCode = 401
+  response.end(JSON.stringify({ code: 401, message: 'invalid token' }))
+})
+
+await new Promise<void>((resolve, reject) => {
+  upstream.once('error', reject)
+  upstream.listen(0, '127.0.0.1', resolve)
+})
+const upstreamAddress = upstream.address()
+if (!upstreamAddress || typeof upstreamAddress === 'string') {
+  throw new Error('Unable to start the sub2api test server.')
+}
+const upstreamOrigin = `http://127.0.0.1:${upstreamAddress.port}`
+
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => upstream.close(error => error ? reject(error) : resolve()))
+  rmSync(temporaryDirectory, { recursive: true, force: true })
+})
+
+await setup({
+  rootDir: fileURLToPath(new URL('..', import.meta.url)),
+  browser: false,
+  server: true,
+  setupTimeout: 240_000,
+  teardownTimeout: 60_000,
+  env: {
+    NUXT_DATABASE_PATH: databasePath,
+    NUXT_ADMIN_TOKEN: adminToken,
+    NUXT_SESSION_PASSWORD: sessionPassword,
+    NUXT_IP_HASH_SALT: 'integration-ip-hash-salt',
+    NUXT_PUBLIC_SITE_URL: 'https://guide.kkflow.org',
+    NUXT_PUBLIC_SUB2API_ORIGIN: upstreamOrigin,
+    NUXT_TRUSTED_PROXY_IPS: '127.0.0.1,::1',
+  },
+})
+
+function cookieFrom(response: Response) {
+  const value = response.headers.get('set-cookie')
+  expect(value).toBeTruthy()
+  return value!.split(';', 1)[0]
+}
+
+async function json(response: Response) {
+  return response.json() as Promise<any>
+}
+
+async function memberCookie() {
+  const response = await fetch(`/auth/embed?token=${encodeURIComponent(jwt)}`, { redirect: 'manual' })
+  expect(response.status).toBe(303)
+  return cookieFrom(response)
+}
+
+async function administratorCookie() {
+  const response = await fetch('/api/session/admin', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: adminToken }),
+  })
+  expect(response.status).toBe(200)
+  return cookieFrom(response)
+}
+
+describe('Nuxt application routes', () => {
+  it.each(['/', '/member', '/integration', '/playground', '/pricing', '/feedback', '/admin'])('renders %s', async (path) => {
+    const response = await fetch(path)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-type')).toContain('text/html')
+  })
+
+  it('does not expose the removed compatibility prefixes', async () => {
+    expect((await fetch('/guide/')).status).toBe(404)
+    expect((await fetch('/guide-api/health')).status).toBe(404)
+  })
+
+  it('serves health, metadata and an anonymous session from the unified server', async () => {
+    const health = await fetch('/api/health')
+    expect(health.status).toBe(200)
+    expect(await json(health)).toMatchObject({
+      ok: true,
+      data: { service: 'kkflow-guide', status: 'ok' },
+    })
+
+    const meta = await fetch('/api/meta')
+    expect(await json(meta)).toMatchObject({
+      ok: true,
+      data: {
+        service: 'kkflow-guide',
+        project: 'Token向云',
+        features: { playground: true, pricing: true, feedback: true },
+      },
+    })
+
+    const session = await fetch('/api/session')
+    expect(await json(session)).toMatchObject({
+      ok: true,
+      data: { authenticated: false, admin: false, user: null },
+    })
+
+    const siteConfig = await fetch('/api/site-config')
+    expect(await json(siteConfig)).toMatchObject({
+      ok: true,
+      data: {
+        project_name: 'Token向云',
+        site_title: 'Token向云指南',
+        main_site_url: upstreamOrigin,
+        api_base_url: `${upstreamOrigin}/v1`,
+      },
+    })
+  })
+
+  it('sends the iframe and browser security policy without an X-Frame-Options conflict', async () => {
+    const response = await fetch('/playground')
+    expect(response.headers.get('content-security-policy')).toContain(`frame-ancestors ${upstreamOrigin}`)
+    expect(response.headers.get('content-security-policy')).toContain("connect-src 'self'")
+    expect(response.headers.get('content-security-policy')).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'")
+    expect(response.headers.get('content-security-policy')).not.toContain("'unsafe-eval'")
+    expect(response.headers.get('x-frame-options')).toBeNull()
+    expect(response.headers.get('cross-origin-resource-policy')).toBe('same-site')
+  })
+})
+
+describe('authentication and same-origin API protection', () => {
+  it('rejects browser writes from an unrelated origin', async () => {
+    const response = await fetch('/api/session/admin', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'https://attacker.example',
+      },
+      body: JSON.stringify({ token: adminToken }),
+    })
+    expect(response.status).toBe(403)
+    expect(await json(response)).toMatchObject({
+      error: true,
+      statusCode: 403,
+      data: { code: 'ORIGIN_NOT_ALLOWED' },
+    })
+  })
+
+  it('keeps administrator authentication in an encrypted HttpOnly cookie', async () => {
+    const invalid = await fetch('/api/session/admin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: 'wrong-token' }),
+    })
+    expect(invalid.status).toBe(401)
+
+    const login = await fetch('/api/session/admin', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: new URL(url('/')).origin,
+      },
+      body: JSON.stringify({ token: adminToken }),
+    })
+    expect(login.status).toBe(200)
+    const setCookie = login.headers.get('set-cookie') || ''
+    expect(setCookie.toLowerCase()).toContain('httponly')
+    expect(setCookie.toLowerCase()).toContain('secure')
+    expect(setCookie.toLowerCase()).toContain('samesite=lax')
+    const adminCookie = cookieFrom(login)
+
+    const session = await fetch('/api/session', { headers: { cookie: adminCookie } })
+    expect(await json(session)).toMatchObject({ ok: true, data: { admin: true } })
+
+    const pricingConfig = await fetch('/api/admin/pricing/config', { headers: { cookie: adminCookie } })
+    expect(pricingConfig.status).toBe(200)
+
+    const logout = await fetch('/api/session/admin', {
+      method: 'DELETE',
+      headers: { cookie: adminCookie },
+    })
+    expect(logout.status).toBe(200)
+    const loggedOutCookie = cookieFrom(logout)
+    const loggedOutSession = await fetch('/api/session', { headers: { cookie: loggedOutCookie } })
+    expect(await json(loggedOutSession)).toMatchObject({ ok: true, data: { admin: false } })
+  })
+
+  it('requires a member session for feedback and playground credentials', async () => {
+    const feedback = await fetch('/api/feedback/quota')
+    expect(feedback.status).toBe(401)
+    expect(await json(feedback)).toMatchObject({
+      error: true,
+      statusCode: 401,
+      data: { code: 'LOGIN_REQUIRED' },
+    })
+
+    const keys = await fetch('/api/playground/keys')
+    expect(keys.status).toBe(401)
+    expect(await json(keys)).toMatchObject({
+      error: true,
+      statusCode: 401,
+      data: { code: 'LOGIN_REQUIRED' },
+    })
+  })
+
+  it('validates the embedded JWT server-side and redirects to a token-free URL', async () => {
+    const missing = await fetch('/auth/embed', { redirect: 'manual' })
+    expect(missing.status).toBe(303)
+    expect(missing.headers.get('location')).toBe('/auth/error?reason=missing')
+
+    const invalid = await fetch('/auth/embed?token=invalid', { redirect: 'manual' })
+    expect(invalid.status).toBe(303)
+    expect(invalid.headers.get('location')).toBe('/auth/error?reason=invalid')
+
+    const embedded = await fetch(`/auth/embed?token=${encodeURIComponent(jwt)}&redirect=/feedback&ui_mode=embedded`, {
+      redirect: 'manual',
+    })
+    expect(embedded.status).toBe(303)
+    expect(embedded.headers.get('location')).toBe('/feedback?embedded=1')
+    expect(embedded.headers.get('location')).not.toContain('token')
+    expect(embedded.headers.get('referrer-policy')).toBe('no-referrer')
+    const memberCookie = cookieFrom(embedded)
+
+    const session = await fetch('/api/session', { headers: { cookie: memberCookie } })
+    expect(await json(session)).toMatchObject({
+      ok: true,
+      data: {
+        authenticated: true,
+        user: {
+          id: '614',
+          email: 'member@example.com',
+          username: 'Integration Member',
+        },
+      },
+    })
+  })
+
+  it('never returns a complete saved API key and proxies model requests server-side', async () => {
+    const cookie = await memberCookie()
+    const keys = await fetch('/api/playground/keys', { headers: { cookie } })
+    expect(keys.status).toBe(200)
+    const keysBody = await json(keys)
+    expect(keysBody).toMatchObject({
+      ok: true,
+      data: [{
+        id: 7,
+        name: 'Integration key',
+        masked_key: 'sk-save...7890',
+        group: { id: 11, name: 'OpenAI', platform: 'openai' },
+      }],
+    })
+    expect(JSON.stringify(keysBody)).not.toContain(savedApiKey)
+
+    const textResponse = await fetch('/api/playground/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        credential: { type: 'saved', id: 7 },
+        request: { model: 'gpt-test', input: 'Hello from the integration test.' },
+      }),
+    })
+    expect(textResponse.status).toBe(200)
+    expect(await json(textResponse)).toMatchObject({
+      ok: true,
+      data: { id: 'resp_test', model: 'gpt-test', output_text: 'Proxy response' },
+    })
+    expect(upstreamRequests).toContainEqual(expect.objectContaining({
+      path: '/v1/responses',
+      authorization: `Bearer ${savedApiKey}`,
+      body: { model: 'gpt-test', input: 'Hello from the integration test.' },
+    }))
+
+    const imageResponse = await fetch('/api/playground/images', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        credential: { type: 'custom', value: 'sk-custom-abcdef' },
+        request: {
+          model: 'gpt-image-2',
+          prompt: 'A precise integration test image.',
+          size: '1024x1024',
+        },
+      }),
+    })
+    expect(imageResponse.status).toBe(200)
+    expect(await json(imageResponse)).toMatchObject({
+      ok: true,
+      data: { data: [{ url: 'https://images.example/generated.png' }] },
+    })
+    expect(upstreamRequests).toContainEqual(expect.objectContaining({
+      path: '/v1/images/generations',
+      authorization: 'Bearer sk-custom-abcdef',
+    }))
+  })
+
+  it('supports the member feedback and administrator reply workflow', async () => {
+    const userCookie = await memberCookie()
+    const created = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: userCookie },
+      body: JSON.stringify({
+        category: 'api',
+        title: 'Integration feedback',
+        content: 'This feedback verifies the complete member and administrator workflow.',
+        source: 'guide-test',
+      }),
+    })
+    expect(created.status).toBe(200)
+    const createdBody = await json(created)
+    expect(createdBody.data.id).toMatch(/^fb_[a-f0-9]{16}$/)
+    expect(createdBody.meta.quota.used).toBe(1)
+
+    const history = await fetch('/api/feedback/me', { headers: { cookie: userCookie } })
+    expect(await json(history)).toMatchObject({
+      ok: true,
+      data: [{ id: createdBody.data.id, title: 'Integration feedback', status: 'open' }],
+    })
+
+    const adminCookie = await administratorCookie()
+    const list = await fetch('/api/admin/feedback?q=Integration%20feedback', { headers: { cookie: adminCookie } })
+    expect(await json(list)).toMatchObject({
+      ok: true,
+      data: [{ public_id: createdBody.data.id, user_id: '614' }],
+    })
+
+    const updated = await fetch(`/api/admin/feedback/${createdBody.data.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({
+        status: 'closed',
+        admin_reply: 'The integration feedback has been handled.',
+      }),
+    })
+    expect(updated.status).toBe(200)
+    expect(await json(updated)).toMatchObject({
+      ok: true,
+      data: { status: 'closed', admin_reply: 'The integration feedback has been handled.' },
+    })
+  })
+
+  it('persists administrator pricing model and group bulk updates', async () => {
+    const cookie = await administratorCookie()
+    const models = await fetch('/api/admin/pricing/models/bulk', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        items: [{
+          provider: 'openai',
+          model_name: 'integration-model',
+          display_name: 'Integration Model',
+          is_visible: true,
+          sort_order: 9,
+        }],
+      }),
+    })
+    expect(models.status).toBe(200)
+
+    const groups = await fetch('/api/admin/pricing/groups/bulk', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        items: [{
+          provider: 'openai',
+          source_id: 'integration-group',
+          source_name: 'Integration Group',
+          is_visible: true,
+          recharge_pay_cny: 20,
+          recharge_credit_usd: 100,
+          sort_order: 9,
+        }],
+      }),
+    })
+    expect(groups.status).toBe(200)
+
+    const config = await fetch('/api/admin/pricing/config', { headers: { cookie } })
+    const configBody = await json(config)
+    expect(configBody.data.models).toEqual(expect.arrayContaining([
+      expect.objectContaining({ model_name: 'integration-model', display_name: 'Integration Model' }),
+    ]))
+    expect(configBody.data.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source_id: 'integration-group',
+        recharge_multiplier: 5,
+      }),
+    ]))
+  })
+
+  it('updates public branding and main-site routes from the administrator API', async () => {
+    const cookie = await administratorCookie()
+    const defaults = {
+      project_name: 'Token向云',
+      site_title: 'Token向云指南',
+      site_description: '会员、API 接入、模型试用与价格参考。',
+      logo_path: 'https://guide.kkflow.org/logo-80.png',
+      footer_text: '清晰接入，稳定调用。',
+      main_site_url: upstreamOrigin,
+      login_path: '/login',
+      register_path: '/register',
+      support_path: '/support',
+      api_path: '/v1',
+      support_wechat: 'kkflow520',
+      support_group_url: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
+    }
+    const custom = {
+      ...defaults,
+      project_name: '灵链',
+      site_title: '灵链指南',
+      site_description: '灵链开发者与会员接入中心。',
+      logo_path: 'https://cdn.example/linglink-logo.png',
+      footer_text: '连接服务与开发者。',
+      login_path: '/account/login',
+      register_path: '/account/register',
+      support_wechat: 'linglink-support',
+      support_group_url: 'https://cdn.example/linglink-group-qr.png',
+    }
+
+    try {
+      const updated = await fetch('/api/admin/site-config', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify(custom),
+      })
+      expect(updated.status).toBe(200)
+      expect(await json(updated)).toMatchObject({
+        ok: true,
+        data: {
+          project_name: '灵链',
+          site_title: '灵链指南',
+          logo_path: 'https://cdn.example/linglink-logo.png',
+          login_url: `${upstreamOrigin}/account/login`,
+          api_base_url: `${upstreamOrigin}/v1`,
+        },
+      })
+
+      const publicConfig = await fetch('/api/site-config')
+      expect(await json(publicConfig)).toMatchObject({ ok: true, data: { project_name: '灵链' } })
+
+      const guide = await fetch('/')
+      const guideHtml = await guide.text()
+      expect(guideHtml).toContain('灵链会员与 API 接入指南')
+      expect(guideHtml).toContain('src="https://cdn.example/linglink-group-qr.png"')
+      expect(guideHtml).toContain('这里是群二维码图片。如果无法显示，请关闭网络代理。')
+
+      const invalidLogo = await fetch('/api/admin/site-config', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ ...custom, logo_path: '/logo-80.png' }),
+      })
+      expect(invalidLogo.status).toBe(400)
+    } finally {
+      await fetch('/api/admin/site-config', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify(defaults),
+      })
+    }
+  })
+})

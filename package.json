@@ -1,31 +1,42 @@
 {
-  "name": "sub2api-guide",
-  "version": "1.0.0",
+  "name": "kkflow-guide",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
+  },
   "scripts": {
-    "site:dev": "vitepress dev apps/guide-site/docs --host 127.0.0.1",
-    "site:build": "vitepress build apps/guide-site/docs",
-    "site:preview": "vitepress preview apps/guide-site/docs --host 127.0.0.1",
-    "docs:dev": "npm run site:dev",
-    "docs:build": "npm run site:build",
-    "docs:preview": "npm run site:preview",
-    "api:dev": "node --watch apps/guide-api/src/server.js",
-    "api:start": "node apps/guide-api/src/server.js",
-    "api:test": "node --test apps/guide-api/test",
+    "dev": "nuxt dev --host 127.0.0.1",
+    "build": "nuxt build",
+    "preview": "nuxt preview --host 127.0.0.1",
+    "start": "node .output/server/index.mjs",
+    "prepare": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "playwright test",
+    "check": "npm run typecheck && npm test && npm run build",
+    "docker:build": "docker build -t kkflow-guide .",
     "deploy": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./deploy.ps1",
-    "deploy:guide": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-guide.ps1",
-    "release:guide-api": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-guide-api.ps1"
+    "release": "pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/publish-guide.ps1"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.2",
-    "@fastify/helmet": "^12.0.1",
-    "better-sqlite3": "^11.10.0",
-    "dotenv": "^16.4.7",
-    "fastify": "^5.2.1",
+    "@nuxt/content": "^3.15.2",
+    "better-sqlite3": "^12.11.1",
+    "lucide-vue-next": "^0.536.0",
+    "nuxt": "^4.5.1",
+    "vue-router": "^5.2.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "vitepress": "^1.6.4"
+    "@nuxt/test-utils": "^4.1.0",
+    "@playwright/test": "^1.62.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "happy-dom": "^20.11.1",
+    "typescript": "^5.9.2",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.0.5"
   }
 }

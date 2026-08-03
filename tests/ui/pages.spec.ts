@@ -1,0 +1,165 @@
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { expect, test } from '@playwright/test'
+
+const routes = [
+  ['home', '/'],
+  ['member', '/member'],
+  ['integration', '/integration'],
+  ['playground', '/playground'],
+  ['pricing', '/pricing'],
+  ['feedback', '/feedback'],
+  ['admin', '/admin'],
+  ['admin-settings', '/admin/settings'],
+] as const
+
+test.beforeAll(async () => {
+  await mkdir(join(process.cwd(), 'artifacts', 'ui'), { recursive: true })
+})
+
+for (const [name, route] of routes) {
+  test(`${name} renders without viewport overflow`, async ({ page }, testInfo) => {
+    const response = await page.goto(route, { waitUntil: 'domcontentloaded' })
+    expect(response?.status()).toBe(200)
+    await expect(page.locator('main').first()).toBeVisible()
+    await page.waitForTimeout(250)
+
+    const layout = await page.evaluate(() => ({
+      bodyWidth: document.body.scrollWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      bodyHeight: document.body.scrollHeight,
+    }))
+    expect(layout.bodyWidth).toBeLessThanOrEqual(layout.viewportWidth + 1)
+    expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1)
+    expect(layout.bodyHeight).toBeGreaterThan(200)
+
+    await page.screenshot({
+      path: join('artifacts', 'ui', `${testInfo.project.name}-${name}.png`),
+      fullPage: true,
+    })
+  })
+}
+
+test('guide pages render document content and navigation', async ({ page }, testInfo) => {
+  const response = await page.goto('/member', { waitUntil: 'networkidle' })
+  expect(response?.status()).toBe(200)
+  await expect(page.getByRole('heading', { level: 1, name: '会员充值流程' })).toBeVisible()
+  const sidebar = page.locator('.guide-sidebar')
+  await expect(sidebar).toBeVisible()
+
+  if (testInfo.project.name === 'mobile') {
+    await sidebar.getByRole('button', { name: '指南目录' }).click()
+    await expect(sidebar.locator('.guide-sidebar__panel')).toHaveClass(/is-open/)
+  }
+
+  const navigation = sidebar.getByRole('navigation', { name: '指南目录' })
+  await expect(navigation.getByRole('link', { name: 'API 接入配置' })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: '模型价格' })).toHaveCount(0)
+  await expect(navigation.getByRole('link', { name: '使用工作台' })).toHaveCount(0)
+  await expect(navigation.getByRole('link', { name: '反馈' })).toHaveCount(0)
+  await expect(navigation.getByRole('link', { name: '注册账号', exact: true })).toHaveAttribute('href', '/member#_1-注册账号')
+
+  await navigation.getByRole('link', { name: 'API 接入配置' }).click()
+  await expect(page).toHaveURL(/\/integration$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'API 接入配置' })).toBeVisible()
+  if (testInfo.project.name === 'mobile') {
+    const sidebarToggle = sidebar.getByRole('button', { name: '指南目录' })
+    await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'false')
+    await sidebarToggle.click()
+    await expect(sidebarToggle).toHaveAttribute('aria-expanded', 'true')
+  }
+
+  const integrationNavigation = sidebar.getByRole('navigation', { name: '指南目录' })
+  const windowsGuide = integrationNavigation.getByRole('link', { name: 'Codex CLI（Windows）' })
+  await expect(windowsGuide).toHaveAttribute('href', '/integration#_5-codex-cliwindows')
+  await windowsGuide.click()
+  await expect(page.getByRole('heading', { level: 2, name: '5. Codex CLI（Windows）' })).toBeVisible()
+})
+
+test('guide home renders the configured service-group link as a QR image', async ({ page }) => {
+  await page.route('https://www.kdocs.cn/**', route => route.fulfill({
+    status: 200,
+    contentType: 'image/png',
+    body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+  }))
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  const qrImage = page.getByRole('img', { name: '群二维码图片' })
+  await expect(qrImage).toHaveAttribute('src', 'https://www.kdocs.cn/l/csU8ZJybJe2V')
+  await expect(page.getByText('这里是群二维码图片。如果无法显示，请关闭网络代理。')).toBeVisible()
+})
+
+test('tool pages stay outside the guide sidebar', async ({ page }, testInfo) => {
+  await page.goto('/pricing', { waitUntil: 'networkidle' })
+  await expect(page.locator('.guide-sidebar')).toHaveCount(0)
+  if (testInfo.project.name === 'mobile') {
+    const menuButton = page.getByRole('button', { name: '切换导航' })
+    await menuButton.click()
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'true')
+  }
+
+  const mainNavigation = page.getByRole('navigation', { name: '主导航' })
+  await expect(mainNavigation.getByRole('link', { name: '模型价格' })).toHaveAttribute('aria-current', 'page')
+  await mainNavigation.getByRole('link', { name: '使用工作台' }).click()
+  await expect(page).toHaveURL(/\/playground$/)
+  await expect(page.locator('.guide-sidebar')).toHaveCount(0)
+})
+
+test('public interface uses the business-black accent palette', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  const colors = await page.evaluate(() => ({
+    brand: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim(),
+    brandStrong: getComputedStyle(document.documentElement).getPropertyValue('--brand-strong').trim(),
+  }))
+  expect(colors).toEqual({ brand: '#24272d', brandStrong: '#111317' })
+})
+
+test('administrator can update and restore public site branding', async ({ page }, testInfo) => {
+  const defaults = {
+    project_name: 'Token向云',
+    site_title: 'Token向云指南',
+    site_description: '会员、API 接入、模型试用与价格参考。',
+    logo_path: 'https://guide.kkflow.org/logo-80.png',
+    footer_text: '清晰接入，稳定调用。',
+    main_site_url: 'https://kkflow.org',
+    login_path: '/login',
+    register_path: '/register',
+    support_path: '/support',
+    api_path: '/v1',
+    support_wechat: 'kkflow520',
+    support_group_url: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
+  }
+
+  await page.goto('/admin/settings', { waitUntil: 'networkidle' })
+  await page.getByLabel('管理员 Token').fill('playwright-admin-token')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '站点配置' })).toBeVisible()
+  await expect(page.getByLabel('Logo 完整地址')).toHaveAttribute('type', 'url')
+  await expect(page.getByLabel('群二维码图片地址')).toHaveAttribute('type', 'url')
+
+  try {
+    await page.getByLabel('项目名称').fill('灵链')
+    await page.getByLabel('站点标题').fill('灵链指南')
+    await page.getByRole('button', { name: '保存配置' }).click()
+    await expect(page.getByText('站点配置已保存。')).toBeVisible()
+    await page.screenshot({
+      path: join('artifacts', 'ui', `${testInfo.project.name}-admin-settings-authenticated.png`),
+      fullPage: true,
+    })
+
+    await page.goto('/', { waitUntil: 'networkidle' })
+    await expect(page.locator('.site-brand')).toContainText('灵链指南')
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('灵链会员与 API 接入指南')
+  } finally {
+    const restored = await page.request.put('/api/admin/site-config', { data: defaults })
+    expect(restored.ok()).toBe(true)
+  }
+})
+
+test('embedded mode removes the site chrome', async ({ page }) => {
+  const response = await page.goto('/playground?embedded=1', { waitUntil: 'domcontentloaded' })
+  expect(response?.status()).toBe(200)
+  await expect(page.locator('.site-header')).toHaveCount(0)
+  await expect(page.locator('.site-footer')).toHaveCount(0)
+  await expect(page.locator('main')).toBeVisible()
+})

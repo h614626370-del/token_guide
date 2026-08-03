@@ -1,9 +1,10 @@
 param(
   [string]$Token = $env:BAIDU_PUSH_TOKEN,
-  [string]$Site = "https://kkflow.org",
+  [string]$Site = "https://guide.kkflow.org",
   [string[]]$Urls = @(
-    "https://kkflow.org/",
-    "https://kkflow.org/guide/"
+    "https://guide.kkflow.org/",
+    "https://guide.kkflow.org/integration",
+    "https://guide.kkflow.org/pricing"
   )
 )
 

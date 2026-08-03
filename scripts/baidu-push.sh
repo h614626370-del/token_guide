@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SITE="${BAIDU_PUSH_SITE:-https://kkflow.org}"
-URLS="${BAIDU_PUSH_URLS:-https://kkflow.org/
-https://kkflow.org/guide/}"
+SITE="${BAIDU_PUSH_SITE:-https://guide.kkflow.org}"
+URLS="${BAIDU_PUSH_URLS:-https://guide.kkflow.org/
+https://guide.kkflow.org/integration
+https://guide.kkflow.org/pricing}"
 
 if [[ -z "${BAIDU_PUSH_TOKEN:-}" ]]; then
   echo "BAIDU_PUSH_TOKEN is required." >&2

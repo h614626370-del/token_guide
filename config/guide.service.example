@@ -1,0 +1,16 @@
+[Unit]
+Description=KKFlow Guide
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kkflow-guide
+EnvironmentFile=/opt/kkflow-guide/.env
+ExecStart=/usr/bin/node .output/server/index.mjs
+Restart=always
+RestartSec=3
+User=www
+Group=www
+
+[Install]
+WantedBy=multi-user.target
