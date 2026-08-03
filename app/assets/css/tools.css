@@ -346,6 +346,16 @@
   font-size: 11px;
 }
 
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .form-field--grow textarea {
   min-height: 170px;
 }
@@ -1210,6 +1220,63 @@
   gap: 0 12px;
 }
 
+.asset-url-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px auto;
+  gap: 8px;
+}
+
+.asset-url-control .icon-command,
+.asset-url-control .secondary-command {
+  min-height: 36px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.asset-url-control .icon-command {
+  display: grid;
+  width: 36px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.asset-url-control .icon-command:hover:not(:disabled) {
+  color: var(--brand-strong);
+  background: var(--surface-subtle);
+}
+
+.asset-url-control .icon-command:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.asset-url-control .secondary-command {
+  padding: 0 12px;
+}
+
+.asset-preview {
+  display: inline-grid;
+  justify-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.asset-preview img {
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  object-fit: contain;
+}
+
 .site-settings-page .admin-section > header svg {
   color: var(--muted);
 }
@@ -2064,6 +2131,10 @@
   .admin-docs-layout,
   .admin-settings-grid,
   .admin-feedback-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .asset-url-control {
     grid-template-columns: 1fr;
   }
 

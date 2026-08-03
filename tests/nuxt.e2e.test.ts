@@ -533,4 +533,46 @@ describe('authentication and same-origin API protection', () => {
       })
     }
   })
+
+  it('uploads public site images from the administrator API', async () => {
+    const cookie = await administratorCookie()
+    const transparentPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/evp3FwAAAAASUVORK5CYII=',
+      'base64',
+    )
+    const body = new FormData()
+    body.append('file', new Blob([transparentPng], { type: 'image/png' }), 'logo test.png')
+
+    const uploaded = await fetch('/api/admin/assets/upload', {
+      method: 'POST',
+      headers: { cookie },
+      body,
+    })
+    expect(uploaded.status).toBe(200)
+    const uploadedBody = await json(uploaded)
+    expect(uploadedBody).toMatchObject({
+      ok: true,
+      data: {
+        content_type: 'image/png',
+        size: transparentPng.length,
+      },
+    })
+    expect(uploadedBody.data.filename).toMatch(/\.png$/)
+    expect(uploadedBody.data.url).toMatch(/^https:\/\/guide\.kkflow\.org\/uploads\//)
+
+    const publicPath = new URL(uploadedBody.data.url).pathname
+    const publicAsset = await fetch(publicPath)
+    expect(publicAsset.status).toBe(200)
+    expect(publicAsset.headers.get('content-type')).toContain('image/png')
+    expect(Buffer.from(await publicAsset.arrayBuffer())).toEqual(transparentPng)
+
+    const invalidBody = new FormData()
+    invalidBody.append('file', new Blob([Buffer.from('not an image')], { type: 'image/png' }), 'fake.png')
+    const invalidUpload = await fetch('/api/admin/assets/upload', {
+      method: 'POST',
+      headers: { cookie },
+      body: invalidBody,
+    })
+    expect(invalidUpload.status).toBe(400)
+  })
 })

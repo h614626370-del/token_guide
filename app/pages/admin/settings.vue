@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, Image, Save, Settings } from 'lucide-vue-next'
+import { Copy, ExternalLink, Image, Save, Settings, Upload } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { PublicSiteConfig } from '~/types/site'
@@ -7,13 +7,23 @@ import type { PublicSiteConfig } from '~/types/site'
 definePageMeta({ layout: 'admin' })
 useSeoMeta({ title: '站点配置', robots: 'noindex, nofollow' })
 
+interface UploadedAsset {
+  filename: string
+  url: string
+  content_type: string
+  size: number
+}
+
 const admin = useAdminSessionState()
 const site = useSiteConfigState()
 const loading = ref(false)
 const saving = ref(false)
+const uploading = reactive({ logo: false, group: false })
 const loaded = ref(false)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 const form = reactive({ ...site.value })
+const logoInput = ref<HTMLInputElement | null>(null)
+const groupInput = ref<HTMLInputElement | null>(null)
 
 watch(() => admin.session.value?.admin, (authenticated) => {
   if (authenticated && !loaded.value) void loadSettings()
@@ -73,6 +83,55 @@ async function saveSettings() {
 function apply(value: PublicSiteConfig) {
   Object.assign(form, value)
 }
+
+function chooseUpload(target: 'logo' | 'group') {
+  if (target === 'logo') logoInput.value?.click()
+  else groupInput.value?.click()
+}
+
+async function uploadImage(target: 'logo' | 'group', event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+
+  uploading[target] = true
+  notice.type = 'idle'
+  notice.message = ''
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    const response = await $fetch<ApiSuccess<UploadedAsset>>('/api/admin/assets/upload', {
+      method: 'POST',
+      body,
+    })
+    if (target === 'logo') form.logo_path = response.data.url
+    else form.support_group_url = response.data.url
+    notice.type = 'success'
+    notice.message = target === 'logo'
+      ? 'Logo 已上传，保存配置后正式生效。'
+      : '群二维码已上传，保存配置后正式生效。'
+  } catch (cause) {
+    notice.type = 'error'
+    notice.message = apiErrorMessage(cause, '图片上传失败')
+  } finally {
+    uploading[target] = false
+  }
+}
+
+async function copyAssetUrl(target: 'logo' | 'group') {
+  const value = target === 'logo' ? form.logo_path : form.support_group_url
+  if (!value) return
+
+  try {
+    await navigator.clipboard.writeText(value)
+    notice.type = 'success'
+    notice.message = target === 'logo' ? 'Logo 地址已复制。' : '群二维码地址已复制。'
+  } catch {
+    notice.type = 'error'
+    notice.message = '复制失败，请手动复制图片地址。'
+  }
+}
 </script>
 
 <template>
@@ -107,7 +166,16 @@ function apply(value: PublicSiteConfig) {
           <label class="form-field"><span>站点简介</span><textarea v-model.trim="form.site_description" rows="3" maxlength="240" required /></label>
           <label class="form-field">
             <span>Logo 完整地址</span>
-            <input v-model.trim="form.logo_path" type="url" maxlength="500" placeholder="https://example.com/logo.png" required>
+            <div class="asset-url-control">
+              <input v-model.trim="form.logo_path" type="url" maxlength="500" placeholder="https://example.com/logo.png" required>
+              <button class="icon-command" type="button" :disabled="!form.logo_path" title="复制 Logo 地址" @click="copyAssetUrl('logo')">
+                <Copy :size="15" />
+              </button>
+              <button class="secondary-command" type="button" :disabled="loading || saving || uploading.logo" @click="chooseUpload('logo')">
+                <Upload :size="15" />{{ uploading.logo ? '上传中...' : '上传 Logo' }}
+              </button>
+            </div>
+            <small>上传后会生成公开图片地址，也可以粘贴外部图片 URL</small>
           </label>
           <label class="form-field"><span>页脚文案</span><input v-model.trim="form.footer_text" maxlength="120" required></label>
         </section>
@@ -124,11 +192,38 @@ function apply(value: PublicSiteConfig) {
           <label class="form-field"><span>客服标识</span><input v-model.trim="form.support_wechat" maxlength="80"></label>
           <label class="form-field">
             <span>群二维码图片地址</span>
-            <input v-model.trim="form.support_group_url" type="url" maxlength="500" placeholder="https://example.com/group-qr.png">
-            <small>填写可直接访问的图片完整地址</small>
+            <div class="asset-url-control">
+              <input v-model.trim="form.support_group_url" type="url" maxlength="500" placeholder="https://example.com/group-qr.png">
+              <button class="icon-command" type="button" :disabled="!form.support_group_url" title="复制群二维码地址" @click="copyAssetUrl('group')">
+                <Copy :size="15" />
+              </button>
+              <button class="secondary-command" type="button" :disabled="loading || saving || uploading.group" @click="chooseUpload('group')">
+                <Upload :size="15" />{{ uploading.group ? '上传中...' : '上传二维码' }}
+              </button>
+            </div>
+            <small>填写或上传可直接访问的图片完整地址</small>
           </label>
+          <div v-if="form.support_group_url" class="asset-preview asset-preview--qr">
+            <img :src="form.support_group_url" alt="">
+            <span>当前群二维码预览</span>
+          </div>
         </section>
       </form>
+
+      <input
+        ref="logoInput"
+        class="visually-hidden"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        @change="uploadImage('logo', $event)"
+      >
+      <input
+        ref="groupInput"
+        class="visually-hidden"
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        @change="uploadImage('group', $event)"
+      >
     </div>
   </AdminAccessGate>
 </template>
