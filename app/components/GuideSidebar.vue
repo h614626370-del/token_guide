@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { BookOpen, ChevronDown } from 'lucide-vue-next'
+import type { Component } from 'vue'
+import { BookOpen, Cable, ChevronDown, House, WalletCards } from 'lucide-vue-next'
 
 interface GuideLink {
   label: string
   to: string
+  icon?: Component
 }
 
 interface GuideGroup {
   label: string
+  kind: 'pages' | 'toc'
   items: GuideLink[]
 }
 
@@ -15,9 +18,9 @@ const route = useRoute()
 const menuOpen = ref(false)
 
 const guideStructureItems: GuideLink[] = [
-  { label: '指南首页', to: '/' },
-  { label: '会员充值流程', to: '/member' },
-  { label: 'API 接入配置', to: '/integration' },
+  { label: '指南首页', to: '/', icon: House },
+  { label: '会员充值流程', to: '/member', icon: WalletCards },
+  { label: 'API 接入配置', to: '/integration', icon: Cable },
 ]
 
 const memberItems: GuideLink[] = [
@@ -61,8 +64,8 @@ const groups = computed<GuideGroup[]>(() => {
       : { label: '本页目录 · 指南首页', items: homeItems }
 
   return [
-    { label: '指南', items: guideStructureItems },
-    currentPage,
+    { label: '指南', kind: 'pages', items: guideStructureItems },
+    { ...currentPage, kind: 'toc' },
   ]
 })
 
@@ -101,17 +104,30 @@ function isCurrent(item: GuideLink) {
         <span>指南目录</span>
       </div>
       <nav aria-label="指南目录">
-        <section v-for="group in groups" :key="group.label" class="guide-sidebar__group">
-          <p>{{ group.label }}</p>
-          <NuxtLink
-            v-for="item in group.items"
-            :key="item.to"
-            :to="item.to"
-            :class="{ 'is-current': isCurrent(item) }"
-            :aria-current="isCurrent(item) ? 'page' : undefined"
-          >
-            {{ item.label }}
-          </NuxtLink>
+        <section
+          v-for="group in groups"
+          :key="group.label"
+          :class="['guide-sidebar__group', `guide-sidebar__group--${group.kind}`]"
+        >
+          <p>
+            <span>{{ group.label }}</span>
+            <span v-if="group.kind === 'pages'" class="guide-sidebar__group-count">{{ group.items.length }} 篇</span>
+          </p>
+          <div :class="['guide-sidebar__links', `guide-sidebar__links--${group.kind}`]">
+            <NuxtLink
+              v-for="item in group.items"
+              :key="item.to"
+              :to="item.to"
+              :class="['guide-sidebar__link', `guide-sidebar__link--${group.kind}`, { 'is-current': isCurrent(item) }]"
+              :aria-current="isCurrent(item) ? 'page' : undefined"
+            >
+              <span v-if="item.icon" class="guide-sidebar__link-icon" aria-hidden="true">
+                <component :is="item.icon" :size="17" :stroke-width="1.9" />
+              </span>
+              <span v-else class="guide-sidebar__link-marker" aria-hidden="true" />
+              <span>{{ item.label }}</span>
+            </NuxtLink>
+          </div>
         </section>
       </nav>
     </div>

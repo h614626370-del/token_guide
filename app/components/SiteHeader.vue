@@ -13,6 +13,11 @@ import {
 const route = useRoute()
 const site = useSiteConfigState()
 const menuOpen = ref(false)
+const logoFailed = ref(false)
+const logoElement = ref<HTMLImageElement | null>(null)
+const fallbackLogo = '/logo-80.png'
+const logoSrc = computed(() => logoFailed.value ? fallbackLogo : site.value.logo_path)
+let logoFallbackTimer: ReturnType<typeof setTimeout> | undefined
 const navigation = [
   { label: '指南', to: '/', icon: BookOpen, paths: ['/', '/member', '/integration'] },
   { label: '模型价格', to: '/pricing', icon: BadgeDollarSign, paths: ['/pricing'] },
@@ -24,8 +29,32 @@ watch(() => route.fullPath, () => {
   menuOpen.value = false
 })
 
+watch(() => site.value.logo_path, () => {
+  clearTimeout(logoFallbackTimer)
+  logoFailed.value = false
+  nextTick(scheduleLogoFallback)
+})
+
+onMounted(scheduleLogoFallback)
+onBeforeUnmount(() => clearTimeout(logoFallbackTimer))
+
 function isActive(paths: string[]) {
   return paths.includes(route.path)
+}
+
+function handleLogoError() {
+  if (logoSrc.value !== fallbackLogo) logoFailed.value = true
+}
+
+function handleLogoLoad() {
+  clearTimeout(logoFallbackTimer)
+}
+
+function scheduleLogoFallback() {
+  if (logoSrc.value === fallbackLogo) return
+  logoFallbackTimer = setTimeout(() => {
+    if (!logoElement.value?.complete || !logoElement.value.naturalWidth) logoFailed.value = true
+  }, 500)
 }
 </script>
 
@@ -33,7 +62,7 @@ function isActive(paths: string[]) {
   <header class="site-header">
     <div class="site-header__inner">
       <NuxtLink class="site-brand" to="/" :aria-label="`${site.site_title}首页`">
-        <img :src="site.logo_path" width="34" height="34" alt="" aria-hidden="true">
+        <img ref="logoElement" :src="logoSrc" width="34" height="34" alt="" aria-hidden="true" @load="handleLogoLoad" @error="handleLogoError">
         <span>{{ site.site_title }}</span>
       </NuxtLink>
 
