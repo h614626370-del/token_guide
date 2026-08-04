@@ -21,6 +21,7 @@ RUN npm ci
 
 COPY nuxt.config.ts content.config.ts tsconfig.json ./
 COPY app ./app
+COPY shared ./shared
 COPY content ./content
 COPY public ./public
 COPY server ./server
