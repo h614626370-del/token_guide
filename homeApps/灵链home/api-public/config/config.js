@@ -1,5 +1,5 @@
 window.LLAPI_HOME_CONFIG = {
-  brandName: "灵链",
+  brandName: "灵链云",
   brandApiName: "{{brandName}} API",
   brandEnglishName: "LINGLIAN",
   brandTagline: "AI gateway for builders",
@@ -24,9 +24,9 @@ window.LLAPI_HOME_CONFIG = {
       id: "2026-08-02-home-notice",
       publishedAt: "2026-08-02T09:00:00+08:00",
       badge: "最新公告",
-      title: "灵链服务通知",
+      title: "灵链云服务通知",
       body: [
-        "灵链活动。",
+        "灵链云活动。",
         "新站盛大启动，重磅新人福利同步上线！所有首次注册用户，零门槛领取 1 元体验权益，注册即刻到账，不用充值不用等待，一键解锁平台服务，开业福利限时发放，先到先得！"
       ],
       imageUrl: "",

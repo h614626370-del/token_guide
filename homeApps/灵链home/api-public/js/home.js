@@ -38,8 +38,8 @@
       });
 
       const SITE_CONFIG_DEFAULTS = Object.freeze({
-        brandName: "灵链",
-        brandApiName: "灵链 API",
+        brandName: "灵链云",
+        brandApiName: "灵链云 API",
         brandEnglishName: "LINGLIAN",
         brandTagline: "AI gateway for builders",
         statusText: "网关运行中",
@@ -51,9 +51,9 @@
         loginUrl: "/login",
         registerUrl: "/register",
         dashboardUrl: "/dashboard",
-        pageTitle: "灵链 - 一站式 AI API 聚合接入",
-        seoDescription: "灵链提供一站式 AI API 聚合接入，通过一个 Base URL 和一个 API Key 调用 Claude、GPT、Gemini 等主流模型，并统一管理用量、余额与团队成本。",
-        seoKeywords: "灵链,AI API,AI API网关,大模型接口,Claude API,GPT API,Gemini API,API Key,Token统计,AI中转,模型聚合",
+        pageTitle: "灵链云 - 一站式 AI API 聚合接入",
+        seoDescription: "灵链云提供一站式 AI API 聚合接入，通过一个 Base URL 和一个 API Key 调用 Claude、GPT、Gemini 等主流模型，并统一管理用量、余额与团队成本。",
+        seoKeywords: "灵链云,AI API,AI API网关,大模型接口,Claude API,GPT API,Gemini API,API Key,Token统计,AI中转,模型聚合",
         ogDescription: "把多家模型收进一套接口。统一 Base URL、API Key、Token 用量、余额与团队成本。",
         twitterDescription: "用一套 API 接入 Claude、GPT、Gemini、图片、语音与向量能力。",
         copyrightYear: 2026,
