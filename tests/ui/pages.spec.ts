@@ -6,11 +6,13 @@ const routes = [
   ['home', '/'],
   ['member', '/member'],
   ['integration', '/integration'],
+  ['install', '/install'],
   ['playground', '/playground'],
   ['pricing', '/pricing'],
   ['feedback', '/feedback'],
   ['admin', '/admin'],
   ['admin-settings', '/admin/settings'],
+  ['admin-installers', '/admin/installers'],
 ] as const
 
 test.beforeAll(async () => {
@@ -175,6 +177,27 @@ test('administrator can update and restore public site branding', async ({ page 
   }
 })
 
+
+test('administrator can manage classified installer scripts', async ({ page }, testInfo) => {
+  await page.goto('/admin/installers', { waitUntil: 'networkidle' })
+  await page.getByLabel('管理员 Token').fill('playwright-admin-token')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '脚本配置' })).toBeVisible()
+  await expect(page.getByLabel('工具分类').getByRole('button', { name: 'Codex CLI' })).toBeVisible()
+  await expect(page.getByLabel('系统分类').getByRole('button', { name: 'Windows' })).toBeVisible()
+  await expect(page.getByLabel('系统分类').getByRole('button', { name: 'macOS' })).toBeVisible()
+  await expect(page.getByLabel('系统分类').getByRole('button', { name: 'Linux' })).toBeVisible()
+  await expect(page.getByLabel('PROVIDER_ID')).toHaveValue('onekey_relay')
+  await expect(page.getByLabel('BASE_URL')).toHaveValue('https://llapi.org')
+
+  await page.getByLabel('工具分类').getByRole('button', { name: 'Claude Code' }).click()
+  await page.getByLabel('系统分类').getByRole('button', { name: 'Linux' }).click()
+  await expect(page.getByLabel('安装脚本内容')).toContainText('Claude Code')
+  await page.screenshot({
+    path: join('artifacts', 'ui', `${testInfo.project.name}-admin-installers-authenticated.png`),
+    fullPage: true,
+  })
+})
 test('embedded mode removes the site chrome', async ({ page }) => {
   const response = await page.goto('/playground?embedded=1', { waitUntil: 'domcontentloaded' })
   expect(response?.status()).toBe(200)

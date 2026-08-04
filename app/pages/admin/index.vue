@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowRight, BadgeDollarSign, Database, FileText, Images, MessageSquareText, RefreshCcw, Settings, ShieldCheck } from 'lucide-vue-next'
+import { PackageOpen } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'admin' })
 useSeoMeta({ title: '管理概览', robots: 'noindex, nofollow' })
@@ -8,6 +9,7 @@ const items = [
   { icon: Settings, title: '站点配置', text: '维护名称、主站地址、品牌与支持信息。', to: '/admin/settings' },
   { icon: Images, title: '图片管理', text: '上传 Logo、群二维码或内容图片，生成可公开访问的地址。', to: '/admin/assets' },
   { icon: FileText, title: '指南内容', text: '直接编辑首页、接入教程和会员流程文档。', to: '/admin/docs' },
+  { icon: PackageOpen, title: '脚本配置', text: '维护 Codex 与 Claude 的安装脚本和公共接入参数。', to: '/admin/installers' },
   { icon: BadgeDollarSign, title: '价格配置', text: '维护数据源、展示模型、套餐和折算参数。', to: '/admin/pricing' },
   { icon: MessageSquareText, title: '反馈处理', text: '筛选用户反馈，更新状态并填写公开回复。', to: '/admin/feedback' },
   { icon: RefreshCcw, title: '系统更新', text: '检测新版本、下载最新镜像并立即重启服务。', to: '/admin/update' },

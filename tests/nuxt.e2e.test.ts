@@ -147,7 +147,7 @@ async function administratorCookie(requestHeaders: Record<string, string> = {}) 
 }
 
 describe('Nuxt application routes', () => {
-  it.each(['/', '/member', '/integration', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets'])('renders %s', async (path) => {
+  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets', '/admin/installers'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
@@ -610,5 +610,56 @@ describe('authentication and same-origin API protection', () => {
     })
     expect(deleted.status).toBe(200)
     expect((await fetch(publicPath)).status).toBe(404)
+  })
+
+  it('serves classified installer scripts and generates a command from the selected member key', async () => {
+    const config = await fetch('/api/install/config')
+    expect(config.status).toBe(200)
+    expect(await json(config)).toMatchObject({
+      ok: true,
+      data: {
+        settings: {
+          provider_id: 'onekey_relay',
+          base_url: 'https://llapi.org',
+        },
+        scripts: [
+          { id: 'codex-windows', platform: 'windows' },
+          { id: 'codex-macos', platform: 'macos' },
+          { id: 'codex-linux', platform: 'linux' },
+          { id: 'claude-windows', platform: 'windows' },
+          { id: 'claude-macos', platform: 'macos' },
+          { id: 'claude-linux', platform: 'linux' },
+        ],
+      },
+    })
+
+    const downloaded = await fetch('/api/install/scripts/codex/windows')
+    expect(downloaded.status).toBe(200)
+    expect(downloaded.headers.get('content-disposition')).toContain('setup-codex-windows.ps1')
+    expect(downloaded.headers.get('x-content-sha256')).toMatch(/^[A-F0-9]{64}$/)
+    const downloadedBody = await downloaded.text()
+    expect(downloadedBody).toContain('$ProviderId = "onekey_relay"')
+    expect(downloadedBody).toContain('$BaseUrl = "https://llapi.org"')
+
+    expect((await fetch('/api/install/keys?tool=codex')).status).toBe(401)
+    const cookie = await memberCookie()
+    const codexKeys = await fetch('/api/install/keys?tool=codex', { headers: { cookie } })
+    expect(await json(codexKeys)).toMatchObject({ ok: true, data: [{ id: 7, masked_key: 'sk-save...7890' }] })
+    const claudeKeys = await fetch('/api/install/keys?tool=claude', { headers: { cookie } })
+    expect(await json(claudeKeys)).toMatchObject({ ok: true, data: [] })
+
+    const generated = await fetch('/api/install/command', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ tool: 'codex', platform: 'windows', key_id: 7 }),
+    })
+    expect(generated.status).toBe(200)
+    const generatedBody = await json(generated)
+    expect(generatedBody.data).toMatchObject({
+      filename: 'setup-codex-windows.ps1',
+      remote: [{ label: 'Windows PowerShell 5.1' }, { label: 'PowerShell 7+' }],
+    })
+    const encoded = generatedBody.data.remote[0].command.split(' ').at(-1)
+    expect(Buffer.from(encoded, 'base64').toString('utf16le')).toContain(savedApiKey)
   })
 })

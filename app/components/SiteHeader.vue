@@ -9,6 +9,7 @@ import {
   MessageSquareText,
   X,
 } from 'lucide-vue-next'
+import { PackageOpen } from 'lucide-vue-next'
 
 const route = useRoute()
 const site = useSiteConfigState()
@@ -20,6 +21,7 @@ const logoSrc = computed(() => logoFailed.value ? fallbackLogo : site.value.logo
 let logoFallbackTimer: ReturnType<typeof setTimeout> | undefined
 const navigation = [
   { label: '指南', to: '/', icon: BookOpen, paths: ['/', '/member', '/integration'] },
+  { label: '自动安装', to: '/install', icon: PackageOpen, paths: ['/install'] },
   { label: '模型价格', to: '/pricing', icon: BadgeDollarSign, paths: ['/pricing'] },
   { label: '使用工作台', to: '/playground', icon: FlaskConical, paths: ['/playground'] },
   { label: '反馈', to: '/feedback', icon: MessageSquareText, paths: ['/feedback'] },

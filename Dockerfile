@@ -25,6 +25,7 @@ COPY shared ./shared
 COPY content ./content
 COPY public ./public
 COPY server ./server
+COPY scripts ./scripts
 
 RUN npm run typecheck && npm run build && npm prune --omit=dev
 
@@ -48,6 +49,7 @@ COPY --from=build --chown=node:node /app/.output ./.output
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 # 后台「指南内容」需要读取默认 Markdown 源文件
 COPY --from=build --chown=node:node /app/content ./content
+COPY --from=build --chown=node:node /app/scripts ./scripts
 
 USER node
 EXPOSE 3000

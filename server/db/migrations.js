@@ -236,4 +236,41 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 9,
+    name: 'create_installer_configuration_and_versions',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS installer_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS installer_overrides (
+          id TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          draft_content TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          draft_updated_at TEXT,
+          published_at TEXT,
+          last_action TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS installer_versions (
+          version_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          script_id TEXT NOT NULL,
+          content TEXT NOT NULL,
+          source TEXT NOT NULL CHECK (source IN ('published', 'draft', 'default')),
+          action TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_installer_versions_script_created
+          ON installer_versions(script_id, created_at DESC);
+      `)
+    },
+  },
 ]

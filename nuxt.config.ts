@@ -2,7 +2,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-08-03',
   devtools: { enabled: false },
   modules: ['@nuxt/content', '@nuxtjs/mdc'],
-  css: ['~/assets/css/main.css', '~/assets/css/tools.css'],
+  css: ['~/assets/css/main.css', '~/assets/css/tools.css', '~/assets/css/install.css'],
   runtimeConfig: {
     sessionPassword: '',
     adminToken: '',
