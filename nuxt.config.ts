@@ -36,7 +36,7 @@ export default defineNuxtConfig({
       registerPath: '/register',
       supportPath: '/support',
       apiPath: '/v1',
-      supportWechat: 'kkflow520',
+      supportWechat: '微信 kkflow520',
       supportGroupUrl: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
     },
   },

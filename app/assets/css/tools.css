@@ -1220,6 +1220,12 @@
   gap: 0 12px;
 }
 
+.support-contact-control {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.3fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
 .asset-url-control {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px auto;

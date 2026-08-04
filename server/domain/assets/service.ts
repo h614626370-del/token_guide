@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promi
 import path from 'node:path'
 import type { H3Event } from 'h3'
 import { getGuideConfig } from '../../utils/config'
+import { getPublicRequestOrigin } from '../../utils/request-url'
 
 const maxImageBytes = 2 * 1024 * 1024
 const allowedImageTypes = new Map([
@@ -35,7 +36,7 @@ export function uploadsRoot(event?: H3Event) {
 }
 
 export function publicUploadUrl(filename: string, event?: H3Event) {
-  return new URL(`/uploads/${filename}`, `${getGuideConfig(event).siteUrl}/`).toString()
+  return new URL(`/uploads/${filename}`, `${getPublicRequestOrigin(event)}/`).toString()
 }
 
 export async function saveUploadedImage(input: {

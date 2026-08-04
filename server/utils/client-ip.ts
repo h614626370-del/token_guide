@@ -6,9 +6,14 @@ export function getTrustedClientIp(event: H3Event) {
   const directIp = normalizeIp(getRequestIP(event) || '')
   if (!directIp) return ''
 
-  const trusted = getGuideConfig(event).trustedProxyIps.map(normalizeIp)
-  if (!trusted.includes(directIp)) return directIp
+  if (!requestComesFromTrustedProxy(event)) return directIp
   return normalizeIp(getRequestIP(event, { xForwardedFor: true }) || directIp)
+}
+
+export function requestComesFromTrustedProxy(event: H3Event) {
+  const directIp = normalizeIp(getRequestIP(event) || '')
+  if (!directIp) return false
+  return getGuideConfig(event).trustedProxyIps.map(normalizeIp).includes(directIp)
 }
 
 function normalizeIp(value: string) {

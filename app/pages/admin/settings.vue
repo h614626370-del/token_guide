@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Copy, ExternalLink, Image, Save, Settings, Upload } from 'lucide-vue-next'
+import { formatSupportContact, parseSupportContact, type SupportContactType } from '#shared/utils/support-contact'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { PublicSiteConfig } from '~/types/site'
@@ -22,6 +23,7 @@ const uploading = reactive({ logo: false, group: false })
 const loaded = ref(false)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 const form = reactive({ ...site.value })
+const supportContact = reactive({ type: '微信' as SupportContactType, account: '' })
 const logoInput = ref<HTMLInputElement | null>(null)
 const groupInput = ref<HTMLInputElement | null>(null)
 
@@ -61,7 +63,7 @@ async function saveSettings() {
       register_path: form.register_path,
       support_path: form.support_path,
       api_path: form.api_path,
-      support_wechat: form.support_wechat,
+      support_wechat: formatSupportContact(supportContact.type, supportContact.account),
       support_group_url: form.support_group_url,
     }
     const response = await $fetch<ApiSuccess<PublicSiteConfig>>('/api/admin/site-config', {
@@ -82,6 +84,7 @@ async function saveSettings() {
 
 function apply(value: PublicSiteConfig) {
   Object.assign(form, value)
+  Object.assign(supportContact, parseSupportContact(value.support_wechat))
 }
 
 function chooseUpload(target: 'logo' | 'group') {
@@ -189,7 +192,16 @@ async function copyAssetUrl(target: 'logo' | 'group') {
             <label class="form-field"><span>支持路由</span><input v-model.trim="form.support_path" maxlength="160" required></label>
             <label class="form-field"><span>API 路由</span><input v-model.trim="form.api_path" maxlength="160" required></label>
           </div>
-          <label class="form-field"><span>客服标识</span><input v-model.trim="form.support_wechat" maxlength="80"></label>
+          <div class="form-field">
+            <span>客服标识</span>
+            <div class="support-contact-control">
+              <select v-model="supportContact.type" aria-label="客服类型">
+                <option value="微信">微信</option>
+                <option value="QQ">QQ</option>
+              </select>
+              <input v-model.trim="supportContact.account" aria-label="客服账号" maxlength="77" placeholder="输入客服账号">
+            </div>
+          </div>
           <label class="form-field">
             <span>群二维码图片地址</span>
             <div class="asset-url-control">

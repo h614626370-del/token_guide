@@ -586,10 +586,6 @@ textarea:focus-visible {
   margin: 26px 0;
 }
 
-.support-group-qr a {
-  display: block;
-}
-
 .doc-content .support-group-qr img {
   width: min(280px, 100%);
   aspect-ratio: 1;

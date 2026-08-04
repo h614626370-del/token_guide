@@ -9,7 +9,7 @@ description: Token向云会员充值、API 密钥、Codex CLI、Claude Code、�
 
 > **需要协助？**
 >
-> 添加客服微信 `kkflow520` 获取远程协助，或加入[客户服务群](https://www.kdocs.cn/l/csU8ZJybJe2V)。
+> 添加客服 `微信 kkflow520` 获取远程协助，或扫描下方二维码加入客户服务群。
 
 ::support-group-qr
 ::

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ExternalLink, FileText, RefreshCw, RotateCcw, Save, Send, Trash2 } from 'lucide-vue-next'
+import { replaceGuideDefaults } from '#shared/utils/guide-content'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 
@@ -63,6 +64,7 @@ const editorContent = computed<DocContent>(() => ({
   description: form.description,
   body: form.body,
 }))
+const previewBody = computed(() => replaceGuideDefaults(form.body, site.value))
 
 const diffLines = computed(() => {
   const base = diffBase.value === 'default'
@@ -344,7 +346,7 @@ function lineDiff(before: string, after: string) {
 
             <div v-show="activeTab === 'preview'" class="admin-doc-panel admin-doc-preview doc-content">
               <MDC
-                :value="form.body"
+                :value="previewBody"
                 :data="{
                   projectName: site.project_name,
                   siteTitle: site.site_title,

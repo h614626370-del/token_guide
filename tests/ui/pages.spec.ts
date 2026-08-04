@@ -77,7 +77,7 @@ test('guide pages render document content and navigation', async ({ page }, test
   await expect(page.getByRole('heading', { level: 2, name: '5. Codex CLI（Windows）' })).toBeVisible()
 })
 
-test('guide home renders the configured service-group link as a QR image', async ({ page }) => {
+test('guide home renders the configured contact and group QR without links', async ({ page }) => {
   await page.route('https://www.kdocs.cn/**', route => route.fulfill({
     status: 200,
     contentType: 'image/png',
@@ -86,6 +86,9 @@ test('guide home renders the configured service-group link as a QR image', async
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   const qrImage = page.getByRole('img', { name: '群二维码图片' })
   await expect(qrImage).toHaveAttribute('src', 'https://www.kdocs.cn/l/csU8ZJybJe2V')
+  await expect(page.locator('.doc-content blockquote')).toContainText('添加客服 微信 kkflow520')
+  await expect(page.getByRole('link', { name: '客户服务群' })).toHaveCount(0)
+  await expect(page.locator('.support-group-qr > a')).toHaveCount(0)
   await expect(page.getByText('这里是群二维码图片。如果无法显示，请关闭网络代理。')).toBeVisible()
 })
 
@@ -126,7 +129,7 @@ test('administrator can update and restore public site branding', async ({ page 
     register_path: '/register',
     support_path: '/support',
     api_path: '/v1',
-    support_wechat: 'kkflow520',
+    support_wechat: '微信 kkflow520',
     support_group_url: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
   }
 
@@ -136,10 +139,15 @@ test('administrator can update and restore public site branding', async ({ page 
   await expect(page.getByRole('heading', { level: 1, name: '站点配置' })).toBeVisible()
   await expect(page.getByLabel('Logo 完整地址')).toHaveAttribute('type', 'url')
   await expect(page.getByLabel('群二维码图片地址')).toHaveAttribute('type', 'url')
+  await expect(page.getByLabel('客服类型')).toHaveValue('微信')
+  await expect(page.getByLabel('客服账号')).toHaveValue('kkflow520')
 
   try {
     await page.getByLabel('项目名称').fill('灵链')
     await page.getByLabel('站点标题').fill('灵链指南')
+    await page.getByLabel('主站地址').fill('https://aiziyou.org')
+    await page.getByLabel('客服类型').selectOption('QQ')
+    await page.getByLabel('客服账号').fill('2754632844')
     await page.getByRole('button', { name: '保存配置' }).click()
     await expect(page.getByText('站点配置已保存。')).toBeVisible()
     await page.screenshot({
@@ -150,6 +158,17 @@ test('administrator can update and restore public site branding', async ({ page 
     await page.goto('/', { waitUntil: 'networkidle' })
     await expect(page.locator('.site-brand')).toContainText('灵链指南')
     await expect(page.getByRole('heading', { level: 1 })).toContainText('灵链会员与 API 接入指南')
+    await expect(page.locator('.doc-content blockquote')).toContainText('添加客服 QQ 2754632844')
+
+    await page.goto('/integration', { waitUntil: 'networkidle' })
+    await expect(page.locator('.doc-content')).toContainText('model_provider = "aiziyou"')
+    await expect(page.locator('.doc-content')).toContainText('[model_providers.aiziyou]')
+    await expect(page.locator('.doc-content')).toContainText('name = "灵链"')
+    await expect(page.locator('.doc-content')).not.toContainText('[model_providers.kkflow]')
+    await page.screenshot({
+      path: join('artifacts', 'ui', `${testInfo.project.name}-integration-branded.png`),
+      fullPage: true,
+    })
   } finally {
     const restored = await page.request.put('/api/admin/site-config', { data: defaults })
     expect(restored.ok()).toBe(true)

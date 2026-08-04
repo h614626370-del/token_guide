@@ -136,10 +136,10 @@ async function memberCookie() {
   return cookieFrom(response)
 }
 
-async function administratorCookie() {
+async function administratorCookie(requestHeaders: Record<string, string> = {}) {
   const response = await fetch('/api/session/admin', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...requestHeaders },
     body: JSON.stringify({ token: adminToken }),
   })
   expect(response.status).toBe(200)
@@ -476,7 +476,7 @@ describe('authentication and same-origin API protection', () => {
       register_path: '/register',
       support_path: '/support',
       api_path: '/v1',
-      support_wechat: 'kkflow520',
+      support_wechat: '微信 kkflow520',
       support_group_url: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
     }
     const custom = {
@@ -488,7 +488,7 @@ describe('authentication and same-origin API protection', () => {
       footer_text: '连接服务与开发者。',
       login_path: '/account/login',
       register_path: '/account/register',
-      support_wechat: 'linglink-support',
+      support_wechat: 'qq 2754632844',
       support_group_url: 'https://cdn.example/linglink-group-qr.png',
     }
 
@@ -505,6 +505,7 @@ describe('authentication and same-origin API protection', () => {
           project_name: '灵链',
           site_title: '灵链指南',
           logo_path: 'https://cdn.example/linglink-logo.png',
+          support_wechat: 'QQ 2754632844',
           login_url: `${upstreamOrigin}/account/login`,
           api_base_url: `${upstreamOrigin}/v1`,
         },
@@ -516,7 +517,9 @@ describe('authentication and same-origin API protection', () => {
       const guide = await fetch('/')
       const guideHtml = await guide.text()
       expect(guideHtml).toContain('灵链会员与 API 接入指南')
+      expect(guideHtml).toContain('QQ 2754632844')
       expect(guideHtml).toContain('src="https://cdn.example/linglink-group-qr.png"')
+      expect(guideHtml).not.toContain('href="https://cdn.example/linglink-group-qr.png"')
       expect(guideHtml).toContain('这里是群二维码图片。如果无法显示，请关闭网络代理。')
 
       const invalidLogo = await fetch('/api/admin/site-config', {
@@ -558,7 +561,8 @@ describe('authentication and same-origin API protection', () => {
       },
     })
     expect(uploadedBody.data.filename).toMatch(/\.png$/)
-    expect(uploadedBody.data.url).toMatch(/^https:\/\/guide\.kkflow\.org\/uploads\//)
+    expect(new URL(uploadedBody.data.url).origin).toBe(new URL(url('/')).origin)
+    expect(new URL(uploadedBody.data.url).pathname).toMatch(/^\/uploads\//)
 
     const publicPath = new URL(uploadedBody.data.url).pathname
     const publicAsset = await fetch(publicPath)
@@ -576,6 +580,20 @@ describe('authentication and same-origin API protection', () => {
         url: uploadedBody.data.url,
       })],
     })
+
+    const proxyHeaders = {
+      'x-forwarded-host': 'guide.example.com',
+      'x-forwarded-proto': 'https',
+    }
+    const proxiedCookie = await administratorCookie(proxyHeaders)
+    const proxiedList = await fetch('/api/admin/assets', {
+      headers: {
+        cookie: proxiedCookie,
+        ...proxyHeaders,
+      },
+    })
+    expect(proxiedList.status).toBe(200)
+    expect((await json(proxiedList)).data[0].url).toBe(`https://guide.example.com${publicPath}`)
 
     const invalidBody = new FormData()
     invalidBody.append('file', new Blob([Buffer.from('not an image')], { type: 'image/png' }), 'fake.png')

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { replaceGuideDefaults } from '#shared/utils/guide-content'
+
 const props = defineProps<{
   contentPath: string
   section: string
@@ -21,33 +23,18 @@ if (!page.value) {
 }
 
 const renderedPage = computed(() => rewriteContent(page.value))
-const databaseBody = computed(() => databasePage.value ? replaceDefaults(databasePage.value.body) : '')
-const pageTitle = computed(() => databasePage.value?.title ? replaceDefaults(databasePage.value.title) : renderedPage.value?.title || props.section)
-const pageDescription = computed(() => databasePage.value ? replaceDefaults(databasePage.value.description) : renderedPage.value?.description || '')
+const databaseBody = computed(() => databasePage.value ? replaceGuideDefaults(databasePage.value.body, site.value) : '')
+const pageTitle = computed(() => databasePage.value?.title ? replaceGuideDefaults(databasePage.value.title, site.value) : renderedPage.value?.title || props.section)
+const pageDescription = computed(() => databasePage.value ? replaceGuideDefaults(databasePage.value.description, site.value) : renderedPage.value?.description || '')
 
 function rewriteContent<T>(value: T): T {
-  if (typeof value === 'string') return replaceDefaults(value) as T
+  if (typeof value === 'string') return replaceGuideDefaults(value, site.value) as T
   if (Array.isArray(value)) return value.map(item => rewriteContent(item)) as T
   if (!value || typeof value !== 'object') return value
 
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [key, rewriteContent(item)]),
   ) as T
-}
-
-function replaceDefaults(value: string) {
-  const replacements: Record<string, string> = {
-    'https://www.kdocs.cn/l/csU8ZJybJe2V': site.value.support_group_url,
-    'https://kkflow.org/v1': site.value.api_base_url,
-    'https://kkflow.org': site.value.main_site_url,
-    'Token向云': site.value.project_name,
-    'kkflow520': site.value.support_wechat,
-  }
-
-  return value.replace(
-    /https:\/\/www\.kdocs\.cn\/l\/csU8ZJybJe2V|https:\/\/kkflow\.org\/v1|https:\/\/kkflow\.org|Token向云|kkflow520/g,
-    token => replacements[token] ?? token,
-  )
 }
 
 useSeoMeta({

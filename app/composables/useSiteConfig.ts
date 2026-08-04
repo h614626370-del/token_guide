@@ -1,4 +1,5 @@
 import type { PublicSiteConfig } from '~/types/site'
+import { normalizeSupportContact } from '#shared/utils/support-contact'
 
 function join(origin: string, path: string) {
   return new URL(path, `${origin.replace(/\/+$/, '')}/`).toString().replace(/\/$/, path === '/' ? '/' : '')
@@ -29,7 +30,7 @@ export function useSiteConfigState() {
       register_path: registerPath,
       support_path: supportPath,
       api_path: apiPath,
-      support_wechat: String(config.supportWechat || 'kkflow520'),
+      support_wechat: normalizeSupportContact(String(config.supportWechat || '微信 kkflow520')),
       support_group_url: String(config.supportGroupUrl || 'https://www.kdocs.cn/l/csU8ZJybJe2V'),
       site_url: siteUrl,
       login_url: join(mainSiteUrl, loginPath),

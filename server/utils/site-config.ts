@@ -1,8 +1,10 @@
 import type { H3Event } from 'h3'
 import type { PublicSiteConfig } from '../../app/types/site'
+import { normalizeSupportContact } from '#shared/utils/support-contact'
 import { createSiteSettingsRepository } from '../domain/site-settings/repository'
 import { siteSettingsSchema, type SiteSettingsInput } from '../domain/site-settings/schema'
 import { useGuideDatabase } from './database'
+import { getPublicRequestOrigin, rebasePublicUploadUrl } from './request-url'
 
 function runtimeDefaults(event?: H3Event): SiteSettingsInput & { site_url: string } {
   const runtime = useRuntimeConfig(event)
@@ -22,7 +24,7 @@ function runtimeDefaults(event?: H3Event): SiteSettingsInput & { site_url: strin
     register_path: String(config.registerPath || '/register').trim(),
     support_path: String(config.supportPath || '/support').trim(),
     api_path: String(config.apiPath || '/v1').trim().replace(/\/+$/, ''),
-    support_wechat: String(config.supportWechat || 'kkflow520').trim(),
+    support_wechat: String(config.supportWechat || '微信 kkflow520').trim(),
     support_group_url: String(config.supportGroupUrl || 'https://www.kdocs.cn/l/csU8ZJybJe2V').trim(),
     site_url: siteUrl,
   }
@@ -35,10 +37,14 @@ function absoluteUrl(origin: string, path: string) {
   return new URL(value || '/', `${origin.replace(/\/+$/, '')}/`).toString().replace(/\/$/, value === '/' ? '/' : '')
 }
 
-function toPublic(settings: SiteSettingsInput, siteUrl: string): PublicSiteConfig {
+function toPublic(settings: SiteSettingsInput, siteUrl: string, event?: H3Event): PublicSiteConfig {
   const mainSiteUrl = settings.main_site_url.replace(/\/+$/, '')
+  const requestOrigin = getPublicRequestOrigin(event)
   return {
     ...settings,
+    logo_path: rebasePublicUploadUrl(settings.logo_path, requestOrigin),
+    support_wechat: normalizeSupportContact(settings.support_wechat),
+    support_group_url: rebasePublicUploadUrl(settings.support_group_url, requestOrigin),
     main_site_url: mainSiteUrl,
     site_url: siteUrl,
     login_url: absoluteUrl(mainSiteUrl, settings.login_path),
@@ -57,14 +63,14 @@ export function getPublicSiteConfig(event?: H3Event): PublicSiteConfig {
   const parsed = siteSettingsSchema.safeParse(merged)
   const settings = parsed.success ? parsed.data : siteSettingsSchema.parse(defaultSettings)
   globalThis.__kkflowSiteSettings = settings
-  return toPublic(settings, siteUrl)
+  return toPublic(settings, siteUrl, event)
 }
 
 export function updatePublicSiteConfig(input: SiteSettingsInput, event?: H3Event): PublicSiteConfig {
   const settings = siteSettingsSchema.parse(input)
   createSiteSettingsRepository(useGuideDatabase()).update(settings)
   globalThis.__kkflowSiteSettings = settings
-  return toPublic(settings, runtimeDefaults(event).site_url)
+  return toPublic(settings, runtimeDefaults(event).site_url, event)
 }
 
 export function warmSiteSettingsCache() {
