@@ -6,7 +6,7 @@ window.LLAPI_HOME_CONFIG = {
   statusText: "网关运行中",
   siteUrl: "https://llapi.org",
   apiBaseUrl: "{{siteUrl}}/v1",
-  guideUrl: "{{siteUrl}}/guide/",
+  guideUrl: "https://guide.llapi.org",
   logoUrl: "./api-public/assets/logo.svg",
   socialImageUrl: "/api-public/assets/logo.svg",
   loginUrl: "/login",
