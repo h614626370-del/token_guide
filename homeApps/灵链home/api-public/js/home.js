@@ -174,7 +174,9 @@
             normalized[key] = SITE_CONFIG_DEFAULTS[key];
           }
         });
-        normalized.apiBaseUrl = normalized.apiBaseUrl.replace(/\/+$/, "");
+        ["apiBaseUrl", "guideUrl"].forEach((key) => {
+          normalized[key] = normalized[key].replace(/\/+$/, "");
+        });
         normalized.notices = normalizeNoticeList(source, normalized);
         return normalized;
       }
