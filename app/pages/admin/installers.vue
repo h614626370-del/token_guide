@@ -1,0 +1,226 @@
+<script setup lang="ts">
+import { ExternalLink, RefreshCw, RotateCcw, Save, Send, Settings2 } from 'lucide-vue-next'
+import type { ApiSuccess } from '~/types/api'
+import { apiErrorMessage } from '~/types/api'
+import type { InstallerPlatform, InstallerScriptDetail, InstallerScriptSummary, InstallerSettings, InstallerTool } from '~/types/install'
+
+definePageMeta({ layout: 'admin' })
+useSeoMeta({ title: '脚本配置', robots: 'noindex, nofollow' })
+
+const tool = ref<InstallerTool>('codex')
+const platform = ref<InstallerPlatform>('windows')
+const scripts = ref<InstallerScriptSummary[]>([])
+const detail = ref<InstallerScriptDetail | null>(null)
+const content = ref('')
+const settings = reactive<InstallerSettings>({ provider_id: '', base_url: '', codex_default_model: '', claude_default_model: '' })
+const activeTab = ref<'edit' | 'diff' | 'history'>('edit')
+const loading = ref(false)
+const saving = ref(false)
+const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
+
+const selectedId = computed(() => `${tool.value}-${platform.value}`)
+const diffLines = computed(() => lineDiff(detail.value?.published_content || detail.value?.default_content || '', content.value))
+
+onMounted(loadAll)
+watch([tool, platform], loadSelected)
+
+async function loadAll() {
+  loading.value = true
+  notice.message = ''
+  try {
+    const response = await $fetch<ApiSuccess<{ scripts: InstallerScriptSummary[], settings: InstallerSettings }>>('/api/admin/installers')
+    scripts.value = response.data.scripts
+    Object.assign(settings, response.data.settings)
+    await loadSelected()
+  } catch (cause) {
+    fail(cause, '脚本配置读取失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadSelected() {
+  loading.value = true
+  notice.message = ''
+  try {
+    const response = await $fetch<ApiSuccess<InstallerScriptDetail>>(`/api/admin/installers/${selectedId.value}`)
+    applyDetail(response.data)
+  } catch (cause) {
+    fail(cause, '脚本内容读取失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function saveSettings() {
+  await mutate('公共配置保存失败', async () => {
+    const response = await $fetch<ApiSuccess<InstallerSettings>>('/api/admin/installers/settings', { method: 'PUT', body: settings })
+    Object.assign(settings, response.data)
+    notice.message = '公共配置已保存。'
+    await loadSelected()
+  })
+}
+
+async function saveDraft() {
+  await mutate('脚本草稿保存失败', async () => {
+    const response = await $fetch<ApiSuccess<InstallerScriptDetail>>(`/api/admin/installers/${selectedId.value}`, { method: 'PUT', body: { content: content.value } })
+    applyDetail(response.data)
+    notice.message = '脚本草稿已保存，前台仍使用已发布版本。'
+  })
+}
+
+async function publishScript() {
+  if (!window.confirm(`确定发布 ${detail.value?.label || selectedId.value}？发布后用户下载的脚本会立即变化。`)) return
+  await mutate('脚本发布失败', async () => {
+    const response = await $fetch<ApiSuccess<InstallerScriptDetail>>(`/api/admin/installers/${selectedId.value}/publish`, { method: 'POST', body: { content: content.value } })
+    applyDetail(response.data)
+    notice.message = '脚本已发布到前台。'
+  })
+}
+
+async function publishDefault() {
+  if (!window.confirm('确定恢复并发布仓库默认脚本？')) return
+  await mutate('默认脚本发布失败', async () => {
+    const response = await $fetch<ApiSuccess<InstallerScriptDetail>>(`/api/admin/installers/${selectedId.value}/default`, { method: 'POST' })
+    applyDetail(response.data)
+    notice.message = '默认脚本已发布。'
+  })
+}
+
+async function restoreVersion(versionId: number) {
+  await mutate('历史版本恢复失败', async () => {
+    const response = await $fetch<ApiSuccess<InstallerScriptDetail>>(`/api/admin/installers/${selectedId.value}/versions/${versionId}/restore`, { method: 'POST' })
+    applyDetail(response.data)
+    activeTab.value = 'edit'
+    notice.message = '历史版本已恢复为草稿。'
+  })
+}
+
+async function mutate(fallback: string, run: () => Promise<void>) {
+  saving.value = true
+  notice.message = ''
+  try {
+    await run()
+    notice.type = 'success'
+  } catch (cause) {
+    fail(cause, fallback)
+  } finally {
+    saving.value = false
+  }
+}
+
+function fail(cause: unknown, fallback: string) {
+  notice.type = 'error'
+  notice.message = apiErrorMessage(cause, fallback)
+}
+
+function applyDetail(value: InstallerScriptDetail) {
+  detail.value = value
+  content.value = value.content
+  const index = scripts.value.findIndex(item => item.id === value.id)
+  if (index >= 0) scripts.value[index] = value
+}
+
+function formatTime(value: string | null | undefined) {
+  if (!value) return '未发布'
+  return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+}
+
+function lineDiff(before: string, after: string) {
+  const left = before.split(/\r?\n/)
+  const right = after.split(/\r?\n/)
+  const rows: Array<{ type: 'same' | 'add' | 'remove', text: string }> = []
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const beforeLine = left[index]
+    const afterLine = right[index]
+    if (beforeLine === afterLine) rows.push({ type: 'same', text: beforeLine || '' })
+    else {
+      if (beforeLine !== undefined) rows.push({ type: 'remove', text: beforeLine })
+      if (afterLine !== undefined) rows.push({ type: 'add', text: afterLine })
+    }
+  }
+  return rows
+}
+</script>
+
+<template>
+  <AdminAccessGate>
+    <div class="admin-page admin-installers-page">
+      <header class="admin-page-heading">
+        <span>Installer scripts</span>
+        <h1>脚本配置</h1>
+        <p>分类维护 Codex CLI 与 Claude Code 的三平台安装脚本。</p>
+        <div class="admin-page-heading__actions">
+          <button class="secondary-command" type="button" :disabled="loading || saving" @click="loadAll"><RefreshCw :size="16" :class="{ spinning: loading }" />刷新</button>
+          <button class="secondary-command" type="button" :disabled="loading || saving || !detail" @click="saveDraft"><Save :size="16" />保存草稿</button>
+          <button class="primary-command" type="button" :disabled="loading || saving || !detail" @click="publishScript"><Send :size="16" />发布</button>
+        </div>
+      </header>
+
+      <div v-if="notice.message" :class="['tool-alert', notice.type === 'error' ? 'tool-alert--error' : 'tool-alert--success']">{{ notice.message }}</div>
+
+      <section class="admin-section installer-settings">
+        <header><h2><Settings2 :size="18" />公共配置</h2><span>Codex 与 Claude 共用 Provider 和 Base URL</span></header>
+        <form class="admin-settings-grid" @submit.prevent="saveSettings">
+          <label class="form-field"><span>PROVIDER_ID</span><input v-model.trim="settings.provider_id" maxlength="80" required></label>
+          <label class="form-field"><span>BASE_URL</span><input v-model.trim="settings.base_url" type="url" maxlength="500" required></label>
+          <label class="form-field"><span>Codex 默认模型</span><input v-model.trim="settings.codex_default_model" maxlength="120"></label>
+          <label class="form-field"><span>Claude 默认模型</span><input v-model.trim="settings.claude_default_model" maxlength="120" placeholder="留空则由 Claude Code 决定"></label>
+          <button class="primary-command admin-save-command" type="submit" :disabled="saving">保存公共配置</button>
+        </form>
+      </section>
+
+      <section class="admin-section installer-editor">
+        <div class="installer-classification">
+          <div class="segmented-control" aria-label="工具分类">
+            <button type="button" :class="{ active: tool === 'codex' }" @click="tool = 'codex'">Codex CLI</button>
+            <button type="button" :class="{ active: tool === 'claude' }" @click="tool = 'claude'">Claude Code</button>
+          </div>
+          <div class="segmented-control" aria-label="系统分类">
+            <button type="button" :class="{ active: platform === 'windows' }" @click="platform = 'windows'">Windows</button>
+            <button type="button" :class="{ active: platform === 'macos' }" @click="platform = 'macos'">macOS</button>
+            <button type="button" :class="{ active: platform === 'linux' }" @click="platform = 'linux'">Linux</button>
+          </div>
+        </div>
+
+        <template v-if="detail">
+          <div class="admin-doc-status-grid">
+            <span>脚本：{{ detail.filename }}</span>
+            <span>来源：{{ detail.source }}</span>
+            <span>发布时间：{{ formatTime(detail.published_at) }}</span>
+            <span>草稿时间：{{ formatTime(detail.draft_updated_at) }}</span>
+            <span>SHA256：{{ detail.checksum }}</span>
+            <a :href="`/api/install/scripts/${tool}/${platform}`" target="_blank"><ExternalLink :size="14" />打开已发布脚本</a>
+          </div>
+
+          <div class="admin-tabs">
+            <button type="button" :class="{ active: activeTab === 'edit' }" @click="activeTab = 'edit'">编辑</button>
+            <button type="button" :class="{ active: activeTab === 'diff' }" @click="activeTab = 'diff'">差异</button>
+            <button type="button" :class="{ active: activeTab === 'history' }" @click="activeTab = 'history'">历史</button>
+          </div>
+
+          <div v-show="activeTab === 'edit'" class="installer-code-editor">
+            <textarea v-model="content" rows="30" maxlength="200000" spellcheck="false" aria-label="安装脚本内容" />
+            <small>{{ content.length }} / 200000 · 必须保留模板变量</small>
+          </div>
+
+          <pre v-show="activeTab === 'diff'" class="admin-doc-diff"><code><span v-for="(line, index) in diffLines" :key="index" :class="`diff-${line.type}`">{{ line.type === 'add' ? '+ ' : line.type === 'remove' ? '- ' : '  ' }}{{ line.text }}
+</span></code></pre>
+
+          <div v-show="activeTab === 'history'" class="admin-doc-history">
+            <article v-for="version in detail.history" :key="version.version_id">
+              <header><div><strong>#{{ version.version_id }} · {{ version.action }}</strong><span>{{ version.source }} · {{ formatTime(version.created_at) }}</span></div><button class="secondary-command" type="button" :disabled="saving" @click="restoreVersion(version.version_id)"><RotateCcw :size="16" />恢复为草稿</button></header>
+            </article>
+            <div v-if="!detail.history.length" class="empty-result"><strong>暂无历史版本</strong></div>
+          </div>
+
+          <div class="admin-doc-footer-actions">
+            <button class="secondary-command" type="button" :disabled="saving" @click="publishDefault"><RotateCcw :size="16" />发布默认脚本</button>
+            <button class="secondary-command" type="button" :disabled="saving" @click="saveDraft"><Save :size="16" />保存草稿</button>
+            <button class="primary-command" type="button" :disabled="saving" @click="publishScript"><Send :size="16" />发布到前台</button>
+          </div>
+        </template>
+      </section>
+    </div>
+  </AdminAccessGate>
+</template>

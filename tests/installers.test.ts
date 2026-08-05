@@ -1,0 +1,99 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { openDatabase } from '../server/db/index.js'
+import { createInstallerRepository, renderInstallerScript } from '../server/domain/installers/repository'
+
+const directories: string[] = []
+
+function database() {
+  const directory = mkdtempSync(join(tmpdir(), 'kkflow-installer-'))
+  directories.push(directory)
+  return openDatabase(join(directory, 'guide.sqlite'))
+}
+
+afterEach(() => {
+  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
+})
+
+describe('installer configuration', () => {
+  it('keeps independent macOS and Linux script records for both tools', () => {
+    const db = database()
+    try {
+      const scripts = createInstallerRepository(db).list()
+      expect(scripts.map(item => item.id)).toEqual([
+        'codex-windows',
+        'codex-macos',
+        'codex-linux',
+        'claude-windows',
+        'claude-macos',
+        'claude-linux',
+      ])
+      expect(scripts.find(item => item.id === 'codex-macos')?.filename).not.toBe(scripts.find(item => item.id === 'codex-linux')?.filename)
+      expect(scripts.find(item => item.id === 'claude-macos')?.filename).not.toBe(scripts.find(item => item.id === 'claude-linux')?.filename)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('renders shared provider and base URL settings into published scripts', () => {
+    const db = database()
+    try {
+      const repository = createInstallerRepository(db)
+      repository.updateSettings({
+        provider_id: 'custom_relay',
+        base_url: 'https://relay.example.com/',
+        codex_default_model: 'gpt-test',
+        claude_default_model: 'claude-test',
+      })
+      const codex = repository.publicScript('codex', 'windows')
+      const claude = repository.publicScript('claude', 'linux')
+      expect(codex?.content).toContain('$ProviderId = "custom_relay"')
+      expect(codex?.content).toContain('$BaseUrl = "https://relay.example.com"')
+      expect(codex?.content).toContain('[string]$Model = "gpt-test"')
+      expect(claude?.content).toContain('BASE_URL="https://relay.example.com"')
+      expect(claude?.content).toContain('MODEL="claude-test"')
+    } finally {
+      db.close()
+    }
+  })
+
+  it('saves drafts separately and publishes with history', () => {
+    const db = database()
+    try {
+      const repository = createInstallerRepository(db)
+      const initial = repository.get('codex-linux')
+      const draftContent = `${initial?.content}\n# draft marker\n`
+      const draft = repository.saveDraft('codex-linux', draftContent)
+      expect(draft).toMatchObject({ source: 'draft', has_draft: true, has_override: false })
+      expect(repository.publicScript('codex', 'linux')?.content).not.toContain('# draft marker')
+
+      const published = repository.publish('codex-linux', draftContent)
+      expect(published).toMatchObject({ source: 'published', has_draft: false, has_override: true })
+      expect(repository.publicScript('codex', 'linux')?.content).toContain('# draft marker')
+
+      repository.saveDraft('codex-linux', `${draftContent}# next\n`)
+      const replacedDraft = repository.saveDraft('codex-linux', `${draftContent}# replacement\n`)
+      expect(replacedDraft?.history.length).toBeGreaterThan(0)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('requires the tool-specific template markers', () => {
+    expect(() => renderInstallerScript('{{BASE_URL}}', 'claude', {
+      provider_id: 'relay',
+      base_url: 'https://relay.example.com',
+      codex_default_model: '',
+      claude_default_model: '',
+    })).not.toThrow()
+
+    const db = database()
+    try {
+      expect(() => createInstallerRepository(db).saveDraft('codex-windows', 'invalid')).toThrow(/PROVIDER_ID/)
+    } finally {
+      db.close()
+    }
+  })
+})
