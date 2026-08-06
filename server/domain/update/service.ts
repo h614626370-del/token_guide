@@ -179,6 +179,10 @@ function appendLog(message: string) {
   persistState()
 }
 
+export function recordUpdateLog(message: string) {
+  appendLog(message)
+}
+
 function beginJob(phase: UpdatePhase, message: string, targetVersion: string | null = null) {
   const state = getState()
   if (state.job.running) {

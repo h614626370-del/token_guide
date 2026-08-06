@@ -24,6 +24,11 @@ export interface DockerContainerInspect {
     Healthcheck?: Record<string, unknown>
   }
   HostConfig: Record<string, unknown>
+  Mounts?: Array<{
+    Type?: string
+    Source?: string
+    Destination?: string
+  }>
   State?: {
     Status?: string
     Running?: boolean
@@ -260,6 +265,27 @@ export function createDockerClient(socketPath: string) {
       )
       if (response.statusCode >= 300 && response.statusCode !== 204 && response.statusCode !== 304) {
         throw new Error(formatDockerError('start', response.statusCode, response.body))
+      }
+    },
+
+    async waitContainer(idOrName: string, timeoutMs = 30_000) {
+      const response = await request<{
+        StatusCode?: number
+        Error?: { Message?: string }
+      }>(
+        'POST',
+        `/containers/${encodeURIComponent(idOrName)}/wait?condition=not-running`,
+        undefined,
+        { timeoutMs },
+      )
+      if (response.statusCode >= 300) {
+        throw new Error(formatDockerError('wait', response.statusCode, response.body))
+      }
+      return {
+        statusCode: Number(typeof response.body === 'object' && response.body ? response.body.StatusCode : 1),
+        error: typeof response.body === 'object' && response.body
+          ? String(response.body.Error?.Message || '')
+          : '',
       }
     },
 
