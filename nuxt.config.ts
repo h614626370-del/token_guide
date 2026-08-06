@@ -26,21 +26,7 @@ export default defineNuxtConfig({
     updateGithubRepo: 'h614626370-del/token_guide',
     updateContainerName: 'sub2api-guide',
     dockerSocketPath: '/var/run/docker.sock',
-    public: {
-      siteUrl: 'https://guide.aiziyou.org',
-      sub2apiOrigin: 'https://kkflow.org',
-      projectName: 'Token向云',
-      siteName: 'Token向云指南',
-      siteDescription: '会员、API 接入、模型试用与价格参考。',
-      logoPath: 'https://guide.aiziyou.org/logo-80.png',
-      footerText: '清晰接入，稳定调用。',
-      loginPath: '/login',
-      registerPath: '/register',
-      supportPath: '/support',
-      apiPath: '/v1',
-      supportWechat: '微信 kkflow520',
-      supportGroupUrl: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
-    },
+    public: {},
   },
   app: {
     head: {

@@ -71,9 +71,9 @@ npm run build
 NUXT_SESSION_PASSWORD   # ≥32 字符
 NUXT_ADMIN_TOKEN
 NUXT_IP_HASH_SALT
-NUXT_PUBLIC_SITE_URL
-NUXT_PUBLIC_SUB2API_ORIGIN
 ```
+
+主站地址、品牌信息和登录路由不再从环境变量读取，请登录管理员后台的「站点配置」维护。Guide 的公开地址按当前访问域名生成。
 
 ## 发布镜像
 

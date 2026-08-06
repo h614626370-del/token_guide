@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { fetch, setup, url } from '@nuxt/test-utils/e2e'
 
 const adminToken = 'integration-admin-token'
@@ -114,8 +114,6 @@ await setup({
     NUXT_ADMIN_TOKEN: adminToken,
     NUXT_SESSION_PASSWORD: sessionPassword,
     NUXT_IP_HASH_SALT: 'integration-ip-hash-salt',
-    NUXT_PUBLIC_SITE_URL: 'https://guide.aiziyou.org',
-    NUXT_PUBLIC_SUB2API_ORIGIN: upstreamOrigin,
     NUXT_TRUSTED_PROXY_IPS: '127.0.0.1,::1',
   },
 })
@@ -137,7 +135,7 @@ async function memberCookie() {
 }
 
 async function administratorCookie(requestHeaders: Record<string, string> = {}) {
-  const response = await fetch('/api/session/admin', {
+  const response = await fetch(url('/api/session/admin'), {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...requestHeaders },
     body: JSON.stringify({ token: adminToken }),
@@ -147,6 +145,27 @@ async function administratorCookie(requestHeaders: Record<string, string> = {}) 
 }
 
 describe('Nuxt application routes', () => {
+  beforeAll(async () => {
+    const bootstrapCookie = await administratorCookie()
+    await fetch('/api/admin/site-config', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: bootstrapCookie },
+      body: JSON.stringify({
+        project_name: 'Token向云',
+        site_title: 'Token向云指南',
+        site_description: '会员、API 接入、模型试用与价格参考。',
+        logo_path: 'https://guide.aiziyou.org/logo-80.png',
+        footer_text: '清晰接入，稳定调用。',
+        main_site_url: upstreamOrigin,
+        login_path: '/login',
+        register_path: '/register',
+        support_path: '/support',
+        api_path: '/v1',
+        support_wechat: '微信 kkflow520',
+        support_group_url: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
+      }),
+    })
+  })
   it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets', '/admin/installers', '/admin/homepage', '/admin/promotions'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
@@ -269,7 +288,7 @@ describe('Nuxt application routes', () => {
 
   it('sends the iframe and browser security policy without an X-Frame-Options conflict', async () => {
     const response = await fetch('/playground')
-    expect(response.headers.get('content-security-policy')).toContain(`frame-ancestors ${upstreamOrigin}`)
+    expect(response.headers.get('content-security-policy')).toMatch(/frame-ancestors https?:\/\/127\.0\.0\.1:\d+/)
     expect(response.headers.get('content-security-policy')).toContain("connect-src 'self'")
     expect(response.headers.get('content-security-policy')).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'")
     expect(response.headers.get('content-security-policy')).not.toContain("'unsafe-eval'")

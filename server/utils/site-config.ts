@@ -5,27 +5,27 @@ import { createSiteSettingsRepository } from '../domain/site-settings/repository
 import { siteSettingsSchema, type SiteSettingsInput } from '../domain/site-settings/schema'
 import { useGuideDatabase } from './database'
 import { getPublicRequestOrigin, rebasePublicUploadUrl } from './request-url'
+import { deriveMainSiteOrigin } from '#shared/utils/site-origin'
 
 function runtimeDefaults(event?: H3Event): SiteSettingsInput & { site_url: string } {
-  const runtime = useRuntimeConfig(event)
-  const config = runtime.public as Record<string, unknown>
-  const siteTitle = String(config.siteName || 'Token向云指南').trim()
-  const projectName = String(config.projectName || siteTitle.replace(/指南(?:中心)?$/, '') || 'Token向云').trim()
-  const siteUrl = String(config.siteUrl || 'https://guide.aiziyou.org').trim().replace(/\/+$/, '')
+  const siteTitle = 'Token向云指南'
+  const projectName = 'Token向云'
+  const siteUrl = getPublicRequestOrigin(event, 'http://127.0.0.1:3000')
+  const mainSiteUrl = deriveMainSiteOrigin(siteUrl) || siteUrl
 
   return {
     project_name: projectName,
     site_title: siteTitle,
-    site_description: String(config.siteDescription || '会员、API 接入、模型试用与价格参考。').trim(),
-    logo_path: absoluteUrl(siteUrl, String(config.logoPath || '/logo-80.png').trim()),
-    footer_text: String(config.footerText || '清晰接入，稳定调用。').trim(),
-    main_site_url: String(config.sub2apiOrigin || 'https://kkflow.org').trim().replace(/\/+$/, ''),
-    login_path: String(config.loginPath || '/login').trim(),
-    register_path: String(config.registerPath || '/register').trim(),
-    support_path: String(config.supportPath || '/support').trim(),
-    api_path: String(config.apiPath || '/v1').trim().replace(/\/+$/, ''),
-    support_wechat: String(config.supportWechat || '微信 kkflow520').trim(),
-    support_group_url: String(config.supportGroupUrl || 'https://www.kdocs.cn/l/csU8ZJybJe2V').trim(),
+    site_description: '会员、API 接入、模型试用与价格参考。',
+    logo_path: absoluteUrl(siteUrl, '/logo-80.png'),
+    footer_text: '清晰接入，稳定调用。',
+    main_site_url: mainSiteUrl,
+    login_path: '/login',
+    register_path: '/register',
+    support_path: '/support',
+    api_path: '/v1',
+    support_wechat: '微信 kkflow520',
+    support_group_url: 'https://www.kdocs.cn/l/csU8ZJybJe2V',
     site_url: siteUrl,
   }
 }

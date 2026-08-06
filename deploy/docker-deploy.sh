@@ -11,8 +11,6 @@ IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-614626370/sub2api-guide}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 HOST_PORT="${HOST_PORT:-3000}"
 HOST_BIND_ADDRESS="${HOST_BIND_ADDRESS:-0.0.0.0}"
-SITE_URL="${SITE_URL:-https://guide.aiziyou.org}"
-SUB2API_ORIGIN="${SUB2API_ORIGIN:-https://kkflow.org}"
 
 random_hex() {
   if command -v openssl >/dev/null 2>&1; then
@@ -147,8 +145,6 @@ fi
 force_env_value IMAGE_REPOSITORY "${IMAGE_REPOSITORY}"
 force_env_value HOST_PORT "${HOST_PORT}"
 set_env_value HOST_BIND_ADDRESS "${HOST_BIND_ADDRESS}"
-set_env_value NUXT_PUBLIC_SITE_URL "${SITE_URL}"
-set_env_value NUXT_PUBLIC_SUB2API_ORIGIN "${SUB2API_ORIGIN}"
 set_env_value NUXT_DATABASE_PATH "/data/guide.sqlite"
 set_env_value NUXT_UPDATE_IMAGE_REPOSITORY "${IMAGE_REPOSITORY}"
 set_env_value NUXT_UPDATE_CONTAINER_NAME "sub2api-guide"
@@ -198,5 +194,5 @@ echo
 echo "管理后台（本机）："
 echo "  http://127.0.0.1:${HOST_PORT}/admin"
 echo "  使用上面的 NUXT_ADMIN_TOKEN 登录"
-echo "公网域名可在 .env 的 NUXT_PUBLIC_SITE_URL 修改，或登录后到 /admin/settings 配置。"
+echo "主站地址、品牌和路由请登录 /admin/settings，在站点配置中维护。Guide 地址按当前访问域名生成。"
 echo "=========================================="

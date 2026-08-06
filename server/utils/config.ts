@@ -1,6 +1,8 @@
 import path from 'node:path'
 import type { H3Event } from 'h3'
 import type { SiteSettingsInput } from '../domain/site-settings/schema'
+import { deriveMainSiteOrigin } from '#shared/utils/site-origin'
+import { getPublicRequestOrigin } from './request-url'
 
 declare global {
   // eslint-disable-next-line no-var
@@ -22,25 +24,20 @@ function apiBase(origin: string) {
 
 export function getGuideConfig(event?: H3Event) {
   const runtime = useRuntimeConfig(event)
-  const publicConfig = runtime.public as {
-    siteUrl?: string
-    sub2apiOrigin?: string
-    siteName?: string
-    projectName?: string
-  }
   const pricingPlatforms = csv(runtime.pricingPlatforms, ['openai', 'anthropic'])
   const trustedProxyIps = csv(runtime.trustedProxyIps, ['127.0.0.1', '::1'])
   const databasePath = String(runtime.databasePath || 'data/guide.sqlite')
   const isProduction = process.env.NODE_ENV === 'production'
 
   const configured = globalThis.__kkflowSiteSettings
-  const sub2apiOrigin = String(configured?.main_site_url || publicConfig.sub2apiOrigin || 'https://kkflow.org').replace(/\/+$/, '')
+  const siteUrl = getPublicRequestOrigin(event, 'http://127.0.0.1:3000')
+  const sub2apiOrigin = String(configured?.main_site_url || deriveMainSiteOrigin(siteUrl) || siteUrl).replace(/\/+$/, '')
 
   return {
     isProduction,
-    siteUrl: String(publicConfig.siteUrl || 'https://guide.aiziyou.org').replace(/\/+$/, ''),
-    projectName: String(configured?.project_name || publicConfig.projectName || 'Token向云'),
-    siteName: String(configured?.site_title || publicConfig.siteName || 'Token向云指南'),
+    siteUrl,
+    projectName: String(configured?.project_name || 'Token向云'),
+    siteName: String(configured?.site_title || 'Token向云指南'),
     sub2apiOrigin,
     sub2apiApiBase: apiBase(sub2apiOrigin),
     sub2apiAdminApiKey: String(runtime.sub2apiAdminApiKey || ''),

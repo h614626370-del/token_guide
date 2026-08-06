@@ -1,7 +1,6 @@
 import type { H3Event } from 'h3'
 import { getRequestHeader, getRequestURL } from 'h3'
-import { requestComesFromTrustedProxy } from './client-ip'
-import { getGuideConfig } from './config'
+import { requestComesFromTrustedProxy } from './trusted-proxy'
 
 function firstForwardedValue(value: string | undefined) {
   return String(value || '').split(',', 1)[0]?.trim() || ''
@@ -18,9 +17,9 @@ function validOrigin(protocol: string, host: string) {
   }
 }
 
-export function getPublicRequestOrigin(event?: H3Event) {
-  const fallback = new URL(getGuideConfig(event).siteUrl).origin
-  if (!event) return fallback
+export function getPublicRequestOrigin(event?: H3Event, fallback = '') {
+  const fallbackOrigin = normalizeOrigin(fallback)
+  if (!event) return fallbackOrigin
 
   const requestUrl = getRequestURL(event)
   let protocol = requestUrl.protocol
@@ -33,7 +32,15 @@ export function getPublicRequestOrigin(event?: H3Event) {
     if (forwardedHost) host = forwardedHost
   }
 
-  return validOrigin(protocol, host) || fallback
+  return validOrigin(protocol, host) || fallbackOrigin
+}
+
+function normalizeOrigin(value: string) {
+  try {
+    return new URL(value).origin
+  } catch {
+    return ''
+  }
 }
 
 export function rebasePublicUploadUrl(value: string, origin: string) {

@@ -8,8 +8,6 @@ IMAGE_REPOSITORY="614626370/sub2api-guide"
 INSTALL_DIR=""
 PORT="3000"
 HOST_BIND_ADDRESS="0.0.0.0"
-SITE_URL="https://guide.aiziyou.org"
-SUB2API_ORIGIN="https://kkflow.org"
 
 usage() {
   cat <<USAGE
@@ -23,8 +21,6 @@ Options:
   --install-dir DIR          Install directory. Default: current directory.
   --port PORT                Loopback host port. Default: 3000.
   --bind-address ADDRESS     Host bind address. Default: 0.0.0.0.
-  --site-url URL             Public guide origin. Default: https://guide.aiziyou.org.
-  --sub2api-origin URL       sub2api origin. Default: https://kkflow.org.
 USAGE
 }
 
@@ -35,8 +31,6 @@ while [[ $# -gt 0 ]]; do
     --install-dir) INSTALL_DIR="${2:?}"; shift 2 ;;
     --port) PORT="${2:?}"; shift 2 ;;
     --bind-address) HOST_BIND_ADDRESS="${2:?}"; shift 2 ;;
-    --site-url) SITE_URL="${2:?}"; shift 2 ;;
-    --sub2api-origin) SUB2API_ORIGIN="${2:?}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
   esac
@@ -57,7 +51,7 @@ fi
 mkdir -p "${INSTALL_DIR}"
 cd "${INSTALL_DIR}"
 
-export IMAGE_REPOSITORY IMAGE_TAG="${VERSION}" HOST_PORT="${PORT}" HOST_BIND_ADDRESS SITE_URL SUB2API_ORIGIN
+export IMAGE_REPOSITORY IMAGE_TAG="${VERSION}" HOST_PORT="${PORT}" HOST_BIND_ADDRESS
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/../deploy/docker-deploy.sh" ]]; then
@@ -84,7 +78,7 @@ docker pull "${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 echo "Checking health"
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:${HOST_PORT}/api/health" >/dev/null; then
-    echo "Guide is running at ${SITE_URL} using ${IMAGE_REPOSITORY}:${IMAGE_TAG}."
+    echo "Guide is running using ${IMAGE_REPOSITORY}:${IMAGE_TAG}."
     exit 0
   fi
   sleep 1
