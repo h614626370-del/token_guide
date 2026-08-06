@@ -6,6 +6,8 @@ export interface InstallerSettings {
   base_url: string
   codex_default_model: string
   claude_default_model: string
+  codex_enabled: boolean
+  claude_enabled: boolean
 }
 
 export interface InstallerScriptSummary {

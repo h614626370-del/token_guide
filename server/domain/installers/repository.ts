@@ -33,19 +33,21 @@ interface VersionRow {
 }
 
 const definitions: InstallerDefinition[] = [
-  { id: 'codex-windows', tool: 'codex', platform: 'windows', label: 'Codex · Windows', file: 'codex-cli/setup.ps1', filename: 'setup-codex-windows.ps1' },
-  { id: 'codex-macos', tool: 'codex', platform: 'macos', label: 'Codex · macOS', file: 'codex-cli/setup-macos.sh', filename: 'setup-codex-macos.sh' },
-  { id: 'codex-linux', tool: 'codex', platform: 'linux', label: 'Codex · Linux', file: 'codex-cli/setup-linux.sh', filename: 'setup-codex-linux.sh' },
+  { id: 'codex-windows', tool: 'codex', platform: 'windows', label: 'Codex · Windows', file: 'codex-cli/setup.ps1', filename: 'setup.ps1' },
+  { id: 'codex-macos', tool: 'codex', platform: 'macos', label: 'Codex · macOS', file: 'codex-cli/setup.sh', filename: 'setup.sh' },
+  { id: 'codex-linux', tool: 'codex', platform: 'linux', label: 'Codex · Linux', file: 'codex-cli/setup.sh', filename: 'setup.sh' },
   { id: 'claude-windows', tool: 'claude', platform: 'windows', label: 'Claude Code · Windows', file: 'claude-cli/setup.ps1', filename: 'setup-claude-windows.ps1' },
   { id: 'claude-macos', tool: 'claude', platform: 'macos', label: 'Claude Code · macOS', file: 'claude-cli/setup-macos.sh', filename: 'setup-claude-macos.sh' },
   { id: 'claude-linux', tool: 'claude', platform: 'linux', label: 'Claude Code · Linux', file: 'claude-cli/setup-linux.sh', filename: 'setup-claude-linux.sh' },
 ]
 
 const settingDefaults: InstallerSettingsInput = {
-  provider_id: 'onekey_relay',
+  provider_id: 'custom',
   base_url: 'https://llapi.org',
   codex_default_model: 'gpt-5.6-sol',
   claude_default_model: '',
+  codex_enabled: true,
+  claude_enabled: true,
 }
 
 export function installerDefinition(id: string | undefined) {
@@ -70,7 +72,7 @@ function readDefault(definition: InstallerDefinition) {
 
 function validateTemplate(definition: InstallerDefinition, content: string) {
   const required = definition.tool === 'codex'
-    ? ['{{PROVIDER_ID}}', '{{BASE_URL}}', '{{DEFAULT_MODEL}}']
+    ? ['{{BASE_URL}}', '{{DEFAULT_MODEL}}']
     : ['{{BASE_URL}}', '{{DEFAULT_MODEL}}']
   const missing = required.filter(marker => !content.includes(marker))
   if (missing.length) throw new Error(`Missing required template markers: ${missing.join(', ')}`)
@@ -96,6 +98,11 @@ export function renderInstallerScript(content: string, tool: InstallerTool, sett
     .replaceAll('{{PROVIDER_ID}}', settings.provider_id)
     .replaceAll('{{BASE_URL}}', settings.base_url.replace(/\/+$/, ''))
     .replaceAll('{{DEFAULT_MODEL}}', model)
+}
+
+function renderInstallerDefinition(content: string, definition: InstallerDefinition, settings: InstallerSettingsInput) {
+  const rendered = renderInstallerScript(content, definition.tool, settings)
+  return definition.platform === 'windows' ? rendered : rendered.replace(/\r\n?/g, '\n')
 }
 
 export function createInstallerRepository(db: Database.Database) {
@@ -128,7 +135,17 @@ export function createInstallerRepository(db: Database.Database) {
 
   function settings() {
     const saved = Object.fromEntries((listSettings.all() as Array<{ key: string, value: string }>).map(item => [item.key, item.value]))
-    return { ...settingDefaults, ...saved }
+    const booleanSetting = (key: 'codex_enabled' | 'claude_enabled') => saved[key] === undefined
+      ? settingDefaults[key]
+      : saved[key] === 'true' || saved[key] === '1'
+    return {
+      provider_id: saved.provider_id ?? settingDefaults.provider_id,
+      base_url: saved.base_url ?? settingDefaults.base_url,
+      codex_default_model: saved.codex_default_model ?? settingDefaults.codex_default_model,
+      claude_default_model: saved.claude_default_model ?? settingDefaults.claude_default_model,
+      codex_enabled: booleanSetting('codex_enabled'),
+      claude_enabled: booleanSetting('claude_enabled'),
+    }
   }
 
   function row(id: InstallerScriptId) {
@@ -153,7 +170,7 @@ export function createInstallerRepository(db: Database.Database) {
       updated_at: draft ? current?.draft_updated_at : current?.published_at,
       published_at: current?.published_at || null,
       draft_updated_at: current?.draft_updated_at || null,
-      checksum: checksum(renderInstallerScript(active, definition.tool, settings())),
+      checksum: checksum(renderInstallerDefinition(active, definition, settings())),
       content: active,
       default_content: defaultContent,
       published_content: published,
@@ -163,7 +180,7 @@ export function createInstallerRepository(db: Database.Database) {
 
   const saveSettings = db.transaction((input: InstallerSettingsInput) => {
     const now = new Date().toISOString()
-    for (const [key, value] of Object.entries(input)) upsertSetting.run(key, value, now, now)
+    for (const [key, value] of Object.entries(input)) upsertSetting.run(key, String(value), now, now)
   })
 
   const saveDraft = db.transaction((definition: InstallerDefinition, content: string) => {
@@ -195,7 +212,7 @@ export function createInstallerRepository(db: Database.Database) {
           has_draft: Boolean(current?.draft_content),
           has_override: Boolean(current?.published_at),
           updated_at: current?.draft_updated_at || current?.published_at || null,
-          checksum: checksum(renderInstallerScript(active, definition.tool, settings())),
+          checksum: checksum(renderInstallerDefinition(active, definition, settings())),
         }
       })
     },
@@ -238,12 +255,12 @@ export function createInstallerRepository(db: Database.Database) {
       upsertDraft.run(definition.id, current?.published_at ? current.content : readDefault(definition), version.content, current?.created_at || now, now, now, current?.published_at || null)
       return view(definition)
     },
-    publicScript(tool: InstallerTool, platform: InstallerPlatform) {
+    publicScript(tool: InstallerTool, platform: InstallerPlatform, settingOverrides: Partial<InstallerSettingsInput> = {}) {
       const definition = installerDefinitionFor(tool, platform)
       if (!definition) return null
       const current = row(definition.id)
       const template = current?.published_at ? current.content : readDefault(definition)
-      const content = renderInstallerScript(template, tool, settings())
+      const content = renderInstallerDefinition(template, definition, { ...settings(), ...settingOverrides })
       return { definition, content, checksum: checksum(content) }
     },
   }

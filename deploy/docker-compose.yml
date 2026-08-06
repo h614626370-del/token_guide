@@ -13,7 +13,7 @@ services:
     group_add:
       - "${DOCKER_GID:-0}"
     ports:
-      - "127.0.0.1:${HOST_PORT:-3000}:3000"
+      - "${HOST_BIND_ADDRESS:-0.0.0.0}:${HOST_PORT:-3000}:3000"
     volumes:
       - ./data:/data
       # 后台「系统更新」需要；不需要可删除下一行

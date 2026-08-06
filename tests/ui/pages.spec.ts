@@ -179,7 +179,7 @@ test('administrator can update and restore public site branding', async ({ page 
 
 
 test('administrator can manage classified installer scripts', async ({ page }, testInfo) => {
-  await page.goto('/admin/installers', { waitUntil: 'networkidle' })
+  await page.goto('/admin/installers', { waitUntil: 'domcontentloaded' })
   await page.getByLabel('管理员 Token').fill('playwright-admin-token')
   await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: '脚本配置' })).toBeVisible()
@@ -187,16 +187,106 @@ test('administrator can manage classified installer scripts', async ({ page }, t
   await expect(page.getByLabel('系统分类').getByRole('button', { name: 'Windows' })).toBeVisible()
   await expect(page.getByLabel('系统分类').getByRole('button', { name: 'macOS' })).toBeVisible()
   await expect(page.getByLabel('系统分类').getByRole('button', { name: 'Linux' })).toBeVisible()
-  await expect(page.getByLabel('PROVIDER_ID')).toHaveValue('onekey_relay')
-  await expect(page.getByLabel('BASE_URL')).toHaveValue('https://llapi.org')
+
+  const originalResponse = await page.request.get('/api/admin/installers')
+  expect(originalResponse.ok()).toBe(true)
+  const original = (await originalResponse.json()).data.settings
+  await expect(page.getByLabel('PROVIDER_ID')).toHaveValue(original.provider_id)
+  await expect(page.getByLabel('BASE_URL')).toHaveValue(original.base_url)
+
+  const editorMetrics = await page.getByLabel('安装脚本内容').evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { height: Number.parseFloat(style.height), resize: style.resize, scrollbarWidth: style.scrollbarWidth }
+  })
+  expect(editorMetrics.height).toBe(testInfo.project.name === 'mobile' ? 620 : 760)
+  expect(editorMetrics.resize).toBe('none')
+  expect(editorMetrics.scrollbarWidth).toBe('none')
+
+  try {
+    const claudeToggle = page.getByRole('checkbox', { name: /Claude Code/ })
+    const claudeToggleControl = page.locator('label.installer-visibility-toggle').filter({ hasText: 'Claude Code' })
+    await expect(claudeToggle).toBeChecked()
+    await claudeToggleControl.click()
+    await expect(claudeToggle).not.toBeChecked()
+    const savedResponse = page.waitForResponse(response => response.url().includes('/api/admin/installers/settings') && response.request().method() === 'PUT')
+    await page.getByRole('button', { name: '保存安装器设置' }).click()
+    expect((await savedResponse).ok()).toBe(true)
+    await expect(page.getByText('公共配置已保存。')).toBeVisible()
+    const updatedResponse = await page.request.get('/api/admin/installers')
+    expect((await updatedResponse.json()).data.settings.claude_enabled).toBe(false)
+  } finally {
+    const restoreClaudeToggle = page.getByRole('checkbox', { name: /Claude Code/ })
+    if (await restoreClaudeToggle.isChecked() !== original.claude_enabled) {
+      await page.locator('label.installer-visibility-toggle').filter({ hasText: 'Claude Code' }).click()
+    }
+    const restoredResponse = page.waitForResponse(response => response.url().includes('/api/admin/installers/settings') && response.request().method() === 'PUT')
+    await page.getByRole('button', { name: '保存安装器设置' }).click()
+    expect((await restoredResponse).ok()).toBe(true)
+  }
 
   await page.getByLabel('工具分类').getByRole('button', { name: 'Claude Code' }).click()
   await page.getByLabel('系统分类').getByRole('button', { name: 'Linux' }).click()
-  await expect(page.getByLabel('安装脚本内容')).toContainText('Claude Code')
+  await expect(page.getByLabel('安装脚本内容')).toHaveValue(/Claude Code/)
   await page.screenshot({
     path: join('artifacts', 'ui', `${testInfo.project.name}-admin-installers-authenticated.png`),
     fullPage: true,
   })
+
+  await page.route('**/api/install/config', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        settings: { ...original, provider_id: 'custom', codex_enabled: true, claude_enabled: false },
+        scripts: [],
+      },
+    },
+  }))
+  await page.route('**/api/session', route => route.fulfill({ json: { ok: true, data: { authenticated: false, admin: false, user: null, token_expires_at: null } } }))
+  await page.goto('/install', { waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('tab', { name: 'Codex CLI' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: 'Claude Code' })).toHaveCount(0)
+})
+
+test('install command copy falls back on an insecure origin', async ({ page }) => {
+  const command = "export CODEX_API_KEY='test-key'; curl -fsSL 'http://127.0.0.1/setup.sh' | bash"
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'isSecureContext', { configurable: true, value: false })
+    Object.defineProperty(Document.prototype, 'execCommand', {
+      configurable: true,
+      value(action: string) {
+        if (action !== 'copy') return false
+        const field = document.activeElement as HTMLTextAreaElement | null
+        ;(window as typeof window & { __copiedCommand?: string }).__copiedCommand = field?.value || ''
+        return Boolean(field?.value)
+      },
+    })
+  })
+  await page.route('**/api/install/config', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        settings: {
+          provider_id: 'custom',
+          base_url: 'https://llapi.org/v1',
+          codex_default_model: 'gpt-5.6-sol',
+          claude_default_model: '',
+          codex_enabled: true,
+          claude_enabled: false,
+        },
+        scripts: [],
+      },
+    },
+  }))
+  await page.route('**/api/session', route => route.fulfill({ json: { ok: true, data: { authenticated: true, admin: false, user: { id: '1', username: 'Tester', email: 'tester@example.com', role: 'user' }, token_expires_at: null } } }))
+  await page.route('**/api/install/keys?tool=codex', route => route.fulfill({ json: { ok: true, data: [{ id: 7, name: 'Codex', masked_key: 'sk-test...key', group: { platform: 'openai' } }] } }))
+  await page.route('**/api/install/command', route => route.fulfill({ json: { ok: true, data: { remote: [{ label: 'Linux Terminal', command }], local: [{ label: 'Linux Terminal', command: './setup.sh' }], download_url: '/setup.sh', filename: 'setup.sh', checksum: 'ABC' } } }))
+
+  await page.goto('/install', { waitUntil: 'networkidle' })
+  await page.getByRole('tab', { name: 'Linux' }).click()
+  const copyButton = page.locator('.install-command button').first()
+  await copyButton.click()
+  await expect(copyButton).toHaveText('已复制')
+  expect(await page.evaluate(() => (window as typeof window & { __copiedCommand?: string }).__copiedCommand)).toBe(command)
 })
 test('embedded mode removes the site chrome', async ({ page }) => {
   const response = await page.goto('/playground?embedded=1', { waitUntil: 'domcontentloaded' })

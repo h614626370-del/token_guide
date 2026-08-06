@@ -619,8 +619,10 @@ describe('authentication and same-origin API protection', () => {
       ok: true,
       data: {
         settings: {
-          provider_id: 'onekey_relay',
-          base_url: 'https://llapi.org',
+          provider_id: 'custom',
+          base_url: upstreamOrigin,
+          codex_enabled: true,
+          claude_enabled: true,
         },
         scripts: [
           { id: 'codex-windows', platform: 'windows' },
@@ -635,11 +637,26 @@ describe('authentication and same-origin API protection', () => {
 
     const downloaded = await fetch('/api/install/scripts/codex/windows')
     expect(downloaded.status).toBe(200)
-    expect(downloaded.headers.get('content-disposition')).toContain('setup-codex-windows.ps1')
+    expect(downloaded.headers.get('content-disposition')).toContain('setup.ps1')
     expect(downloaded.headers.get('x-content-sha256')).toMatch(/^[A-F0-9]{64}$/)
     const downloadedBody = await downloaded.text()
-    expect(downloadedBody).toContain('$ProviderId = "onekey_relay"')
-    expect(downloadedBody).toContain('$BaseUrl = "https://llapi.org"')
+    expect(downloadedBody).toContain('$ProviderId = "custom"')
+    expect(downloadedBody).toContain(`if ([string]::IsNullOrWhiteSpace($BaseUrl)) { $BaseUrl = "${upstreamOrigin}" }`)
+    expect(downloadedBody).toContain('requires_openai_auth = true')
+    expect(downloadedBody).toContain('$authData["OPENAI_API_KEY"] = $ApiKey')
+    expect(downloadedBody).not.toContain('http_headers = { Authorization')
+
+    const windowsSetup = await fetch('/setup.ps1')
+    expect(windowsSetup.status).toBe(200)
+    expect(windowsSetup.headers.get('content-disposition')).toContain('setup.ps1')
+    expect(await windowsSetup.text()).toContain('$ProviderId = "custom"')
+
+    const shellSetup = await fetch('/setup.sh')
+    expect(shellSetup.status).toBe(200)
+    expect(shellSetup.headers.get('content-disposition')).toContain('setup.sh')
+    const shellSetupBody = await shellSetup.text()
+    expect(shellSetupBody).toContain(`BASE_URL="\${CODEX_BASE_URL:-${upstreamOrigin}}"`)
+    expect(shellSetupBody).not.toContain('\r')
 
     expect((await fetch('/api/install/keys?tool=codex')).status).toBe(401)
     const cookie = await memberCookie()
@@ -656,10 +673,24 @@ describe('authentication and same-origin API protection', () => {
     expect(generated.status).toBe(200)
     const generatedBody = await json(generated)
     expect(generatedBody.data).toMatchObject({
-      filename: 'setup-codex-windows.ps1',
-      remote: [{ label: 'Windows PowerShell 5.1' }, { label: 'PowerShell 7+' }],
+      filename: 'setup.ps1',
+      download_url: expect.stringMatching(/\/setup\.ps1$/),
+      remote: [{ label: 'Windows PowerShell 5.1 / 7+' }],
     })
-    const encoded = generatedBody.data.remote[0].command.split(' ').at(-1)
-    expect(Buffer.from(encoded, 'base64').toString('utf16le')).toContain(savedApiKey)
+    const windowsCommand = generatedBody.data.remote[0].command
+    expect(windowsCommand).toContain(savedApiKey)
+    expect(windowsCommand).toContain(`$env:CODEX_BASE_URL='${upstreamOrigin}'`)
+    expect(windowsCommand).toMatch(/irm '.*\/setup\.ps1' \| iex/)
+    expect(windowsCommand).not.toContain('EncodedCommand')
+
+    const generatedShell = await fetch('/api/install/command', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ tool: 'codex', platform: 'linux', key_id: 7 }),
+    })
+    const shellBody = await json(generatedShell)
+    expect(shellBody.data.filename).toBe('setup.sh')
+    expect(shellBody.data.remote[0].command).toContain(`CODEX_BASE_URL='${upstreamOrigin}'`)
+    expect(shellBody.data.remote[0].command).toMatch(/curl -fsSL '.*\/setup\.sh' \| bash/)
   })
 })

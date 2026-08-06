@@ -1,6 +1,6 @@
 .install-tool-tabs {
   display: grid;
-  width: min(560px, 100%);
+  width: min(680px, 100%);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
   margin-bottom: 18px;
@@ -9,6 +9,8 @@
   border-radius: 7px;
   background: #e9edef;
 }
+
+.install-tool-tabs--single { width: min(340px, 100%); grid-template-columns: 1fr; }
 
 .install-tool-tabs button,
 .install-os-tabs button {
@@ -50,8 +52,8 @@
 .install-layout {
   display: grid;
   align-items: start;
-  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(290px, 330px) minmax(0, 1fr);
+  gap: 20px;
 }
 
 .install-key-panel,
@@ -60,9 +62,10 @@
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
+  box-shadow: 0 8px 24px rgba(28, 33, 38, 0.05);
 }
 
-.install-key-panel { padding: 20px; }
+.install-key-panel { position: sticky; top: 18px; padding: 20px; }
 .install-key-panel > header { display: flex; align-items: center; gap: 9px; margin-bottom: 20px; }
 .install-key-panel h2, .install-methods h2, .install-method h3 { margin: 0; font-size: 18px; }
 .install-key-panel > header span { margin-left: auto; padding: 4px 8px; border-radius: 5px; color: var(--success); background: #e7f4ef; font-size: 12px; font-weight: 800; }
@@ -75,7 +78,7 @@
 .install-key-panel dt { color: var(--muted); font-size: 11px; }
 .install-key-panel dd { overflow: hidden; margin: 0; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 
-.install-methods > header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid var(--line); }
+.install-methods > header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid var(--line); background: #f8f9f9; }
 .install-methods > header p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
 .install-os-tabs { display: grid; width: min(520px, 60%); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 4px; border: 1px solid var(--line); border-radius: 7px; background: #edf0f2; }
 .install-os-tabs button { min-height: 42px; }
@@ -90,24 +93,49 @@
 .install-download { margin-bottom: 14px; }
 
 .install-command { margin-top: 13px; }
-.install-command > span { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11px; font-weight: 750; }
-.install-command > div { display: grid; align-items: stretch; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
-.install-command textarea { width: 100%; min-height: 76px; resize: vertical; padding: 11px; border: 1px solid #2d343d; border-radius: 6px; color: #e8edf2; background: #171b21; font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.install-command__heading { display: flex; min-height: 22px; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.install-command__heading > span { color: var(--muted); font-size: 11px; font-weight: 750; }
+.install-command__heading small { color: var(--success); font-size: 11px; font-weight: 750; }
+.install-command__heading small.copy-error { color: #a43d37; }
+.install-command__body { display: grid; align-items: stretch; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; }
+.install-command textarea { width: 100%; min-height: 92px; resize: none; padding: 13px; border: 1px solid #2d343d; border-radius: 6px; color: #e8edf2; background: #171b21; font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.install-command textarea:focus { border-color: #69737d; outline: 2px solid rgba(73, 83, 93, 0.18); outline-offset: 1px; }
 .install-command button { min-width: 116px; align-self: stretch; cursor: pointer; }
+.install-command button.copy-command--error { border-color: #a43d37; background: #a43d37; }
 .install-checksum { display: block; overflow-wrap: anywhere; margin-top: 16px; color: var(--muted); font-size: 10px; }
 .install-loading { min-height: 180px; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.install-unavailable { display: flex; min-height: 170px; align-items: center; gap: 14px; padding: 24px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+.install-unavailable svg { flex: 0 0 auto; color: var(--muted); }
+.install-unavailable h2 { margin: 0; font-size: 17px; }
+.install-unavailable p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
 
 .installer-settings { margin-bottom: 16px; }
 .installer-settings h2 { display: inline-flex; align-items: center; gap: 8px; }
+.installer-visibility-settings { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0 0 16px; border: 0; border-bottom: 1px solid var(--soft-line); }
+.installer-visibility-settings legend { margin-bottom: 9px; padding: 0; color: var(--ink); font-size: 12px; font-weight: 800; }
+.installer-visibility-toggle { display: grid; min-width: 0; min-height: 68px; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: #f7f8f8; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease; }
+.installer-visibility-toggle.active { border-color: #b9c9c2; color: var(--success); background: #f1f8f5; }
+.installer-visibility-toggle input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+.installer-toggle-track { position: relative; width: 38px; height: 22px; border-radius: 999px; background: #c8ced2; transition: background-color 150ms ease; }
+.installer-toggle-track i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(20, 24, 28, 0.2); transition: transform 150ms ease; }
+.installer-visibility-toggle.active .installer-toggle-track { background: var(--success); }
+.installer-visibility-toggle.active .installer-toggle-track i { transform: translateX(16px); }
+.installer-visibility-toggle > span:nth-of-type(2) { display: grid; min-width: 0; gap: 3px; }
+.installer-visibility-toggle strong { color: var(--ink); font-size: 13px; }
+.installer-visibility-toggle small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.installer-visibility-toggle:focus-within { outline: 2px solid rgba(45, 108, 82, 0.2); outline-offset: 2px; }
 .installer-classification { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .installer-classification .segmented-control { flex: 0 1 480px; }
 .installer-editor .admin-doc-status-grid { margin-top: 18px; }
 .installer-editor .admin-doc-status-grid a { display: inline-flex; align-items: center; gap: 5px; color: var(--success); font-size: 11px; }
-.installer-code-editor textarea { width: 100%; min-height: 620px; resize: vertical; padding: 14px; border: 1px solid var(--line); border-radius: 7px; color: #dce3ea; background: #171b21; font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; line-height: 1.6; }
+.installer-code-editor textarea { width: 100%; height: 760px; min-height: 760px; resize: none; overflow: auto; padding: 18px; border: 1px solid #2d343d; border-radius: 7px; color: #dce3ea; background: #171b21; font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; line-height: 1.65; scrollbar-width: none; }
+.installer-code-editor textarea::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.installer-code-editor textarea:focus { border-color: #69737d; outline: 2px solid rgba(73, 83, 93, 0.18); outline-offset: 2px; }
 .installer-code-editor small { display: block; margin-top: 7px; color: var(--muted); font-size: 11px; }
 
 @media (max-width: 960px) {
   .install-layout { grid-template-columns: 1fr; }
+  .install-key-panel { position: static; }
   .install-methods > header { align-items: stretch; flex-direction: column; }
   .install-os-tabs { width: 100%; }
 }
@@ -119,4 +147,6 @@
   .install-command button { min-height: 42px; }
   .installer-classification { align-items: stretch; flex-direction: column; }
   .installer-classification .segmented-control { width: 100%; flex-basis: auto; }
+  .installer-visibility-settings { grid-template-columns: 1fr; }
+  .installer-code-editor textarea { height: 620px; min-height: 620px; }
 }

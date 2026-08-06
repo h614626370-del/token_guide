@@ -15,7 +15,7 @@ services:
     group_add:
       - "${DOCKER_GID:-0}"
     ports:
-      - "127.0.0.1:${HOST_PORT:-3000}:3000"
+      - "${HOST_BIND_ADDRESS:-0.0.0.0}:${HOST_PORT:-3000}:3000"
     volumes:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock

@@ -30,14 +30,15 @@ describe('installer configuration', () => {
         'claude-macos',
         'claude-linux',
       ])
-      expect(scripts.find(item => item.id === 'codex-macos')?.filename).not.toBe(scripts.find(item => item.id === 'codex-linux')?.filename)
+      expect(scripts.find(item => item.id === 'codex-macos')?.filename).toBe('setup.sh')
+      expect(scripts.find(item => item.id === 'codex-linux')?.filename).toBe('setup.sh')
       expect(scripts.find(item => item.id === 'claude-macos')?.filename).not.toBe(scripts.find(item => item.id === 'claude-linux')?.filename)
     } finally {
       db.close()
     }
   })
 
-  it('renders shared provider and base URL settings into published scripts', () => {
+  it('keeps the Codex provider fixed and renders the configured base URL', () => {
     const db = database()
     try {
       const repository = createInstallerRepository(db)
@@ -46,14 +47,24 @@ describe('installer configuration', () => {
         base_url: 'https://relay.example.com/',
         codex_default_model: 'gpt-test',
         claude_default_model: 'claude-test',
+        codex_enabled: false,
+        claude_enabled: true,
       })
+      expect(repository.settings()).toMatchObject({ codex_enabled: false, claude_enabled: true })
       const codex = repository.publicScript('codex', 'windows')
       const claude = repository.publicScript('claude', 'linux')
-      expect(codex?.content).toContain('$ProviderId = "custom_relay"')
+      expect(codex?.content).toContain('$ProviderId = "custom"')
       expect(codex?.content).toContain('$BaseUrl = "https://relay.example.com"')
       expect(codex?.content).toContain('[string]$Model = "gpt-test"')
+      expect(codex?.content).toContain('requires_openai_auth = true')
+      expect(codex?.content).toContain('$authData["OPENAI_API_KEY"] = $ApiKey')
+      expect(codex?.content).not.toContain('http_headers = { Authorization')
+      const codexShell = repository.publicScript('codex', 'linux')
+      expect(codexShell?.content).toContain('auth.OPENAI_API_KEY = apiKey;')
+      expect(codexShell?.content).not.toContain('http_headers = { Authorization')
       expect(claude?.content).toContain('BASE_URL="https://relay.example.com"')
       expect(claude?.content).toContain('MODEL="claude-test"')
+      expect(codexShell?.content).not.toContain('\r')
     } finally {
       db.close()
     }
@@ -87,11 +98,13 @@ describe('installer configuration', () => {
       base_url: 'https://relay.example.com',
       codex_default_model: '',
       claude_default_model: '',
+      codex_enabled: true,
+      claude_enabled: true,
     })).not.toThrow()
 
     const db = database()
     try {
-      expect(() => createInstallerRepository(db).saveDraft('codex-windows', 'invalid')).toThrow(/PROVIDER_ID/)
+      expect(() => createInstallerRepository(db).saveDraft('codex-windows', 'invalid')).toThrow(/BASE_URL/)
     } finally {
       db.close()
     }

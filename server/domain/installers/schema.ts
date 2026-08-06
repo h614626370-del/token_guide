@@ -23,6 +23,8 @@ export const installerSettingsSchema = z.object({
   base_url: z.string().trim().url().max(500).refine(value => value.startsWith('https://'), 'BASE_URL must use HTTPS.'),
   codex_default_model: z.string().trim().max(120),
   claude_default_model: z.string().trim().max(120),
+  codex_enabled: z.boolean(),
+  claude_enabled: z.boolean(),
 }).strict()
 
 export const installerScriptUpdateSchema = z.object({

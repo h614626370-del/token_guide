@@ -7,6 +7,7 @@ VERSION="latest"
 IMAGE_REPOSITORY="614626370/sub2api-guide"
 INSTALL_DIR=""
 PORT="3000"
+HOST_BIND_ADDRESS="0.0.0.0"
 SITE_URL="https://guide.kkflow.org"
 SUB2API_ORIGIN="https://kkflow.org"
 
@@ -21,6 +22,7 @@ Options:
   --image IMAGE              Image repository. Default: 614626370/sub2api-guide.
   --install-dir DIR          Install directory. Default: current directory.
   --port PORT                Loopback host port. Default: 3000.
+  --bind-address ADDRESS     Host bind address. Default: 0.0.0.0.
   --site-url URL             Public guide origin. Default: https://guide.kkflow.org.
   --sub2api-origin URL       sub2api origin. Default: https://kkflow.org.
 USAGE
@@ -32,6 +34,7 @@ while [[ $# -gt 0 ]]; do
     --image) IMAGE_REPOSITORY="${2:?}"; shift 2 ;;
     --install-dir) INSTALL_DIR="${2:?}"; shift 2 ;;
     --port) PORT="${2:?}"; shift 2 ;;
+    --bind-address) HOST_BIND_ADDRESS="${2:?}"; shift 2 ;;
     --site-url) SITE_URL="${2:?}"; shift 2 ;;
     --sub2api-origin) SUB2API_ORIGIN="${2:?}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -54,7 +57,7 @@ fi
 mkdir -p "${INSTALL_DIR}"
 cd "${INSTALL_DIR}"
 
-export IMAGE_REPOSITORY IMAGE_TAG="${VERSION}" HOST_PORT="${PORT}" SITE_URL SUB2API_ORIGIN
+export IMAGE_REPOSITORY IMAGE_TAG="${VERSION}" HOST_PORT="${PORT}" HOST_BIND_ADDRESS SITE_URL SUB2API_ORIGIN
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/../deploy/docker-deploy.sh" ]]; then
@@ -68,11 +71,12 @@ echo "Pulling image..."
 set -a
 # 读取 .env 中的镜像仓库和端口；版本号仅对本次安装命令生效
 # shellcheck disable=SC1091
-source <(grep -E '^(IMAGE_REPOSITORY|HOST_PORT)=' .env | sed 's/\r$//')
+source <(grep -E '^(IMAGE_REPOSITORY|IMAGE_TAG|HOST_PORT|HOST_BIND_ADDRESS)=' .env | sed 's/\r$//')
 set +a
 IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-614626370/sub2api-guide}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 HOST_PORT="${HOST_PORT:-3000}"
+HOST_BIND_ADDRESS="${HOST_BIND_ADDRESS:-0.0.0.0}"
 
 docker pull "${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 "${COMPOSE[@]}" up -d --remove-orphans

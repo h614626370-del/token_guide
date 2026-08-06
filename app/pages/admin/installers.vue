@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, RefreshCw, RotateCcw, Save, Send, Settings2 } from 'lucide-vue-next'
+import { ExternalLink, Eye, EyeOff, RefreshCw, RotateCcw, Save, Send, Settings2 } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { InstallerPlatform, InstallerScriptDetail, InstallerScriptSummary, InstallerSettings, InstallerTool } from '~/types/install'
@@ -7,21 +7,32 @@ import type { InstallerPlatform, InstallerScriptDetail, InstallerScriptSummary, 
 definePageMeta({ layout: 'admin' })
 useSeoMeta({ title: '脚本配置', robots: 'noindex, nofollow' })
 
+const admin = useAdminSessionState()
 const tool = ref<InstallerTool>('codex')
 const platform = ref<InstallerPlatform>('windows')
 const scripts = ref<InstallerScriptSummary[]>([])
 const detail = ref<InstallerScriptDetail | null>(null)
 const content = ref('')
-const settings = reactive<InstallerSettings>({ provider_id: '', base_url: '', codex_default_model: '', claude_default_model: '' })
+const settings = reactive<InstallerSettings>({
+  provider_id: '',
+  base_url: '',
+  codex_default_model: '',
+  claude_default_model: '',
+  codex_enabled: true,
+  claude_enabled: true,
+})
 const activeTab = ref<'edit' | 'diff' | 'history'>('edit')
 const loading = ref(false)
 const saving = ref(false)
+const loaded = ref(false)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 
 const selectedId = computed(() => `${tool.value}-${platform.value}`)
 const diffLines = computed(() => lineDiff(detail.value?.published_content || detail.value?.default_content || '', content.value))
 
-onMounted(loadAll)
+watch(() => admin.session.value?.admin, (authenticated) => {
+  if (authenticated && !loaded.value) void loadAll()
+}, { immediate: true })
 watch([tool, platform], loadSelected)
 
 async function loadAll() {
@@ -32,6 +43,7 @@ async function loadAll() {
     scripts.value = response.data.scripts
     Object.assign(settings, response.data.settings)
     await loadSelected()
+    loaded.value = true
   } catch (cause) {
     fail(cause, '脚本配置读取失败')
   } finally {
@@ -56,8 +68,8 @@ async function saveSettings() {
   await mutate('公共配置保存失败', async () => {
     const response = await $fetch<ApiSuccess<InstallerSettings>>('/api/admin/installers/settings', { method: 'PUT', body: settings })
     Object.assign(settings, response.data)
-    notice.message = '公共配置已保存。'
     await loadSelected()
+    notice.message = '公共配置已保存。'
   })
 }
 
@@ -160,13 +172,30 @@ function lineDiff(before: string, after: string) {
       <div v-if="notice.message" :class="['tool-alert', notice.type === 'error' ? 'tool-alert--error' : 'tool-alert--success']">{{ notice.message }}</div>
 
       <section class="admin-section installer-settings">
-        <header><h2><Settings2 :size="18" />公共配置</h2><span>Codex 与 Claude 共用 Provider 和 Base URL</span></header>
+        <header><h2><Settings2 :size="18" />安装器设置</h2><span>控制前台工具入口与公共参数</span></header>
         <form class="admin-settings-grid" @submit.prevent="saveSettings">
+          <fieldset class="installer-visibility-settings">
+            <legend>前台显示</legend>
+            <label :class="['installer-visibility-toggle', { active: settings.codex_enabled }]">
+              <input v-model="settings.codex_enabled" type="checkbox">
+              <span class="installer-toggle-track" aria-hidden="true"><i /></span>
+              <span><strong>Codex CLI</strong><small>{{ settings.codex_enabled ? '在自动安装页显示' : '已从自动安装页隐藏' }}</small></span>
+              <Eye v-if="settings.codex_enabled" :size="18" />
+              <EyeOff v-else :size="18" />
+            </label>
+            <label :class="['installer-visibility-toggle', { active: settings.claude_enabled }]">
+              <input v-model="settings.claude_enabled" type="checkbox">
+              <span class="installer-toggle-track" aria-hidden="true"><i /></span>
+              <span><strong>Claude Code</strong><small>{{ settings.claude_enabled ? '在自动安装页显示' : '已从自动安装页隐藏' }}</small></span>
+              <Eye v-if="settings.claude_enabled" :size="18" />
+              <EyeOff v-else :size="18" />
+            </label>
+          </fieldset>
           <label class="form-field"><span>PROVIDER_ID</span><input v-model.trim="settings.provider_id" maxlength="80" required></label>
           <label class="form-field"><span>BASE_URL</span><input v-model.trim="settings.base_url" type="url" maxlength="500" required></label>
           <label class="form-field"><span>Codex 默认模型</span><input v-model.trim="settings.codex_default_model" maxlength="120"></label>
           <label class="form-field"><span>Claude 默认模型</span><input v-model.trim="settings.claude_default_model" maxlength="120" placeholder="留空则由 Claude Code 决定"></label>
-          <button class="primary-command admin-save-command" type="submit" :disabled="saving">保存公共配置</button>
+          <button class="primary-command admin-save-command" type="submit" :disabled="saving"><Save :size="16" />{{ saving ? '保存中...' : '保存安装器设置' }}</button>
         </form>
       </section>
 
@@ -200,7 +229,7 @@ function lineDiff(before: string, after: string) {
           </div>
 
           <div v-show="activeTab === 'edit'" class="installer-code-editor">
-            <textarea v-model="content" rows="30" maxlength="200000" spellcheck="false" aria-label="安装脚本内容" />
+            <textarea v-model="content" maxlength="200000" spellcheck="false" aria-label="安装脚本内容" />
             <small>{{ content.length }} / 200000 · 必须保留模板变量</small>
           </div>
 

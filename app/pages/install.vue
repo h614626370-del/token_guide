@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Code2, Download, KeyRound, RefreshCw, ShieldAlert, Terminal } from 'lucide-vue-next'
+import { Code2, Download, KeyRound, RefreshCw, ShieldAlert, Terminal, Wrench } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { InstallerCommands, InstallerConfig, InstallerPlatform, InstallerTool } from '~/types/install'
@@ -21,7 +21,15 @@ const keysLoading = ref(false)
 const commandLoading = ref(false)
 const commands = ref<InstallerCommands | null>(null)
 const error = ref('')
+const toolOptions = [
+  { id: 'codex' as const, label: 'Codex CLI' },
+  { id: 'claude' as const, label: 'Claude Code' },
+]
 
+const enabledToolOptions = computed(() => config.value
+  ? toolOptions.filter(item => item.id === 'codex' ? config.value?.settings.codex_enabled : config.value?.settings.claude_enabled)
+  : toolOptions)
+const hasEnabledTools = computed(() => enabledToolOptions.value.length > 0)
 const toolName = computed(() => tool.value === 'codex' ? 'Codex CLI' : 'Claude Code')
 const protocolName = computed(() => tool.value === 'codex' ? 'OpenAI' : 'Anthropic')
 const defaultModel = computed(() => tool.value === 'codex'
@@ -31,7 +39,7 @@ const defaultModel = computed(() => tool.value === 'codex'
 onMounted(async () => {
   await loadConfig()
   const current = await refreshSession()
-  if (current?.authenticated) await loadKeys()
+  if (current?.authenticated && hasEnabledTools.value) await loadKeys()
 })
 
 onBeforeUnmount(clearCommands)
@@ -39,7 +47,7 @@ onBeforeUnmount(clearCommands)
 watch(tool, async () => {
   selectedKeyId.value = null
   clearCommands()
-  if (session.value?.authenticated) await loadKeys()
+  if (session.value?.authenticated && hasEnabledTools.value) await loadKeys()
 })
 
 watch([selectedKeyId, platform], async () => {
@@ -51,6 +59,9 @@ async function loadConfig() {
   try {
     const response = await $fetch<ApiSuccess<InstallerConfig>>('/api/install/config')
     config.value = response.data
+    if (!enabledToolOptions.value.some(item => item.id === tool.value)) {
+      tool.value = enabledToolOptions.value[0]?.id || 'codex'
+    }
   } catch (cause) {
     error.value = apiErrorMessage(cause, '安装配置读取失败')
   }
@@ -104,21 +115,25 @@ function clearCommands() {
         </template>
       </ToolPageHeading>
 
-      <div class="install-tool-tabs" role="tablist" aria-label="命令行工具">
-        <button type="button" role="tab" :aria-selected="tool === 'codex'" :class="{ active: tool === 'codex' }" @click="tool = 'codex'">
-          <Terminal :size="19" />Codex CLI
-        </button>
-        <button type="button" role="tab" :aria-selected="tool === 'claude'" :class="{ active: tool === 'claude' }" @click="tool = 'claude'">
-          <Code2 :size="19" />Claude Code
+      <div v-if="hasEnabledTools" :class="['install-tool-tabs', { 'install-tool-tabs--single': enabledToolOptions.length === 1 }]" role="tablist" aria-label="命令行工具">
+        <button v-for="item in enabledToolOptions" :key="item.id" type="button" role="tab" :aria-selected="tool === item.id" :class="{ active: tool === item.id }" @click="tool = item.id">
+          <Terminal v-if="item.id === 'codex'" :size="19" />
+          <Code2 v-else :size="19" />
+          {{ item.label }}
         </button>
       </div>
 
-      <div class="install-warning">
+      <div v-if="hasEnabledTools" class="install-warning">
         <ShieldAlert :size="20" />
         <p>生成的命令包含所选 API Key。请只在自己的可信设备运行，不要转发、截图或公开命令。</p>
       </div>
 
-      <SessionGate v-if="sessionLoading || !session?.authenticated" :loading="sessionLoading" :message="sessionError" />
+      <section v-if="config && !hasEnabledTools" class="install-unavailable">
+        <Wrench :size="24" />
+        <div><h2>自动安装暂未开放</h2><p>当前没有启用的命令行工具。</p></div>
+      </section>
+
+      <SessionGate v-else-if="sessionLoading || !session?.authenticated" :loading="sessionLoading" :message="sessionError" />
 
       <div v-else class="install-layout">
         <aside class="install-key-panel">

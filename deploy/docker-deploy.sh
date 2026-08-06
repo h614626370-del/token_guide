@@ -10,6 +10,7 @@ REPO_RAW_BASE="${REPO_RAW_BASE:-https://raw.githubusercontent.com/h614626370-del
 IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-614626370/sub2api-guide}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 HOST_PORT="${HOST_PORT:-3000}"
+HOST_BIND_ADDRESS="${HOST_BIND_ADDRESS:-0.0.0.0}"
 SITE_URL="${SITE_URL:-https://guide.kkflow.org}"
 SUB2API_ORIGIN="${SUB2API_ORIGIN:-https://kkflow.org}"
 
@@ -145,6 +146,7 @@ fi
 
 force_env_value IMAGE_REPOSITORY "${IMAGE_REPOSITORY}"
 force_env_value HOST_PORT "${HOST_PORT}"
+set_env_value HOST_BIND_ADDRESS "${HOST_BIND_ADDRESS}"
 set_env_value NUXT_PUBLIC_SITE_URL "${SITE_URL}"
 set_env_value NUXT_PUBLIC_SUB2API_ORIGIN "${SUB2API_ORIGIN}"
 set_env_value NUXT_DATABASE_PATH "/data/guide.sqlite"
@@ -171,7 +173,7 @@ echo " 部署准备完成"
 echo "=========================================="
 echo "目录: $(pwd)"
 echo "镜像: ${IMAGE_REPOSITORY}:${IMAGE_TAG}（版本号不写入 .env）"
-echo "端口: 127.0.0.1:${HOST_PORT}"
+echo "端口: ${HOST_BIND_ADDRESS}:${HOST_PORT}"
 echo
 echo "请保存以下管理员凭证（仅本次完整打印）："
 echo "  NUXT_ADMIN_TOKEN=${ADMIN_TOKEN}"
