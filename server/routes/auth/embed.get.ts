@@ -4,10 +4,9 @@ import {
   sendRedirect,
   setHeaders,
 } from 'h3'
-import { fetchCurrentSub2apiUser } from '../../utils/sub2api-auth'
-import { jwtExpiresAt, useGuideSession } from '../../utils/session'
+import { establishGuideSession } from '../../utils/token-entry'
 
-const allowedDestinations = new Set(['/playground', '/pricing', '/feedback', '/'])
+const allowedDestinations = new Set(['/install', '/playground', '/pricing', '/feedback', '/'])
 
 export default defineEventHandler(async (event) => {
   setHeaders(event, {
@@ -26,19 +25,10 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, '/auth/error?reason=missing', 303)
   }
 
-  const user = await fetchCurrentSub2apiUser(event, token)
+  const user = await establishGuideSession(event, token)
   if (!user) {
     return sendRedirect(event, '/auth/error?reason=invalid', 303)
   }
-
-  const session = await useGuideSession(event)
-  await session.update({
-    user,
-    accessToken: token,
-    tokenExpiresAt: jwtExpiresAt(token),
-    lastValidatedAt: Date.now(),
-    admin: session.data.admin || false,
-  })
 
   const embedded = query.ui_mode === 'embedded' ? '?embedded=1' : ''
   return sendRedirect(event, `${destination}${embedded}`, 303)
