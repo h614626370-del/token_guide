@@ -32,6 +32,8 @@ describe('database migrations', () => {
         { id: 7, name: 'create_content_overrides' },
         { id: 8, name: 'extend_content_overrides_for_drafts_and_versions' },
         { id: 9, name: 'create_installer_configuration_and_versions' },
+        { id: 10, name: 'create_homepage_management' },
+        { id: 11, name: 'create_promotion_tracking' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -54,6 +56,10 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'installer_settings'").get()).toEqual({ name: 'installer_settings' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'installer_overrides'").get()).toEqual({ name: 'installer_overrides' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'installer_versions'").get()).toEqual({ name: 'installer_versions' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'homepage_settings'").get()).toEqual({ name: 'homepage_settings' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'homepage_history'").get()).toEqual({ name: 'homepage_history' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'promotion_sources'").get()).toEqual({ name: 'promotion_sources' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'promotion_events'").get()).toEqual({ name: 'promotion_events' })
     } finally {
       db.close()
     }
@@ -71,7 +77,7 @@ describe('database migrations', () => {
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 9 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 11 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
       expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 9').get()).toEqual(firstAppliedAt)
     } finally {

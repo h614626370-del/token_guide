@@ -273,4 +273,76 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 10,
+    name: 'create_homepage_management',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS homepage_settings (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          active_source TEXT NOT NULL DEFAULT 'default' CHECK (active_source IN ('default', 'custom')),
+          active_default_id TEXT NOT NULL DEFAULT 'ziyou',
+          current_version TEXT,
+          last_action TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS homepage_history (
+          history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source TEXT NOT NULL CHECK (source IN ('default', 'custom')),
+          default_id TEXT,
+          snapshot_path TEXT,
+          label TEXT NOT NULL,
+          action TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_homepage_history_created
+          ON homepage_history(created_at DESC, history_id DESC);
+
+        INSERT OR IGNORE INTO homepage_settings (
+          id, active_source, active_default_id, current_version, last_action, created_at, updated_at
+        ) VALUES (1, 'default', 'ziyou', NULL, 'initial_default', datetime('now'), datetime('now'));
+      `)
+    },
+  },
+  {
+    id: 11,
+    name: 'create_promotion_tracking',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS promotion_sources (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          code TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          target_url TEXT NOT NULL,
+          utm_source TEXT,
+          utm_medium TEXT,
+          utm_campaign TEXT,
+          utm_content TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS promotion_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          source_id INTEGER NOT NULL REFERENCES promotion_sources(id) ON DELETE CASCADE,
+          event_type TEXT NOT NULL DEFAULT 'click',
+          occurred_at TEXT NOT NULL,
+          visitor_hash TEXT,
+          referer_host TEXT,
+          user_agent TEXT,
+          metadata_json TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_promotion_events_source_time
+          ON promotion_events(source_id, occurred_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_promotion_events_time
+          ON promotion_events(occurred_at DESC);
+      `)
+    },
+  },
 ]

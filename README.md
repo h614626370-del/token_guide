@@ -78,11 +78,11 @@ NUXT_PUBLIC_SUB2API_ORIGIN
 ## 发布镜像
 
 ```powershell
-npm run release -- -Version v2.0.0
+npm run release -- -Version v2.1.0
 ```
 
 ## 注意
 
 - 持久化 `./data`，勿把 SQLite 打进镜像
 - 勿提交 `.env`、数据库、密钥
-- `homeApps/` 为独立静态首页，不进入指南镜像
+- `homeApps/` 中的三个首页作为内置默认模板进入指南镜像；线上自定义首页持久化在 `/data/homepages/`

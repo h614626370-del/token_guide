@@ -147,7 +147,7 @@ async function administratorCookie(requestHeaders: Record<string, string> = {}) 
 }
 
 describe('Nuxt application routes', () => {
-  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets', '/admin/installers'])('renders %s', async (path) => {
+  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets', '/admin/installers', '/admin/homepage', '/admin/promotions'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
@@ -192,6 +192,73 @@ describe('Nuxt application routes', () => {
         api_base_url: `${upstreamOrigin}/v1`,
       },
     })
+  })
+
+  it('serves the active static homepage and protects preview selection', async () => {
+    const homepage = await fetch('/site-home/')
+    expect(homepage.status).toBe(200)
+    expect(homepage.headers.get('content-type')).toContain('text/html')
+    expect(homepage.headers.get('content-security-policy')).toContain('sandbox')
+    expect(await homepage.text()).toContain('自由')
+
+    const asset = await fetch('/site-home/assets/logo-80.png')
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get('content-type')).toBe('image/png')
+
+    const unauthorizedPreview = await fetch('/site-home/?default=xiangyun')
+    expect(unauthorizedPreview.status).toBe(401)
+  })
+
+  it('allows an administrator to stage and publish a custom homepage', async () => {
+    const cookie = await administratorCookie()
+    const form = new FormData()
+    form.append('manifest', JSON.stringify(['index.html']))
+    form.append('files', new Blob(['<!doctype html><title>测试首页</title><h1>测试首页</h1>'], { type: 'text/html' }), 'index.html')
+    const upload = await fetch('/api/admin/homepage/upload', { method: 'POST', headers: { cookie }, body: form })
+    expect(upload.status).toBe(200)
+    expect((await json(upload)).data.has_index).toBe(true)
+
+    const publish = await fetch('/api/admin/homepage/publish', { method: 'POST', headers: { cookie } })
+    expect(publish.status).toBe(200)
+    const homepage = await fetch('/site-home/')
+    expect(await homepage.text()).toContain('测试首页')
+
+    const restoreDefault = await fetch('/api/admin/homepage/apply', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ default_id: 'ziyou' }),
+    })
+    expect(restoreDefault.status).toBe(200)
+  })
+
+  it('creates promotion links, records redirects and reports source totals', async () => {
+    const cookie = await administratorCookie()
+    const create = await fetch('/api/admin/promotions', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'e2e-source',
+        name: 'E2E 测试来源',
+        target_url: 'https://aiziyou.org',
+        utm_source: 'e2e',
+        utm_medium: 'referral',
+      }),
+    })
+    expect(create.status).toBe(200)
+    const source = (await json(create)).data
+
+    const redirect = await fetch('/go/e2e-source', { redirect: 'manual' })
+    expect(redirect.status).toBe(302)
+    expect(redirect.headers.get('location')).toContain('ref=e2e-source')
+
+    const overview = await fetch('/api/admin/promotions', { headers: { cookie } })
+    expect(overview.status).toBe(200)
+    const result = (await json(overview)).data
+    expect(result.summary.clicks).toBe(1)
+    expect(result.sources.find((item: any) => item.id === source.id).clicks).toBe(1)
+
+    const remove = await fetch(`/api/admin/promotions/${source.id}`, { method: 'DELETE', headers: { cookie } })
+    expect(remove.status).toBe(200)
   })
 
   it('sends the iframe and browser security policy without an X-Frame-Options conflict', async () => {

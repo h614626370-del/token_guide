@@ -13,6 +13,8 @@ const routes = [
   ['admin', '/admin'],
   ['admin-settings', '/admin/settings'],
   ['admin-installers', '/admin/installers'],
+  ['admin-homepage', '/admin/homepage'],
+  ['admin-promotions', '/admin/promotions'],
 ] as const
 
 test.beforeAll(async () => {

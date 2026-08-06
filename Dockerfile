@@ -24,6 +24,7 @@ COPY app ./app
 COPY shared ./shared
 COPY content ./content
 COPY public ./public
+COPY homeApps ./homeApps
 COPY server ./server
 COPY scripts ./scripts
 COPY deploy ./deploy
@@ -32,7 +33,7 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 
-ARG APP_VERSION=2.0.0
+ARG APP_VERSION=2.1.0
 
 LABEL org.opencontainers.image.version=$APP_VERSION
 
@@ -52,6 +53,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/content ./content
 COPY --from=build --chown=node:node /app/scripts ./scripts
 COPY --from=build --chown=node:node /app/deploy ./deploy
+COPY --from=build --chown=node:node /app/homeApps ./homeApps
 
 USER node
 EXPOSE 3000
