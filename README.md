@@ -78,7 +78,7 @@ NUXT_PUBLIC_SUB2API_ORIGIN
 ## 发布镜像
 
 ```powershell
-npm run release -- -Version v2.1.1
+npm run release -- -Version v2.1.2
 ```
 
 ## 注意

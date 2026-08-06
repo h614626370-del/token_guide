@@ -19,7 +19,7 @@ export default defineNuxtConfig({
     rateMax: 5,
     trustedProxyIps: '127.0.0.1,::1',
     usdToCny: 6.8102,
-    appVersion: process.env.NUXT_APP_VERSION || '2.1.1',
+    appVersion: process.env.NUXT_APP_VERSION || '2.1.2',
     homepageDefaultsPath: process.env.NUXT_HOMEPAGE_DEFAULTS_PATH || '',
     homepageDefaultId: process.env.NUXT_HOMEPAGE_DEFAULT_ID || 'ziyou',
     updateImageRepository: '614626370/sub2api-guide',

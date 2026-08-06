@@ -199,11 +199,13 @@ describe('Nuxt application routes', () => {
     expect(homepage.status).toBe(200)
     expect(homepage.headers.get('content-type')).toContain('text/html')
     expect(homepage.headers.get('content-security-policy')).toContain('sandbox')
+    expect(homepage.headers.get('cross-origin-resource-policy')).toBe('cross-origin')
     expect(await homepage.text()).toContain('自由')
 
     const asset = await fetch('/site-home/assets/logo-80.png')
     expect(asset.status).toBe(200)
     expect(asset.headers.get('content-type')).toBe('image/png')
+    expect(asset.headers.get('cross-origin-resource-policy')).toBe('cross-origin')
 
     const unauthorizedPreview = await fetch('/site-home/?default=xiangyun')
     expect(unauthorizedPreview.status).toBe(401)
