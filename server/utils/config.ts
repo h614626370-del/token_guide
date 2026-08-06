@@ -38,7 +38,7 @@ export function getGuideConfig(event?: H3Event) {
 
   return {
     isProduction,
-    siteUrl: String(publicConfig.siteUrl || 'https://guide.kkflow.org').replace(/\/+$/, ''),
+    siteUrl: String(publicConfig.siteUrl || 'https://guide.aiziyou.org').replace(/\/+$/, ''),
     projectName: String(configured?.project_name || publicConfig.projectName || 'Token向云'),
     siteName: String(configured?.site_title || publicConfig.siteName || 'Token向云指南'),
     sub2apiOrigin,

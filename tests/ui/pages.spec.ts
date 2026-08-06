@@ -126,7 +126,7 @@ test('administrator can update and restore public site branding', async ({ page 
     project_name: 'Token向云',
     site_title: 'Token向云指南',
     site_description: '会员、API 接入、模型试用与价格参考。',
-    logo_path: 'https://guide.kkflow.org/logo-80.png',
+    logo_path: 'https://guide.aiziyou.org/logo-80.png',
     footer_text: '清晰接入，稳定调用。',
     main_site_url: 'https://kkflow.org',
     login_path: '/login',

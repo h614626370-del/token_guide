@@ -11,7 +11,7 @@ function runtimeDefaults(event?: H3Event): SiteSettingsInput & { site_url: strin
   const config = runtime.public as Record<string, unknown>
   const siteTitle = String(config.siteName || 'Token向云指南').trim()
   const projectName = String(config.projectName || siteTitle.replace(/指南(?:中心)?$/, '') || 'Token向云').trim()
-  const siteUrl = String(config.siteUrl || 'https://guide.kkflow.org').trim().replace(/\/+$/, '')
+  const siteUrl = String(config.siteUrl || 'https://guide.aiziyou.org').trim().replace(/\/+$/, '')
 
   return {
     project_name: projectName,

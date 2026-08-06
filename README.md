@@ -2,7 +2,7 @@
 
 可配置品牌的统一指南应用：文档、模型试用、价格、反馈与管理后台，由一个 Nuxt 服务提供。
 
-- 示例站点：`https://guide.kkflow.org`
+- 示例站点：`https://guide.aiziyou.org`
 - 镜像：`614626370/sub2api-guide`
 - 无路径前缀（不用 `/guide`、`/guide-api`）
 

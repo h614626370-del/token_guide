@@ -17,7 +17,7 @@ export function useSiteConfigState() {
     const registerPath = String(config.registerPath || '/register')
     const supportPath = String(config.supportPath || '/support')
     const apiPath = String(config.apiPath || '/v1')
-    const siteUrl = String(config.siteUrl || 'https://guide.kkflow.org').replace(/\/+$/, '')
+    const siteUrl = String(config.siteUrl || 'https://guide.aiziyou.org').replace(/\/+$/, '')
 
     return {
       project_name: projectName,

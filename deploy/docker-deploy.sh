@@ -11,7 +11,7 @@ IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-614626370/sub2api-guide}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 HOST_PORT="${HOST_PORT:-3000}"
 HOST_BIND_ADDRESS="${HOST_BIND_ADDRESS:-0.0.0.0}"
-SITE_URL="${SITE_URL:-https://guide.kkflow.org}"
+SITE_URL="${SITE_URL:-https://guide.aiziyou.org}"
 SUB2API_ORIGIN="${SUB2API_ORIGIN:-https://kkflow.org}"
 
 random_hex() {

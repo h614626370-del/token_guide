@@ -8,7 +8,7 @@ IMAGE_REPOSITORY="614626370/sub2api-guide"
 INSTALL_DIR=""
 PORT="3000"
 HOST_BIND_ADDRESS="0.0.0.0"
-SITE_URL="https://guide.kkflow.org"
+SITE_URL="https://guide.aiziyou.org"
 SUB2API_ORIGIN="https://kkflow.org"
 
 usage() {
@@ -23,7 +23,7 @@ Options:
   --install-dir DIR          Install directory. Default: current directory.
   --port PORT                Loopback host port. Default: 3000.
   --bind-address ADDRESS     Host bind address. Default: 0.0.0.0.
-  --site-url URL             Public guide origin. Default: https://guide.kkflow.org.
+  --site-url URL             Public guide origin. Default: https://guide.aiziyou.org.
   --sub2api-origin URL       sub2api origin. Default: https://kkflow.org.
 USAGE
 }

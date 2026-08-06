@@ -4,4 +4,4 @@ Disallow: /admin
 Disallow: /api
 Disallow: /auth
 
-Sitemap: https://guide.kkflow.org/sitemap.xml
+Sitemap: https://guide.aiziyou.org/sitemap.xml

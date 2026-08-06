@@ -6,7 +6,7 @@
 
 - 这是可配置品牌和主站地址的统一全栈指南应用，`Token向云` 只是默认配置。
 - Nuxt 页面和 Nitro API 在同一个 Node 服务、同一个 Docker 镜像中运行。
-- 线上根地址为 `https://guide.kkflow.org`。
+- 线上根地址为 `https://guide.aiziyou.org`。
 - 不使用 `/guide` 或 `/guide-api` 前缀。
 - 不修改 `sub2api` 源码；通过已有嵌入 JWT 协议和服务端 HTTP 接口集成。
 
