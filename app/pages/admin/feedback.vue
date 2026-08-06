@@ -98,8 +98,18 @@ async function saveSelected() {
     const index = items.value.findIndex(item => item.public_id === response.data.public_id)
     if (index >= 0) items.value[index] = response.data
     applySelected(response.data)
-    notice.type = 'success'
-    notice.message = '反馈处理结果已保存。'
+    notice.type = response.meta?.notification?.status === 'failed' ? 'error' : 'success'
+    if (response.meta?.notification?.status === 'sent') {
+      notice.message = '反馈处理结果已保存，回复邮件已发送。'
+    } else if (response.meta?.notification?.status === 'failed') {
+      notice.message = '反馈处理结果已保存，但回复邮件发送失败，请检查邮件设置。'
+    } else if (response.meta?.notification?.status === 'skipped') {
+      notice.message = '反馈处理结果已保存；用户未填写有效的回复邮箱。'
+    } else if (response.meta?.notification?.status === 'disabled') {
+      notice.message = '反馈处理结果已保存；邮件通知当前未启用。'
+    } else {
+      notice.message = '反馈处理结果已保存。'
+    }
   } catch (cause) {
     notice.type = 'error'
     notice.message = apiErrorMessage(cause, '反馈保存失败')

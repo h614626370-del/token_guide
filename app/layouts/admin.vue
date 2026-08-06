@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, BadgeDollarSign, BarChart3, FileText, Home, Images, LayoutDashboard, LogOut, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
+import { ArrowLeft, BadgeDollarSign, BarChart3, FileText, Home, Images, LayoutDashboard, LogOut, Mail, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
 import { PackageOpen } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -8,6 +8,7 @@ const site = useSiteConfigState()
 const links = [
   { label: '概览', to: '/admin', icon: LayoutDashboard },
   { label: '站点配置', to: '/admin/settings', icon: Settings },
+  { label: '邮件通知', to: '/admin/email', icon: Mail },
   { label: '图片管理', to: '/admin/assets', icon: Images },
   { label: '首页管理', to: '/admin/homepage', icon: Home },
   { label: '指南内容', to: '/admin/docs', icon: FileText },

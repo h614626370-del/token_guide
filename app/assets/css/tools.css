@@ -1192,7 +1192,8 @@
   font-size: 12px;
 }
 
-.site-settings-page > .tool-alert {
+.site-settings-page > .tool-alert,
+.email-settings-page > .tool-alert {
   margin-top: 20px;
 }
 
@@ -2581,6 +2582,67 @@
   }
 
   .admin-asset-uploader {
+    grid-template-columns: 1fr;
+  }
+}
+
+.email-settings-form {
+  margin-top: 20px;
+}
+
+.email-enabled-toggle {
+  min-height: 42px;
+  margin-bottom: 14px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-weight: 750;
+}
+
+.email-server-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, auto);
+  align-items: end;
+  gap: 12px;
+}
+
+.email-server-row > .check-line {
+  min-height: 42px;
+  padding-bottom: 10px;
+}
+
+.email-template-section {
+  grid-column: 1 / -1;
+}
+
+.email-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.email-template-grid > div {
+  min-width: 0;
+}
+
+.email-template-grid h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.email-template-variables {
+  display: block;
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .email-template-grid,
+  .email-server-row {
     grid-template-columns: 1fr;
   }
 }

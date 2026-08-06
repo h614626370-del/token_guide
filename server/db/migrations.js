@@ -345,4 +345,19 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 12,
+    name: 'create_email_settings',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS email_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          is_secret INTEGER NOT NULL DEFAULT 0 CHECK (is_secret IN (0, 1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `)
+    },
+  },
 ]

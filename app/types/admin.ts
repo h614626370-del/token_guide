@@ -77,3 +77,25 @@ export interface GroupDraft extends Omit<GroupSetting, 'display_name' | 'note' |
   recharge_pay_cny: number | null
   recharge_credit_usd: number | null
 }
+
+export interface AdminEmailSettings {
+  enabled: boolean
+  smtp_host: string
+  smtp_port: number
+  smtp_secure: boolean
+  smtp_username: string
+  from_name: string
+  from_email: string
+  admin_email: string
+  admin_subject_template: string
+  admin_body_template: string
+  reply_subject_template: string
+  reply_body_template: string
+  smtp_password_configured: boolean
+  smtp_password_masked: string
+}
+
+export interface AdminEmailSettingsDraft extends AdminEmailSettings {
+  smtp_password: string
+  clear_smtp_password: boolean
+}

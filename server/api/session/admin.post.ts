@@ -3,7 +3,7 @@ import { defineEventHandler } from 'h3'
 import { z } from 'zod'
 import { apiError, apiOk } from '../../utils/api'
 import { getGuideConfig } from '../../utils/config'
-import { enforceAdminLoginRateLimit } from '../../utils/rate-limit'
+import { clearAdminLoginRateLimit, enforceAdminLoginRateLimit } from '../../utils/rate-limit'
 import { readLimitedJson } from '../../utils/request-body'
 import { useGuideSession } from '../../utils/session'
 
@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
   if (!expected || !safeEqual(supplied, expected)) {
     apiError(401, 'INVALID_ADMIN_TOKEN', 'Administrator token is invalid.')
   }
+  clearAdminLoginRateLimit(event)
 
   const session = await useGuideSession(event)
   await session.update({ admin: true })

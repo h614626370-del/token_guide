@@ -23,7 +23,7 @@ export const createFeedbackSchema = z.object({
   category: z.enum(feedbackCategories).default('other'),
   title: z.string().trim().min(2).max(120),
   content: z.string().trim().min(10).max(4000),
-  contact: z.string().trim().max(160).optional().nullable(),
+  contact: z.string().trim().email().max(320).optional().nullable(),
   page_url: z.string().trim().url().max(1000).optional().nullable(),
   source: z.string().trim().min(1).max(40).default('guide'),
   user_id: z.string().trim().max(64).optional().nullable(),

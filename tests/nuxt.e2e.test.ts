@@ -166,7 +166,7 @@ describe('Nuxt application routes', () => {
       }),
     })
   })
-  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets', '/admin/installers', '/admin/homepage', '/admin/promotions'])('renders %s', async (path) => {
+  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets', '/admin/email', '/admin/installers', '/admin/homepage', '/admin/promotions'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
@@ -508,6 +508,67 @@ describe('authentication and same-origin API protection', () => {
     })
   })
 
+  it('persists administrator email settings without exposing the SMTP password', async () => {
+    const cookie = await administratorCookie()
+    const initial = await fetch('/api/admin/email-settings', { headers: { cookie } })
+    expect(initial.status).toBe(200)
+    const initialBody = await json(initial)
+    const {
+      smtp_password_configured: _passwordConfigured,
+      smtp_password_masked: _passwordMasked,
+      ...editable
+    } = initialBody.data
+
+    const updated = await fetch('/api/admin/email-settings', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        ...editable,
+        enabled: false,
+        smtp_host: 'smtp.example.com',
+        smtp_port: 465,
+        smtp_secure: true,
+        smtp_username: 'notice@example.com',
+        smtp_password: 'integration-smtp-secret',
+        clear_smtp_password: false,
+        from_name: 'Integration Guide',
+        from_email: 'notice@example.com',
+        admin_email: 'admin@example.com',
+      }),
+    })
+    expect(updated.status).toBe(200)
+    const updatedBody = await json(updated)
+    expect(updatedBody.data).not.toHaveProperty('smtp_password')
+    expect(updatedBody.data).toMatchObject({
+      enabled: false,
+      smtp_host: 'smtp.example.com',
+      smtp_password_configured: true,
+      smtp_password_masked: '********',
+    })
+
+    const cleared = await fetch('/api/admin/email-settings', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        ...editable,
+        enabled: false,
+        smtp_host: 'smtp.example.com',
+        smtp_port: 465,
+        smtp_secure: true,
+        smtp_username: 'notice@example.com',
+        smtp_password: null,
+        clear_smtp_password: true,
+        from_name: 'Integration Guide',
+        from_email: 'notice@example.com',
+        admin_email: 'admin@example.com',
+      }),
+    })
+    expect(cleared.status).toBe(200)
+    expect(await json(cleared)).toMatchObject({
+      ok: true,
+      data: { smtp_password_configured: false },
+    })
+  })
   it('persists administrator pricing model and group bulk updates', async () => {
     const cookie = await administratorCookie()
     const models = await fetch('/api/admin/pricing/models/bulk', {

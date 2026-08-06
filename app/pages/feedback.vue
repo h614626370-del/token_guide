@@ -194,8 +194,8 @@ function formatTime(value: string | null) {
             <small>{{ form.content.length }} / 4000</small>
           </label>
           <label class="form-field">
-            <span>联系方式（可选）</span>
-            <input v-model.trim="form.contact" maxlength="160" placeholder="邮箱或其他联系方式">
+            <span>回复邮箱（可选）</span>
+            <input v-model.trim="form.contact" type="email" maxlength="320" autocomplete="email" placeholder="name@example.com">
           </label>
           <label class="honeypot-field" aria-hidden="true">
             <span>Website</span>

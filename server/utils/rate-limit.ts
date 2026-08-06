@@ -46,8 +46,7 @@ export function hashRequestIp(event: H3Event) {
 
 export function enforceAdminLoginRateLimit(event: H3Event) {
   const now = Date.now()
-  const ip = getTrustedClientIp(event) || 'unknown'
-  const key = crypto.createHash('sha256').update(`admin-login:${ip}`).digest('hex')
+  const key = adminLoginKey(event)
   const current = adminLoginBuckets.get(key)
 
   if (!current || current.resetAt <= now) {
@@ -61,6 +60,15 @@ export function enforceAdminLoginRateLimit(event: H3Event) {
   const retryAfter = Math.max(1, Math.ceil((current.resetAt - now) / 1000))
   setHeader(event, 'retry-after', retryAfter)
   apiError(429, 'ADMIN_LOGIN_RATE_LIMITED', 'Too many administrator login attempts.', { retry_after_seconds: retryAfter })
+}
+
+export function clearAdminLoginRateLimit(event: H3Event) {
+  adminLoginBuckets.delete(adminLoginKey(event))
+}
+
+function adminLoginKey(event: H3Event) {
+  const ip = getTrustedClientIp(event) || 'unknown'
+  return crypto.createHash('sha256').update(`admin-login:${ip}`).digest('hex')
 }
 
 function cleanup(now: number) {

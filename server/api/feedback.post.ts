@@ -5,6 +5,7 @@ import { createFeedbackSchema } from '../domain/feedback/schema.js'
 import { apiError, apiOk } from '../utils/api'
 import { getGuideConfig } from '../utils/config'
 import { useGuideDatabase } from '../utils/database'
+import { sendAdminFeedbackNotification } from '../utils/email'
 import { enforceFeedbackRateLimit, hashRequestIp } from '../utils/rate-limit'
 import { requireUserSession } from '../utils/session'
 
@@ -32,7 +33,10 @@ export default defineEventHandler(async (event) => {
     },
   })
 
+  const notification = await sendAdminFeedbackNotification(event, row)
+
   return apiOk({ id: row.public_id, status: row.status, created_at: row.created_at }, {
     quota: repo.quotaForUser(user.id, todayChinaStartIso(), config.feedbackDailyLimit),
+    notification,
   })
 })
