@@ -221,10 +221,34 @@ export async function readHomepageFile(relativePath: string, event?: H3Event, pr
   try {
     const info = await stat(fullPath)
     if (!info.isFile()) return null
-    return { bytes: await readFile(fullPath), size: info.size, contentType: contentTypeFromPath(safePath), preview }
+    const contentType = contentTypeFromPath(safePath)
+    const bytes = rewriteHomepageAssetUrls(await readFile(fullPath), contentType)
+    return { bytes, size: bytes.length, contentType, preview }
   } catch {
     return null
   }
+}
+
+function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string) {
+  if (!contentType.startsWith('text/html') && !contentType.startsWith('text/css')) return bytes
+
+  let content = bytes.toString('utf8')
+  const rootPath = String.raw`\/(?!\/|site-home(?:\/|$))`
+
+  if (contentType.startsWith('text/html')) {
+    const resourceAttribute = new RegExp(`(<(?:img|script|source|video|audio|embed|input)\\b[^>]*\\b(?:src|poster)\\s*=\\s*["'])${rootPath}`, 'gi')
+    const linkAttribute = new RegExp(`(<link\\b[^>]*\\bhref\\s*=\\s*["'])${rootPath}`, 'gi')
+    content = content
+      .replace(resourceAttribute, '$1/site-home/')
+      .replace(linkAttribute, '$1/site-home/')
+      .replace(/\bsrcset\s*=\s*(["'])(.*?)\1/gi, (match, quote: string, value: string) => {
+        const rewritten = value.replace(/(^|,\s*)\/(?!\/|site-home(?:\/|$))/g, '$1/site-home/')
+        return `srcset=${quote}${rewritten}${quote}`
+      })
+  }
+
+  content = content.replace(/url\(\s*(["']?)\/(?!\/|site-home(?:\/|$))/gi, 'url($1/site-home/')
+  return Buffer.from(content, 'utf8')
 }
 
 export async function stageHomepageFiles(files: Array<{ path: string; data: Buffer }>, event?: H3Event) {

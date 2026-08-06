@@ -300,6 +300,7 @@ textarea:focus-visible {
 .admin-notice { margin: 0 0 20px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; font-size: 13px; }
 .admin-notice--success { border-color: #b9dfd2; color: #08654f; background: #edf9f5; }
 .admin-notice--error { border-color: #edc6c4; color: #9e2925; background: #fff5f4; }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; clip-path: inset(50%) !important; }
 .homepage-current-status { min-height: 76px; }
 .homepage-current-status > div:nth-child(2) { display: grid; gap: 4px; min-width: 0; }
 .homepage-current-status strong { color: var(--ink); font-size: 14px; }
@@ -313,6 +314,13 @@ textarea:focus-visible {
 .admin-section__heading p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .admin-section__heading code { padding: 2px 5px; border-radius: 4px; color: var(--ink); background: var(--surface-subtle); }
 .homepage-upload-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.homepage-upload-help { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; padding: 14px 0; border-top: 1px solid var(--soft-line); border-bottom: 1px solid var(--soft-line); }
+.homepage-upload-help > div { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.homepage-upload-help svg { flex: 0 0 auto; margin-top: 1px; color: var(--success); }
+.homepage-upload-help p { display: grid; gap: 3px; margin: 0; }
+.homepage-upload-help strong { color: var(--ink-soft); font-size: 13px; }
+.homepage-upload-help span { color: var(--muted); font-size: 12px; line-height: 1.55; }
+.homepage-upload-help code { color: #25574d; font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; }
 .homepage-upload-drop { display: grid; min-height: 92px; place-items: center; gap: 6px; margin-top: 22px; padding: 20px; border: 1px dashed #b8c3c2; border-radius: 7px; color: var(--muted); background: #fafcfb; text-align: center; }
 .homepage-upload-drop.is-dragging { border-color: var(--success); color: var(--success); background: #edf9f5; }
 .homepage-upload-drop strong { color: var(--ink-soft); font-size: 13px; }
@@ -341,9 +349,20 @@ textarea:focus-visible {
 .promotion-metric-grid span { color: var(--muted); font-size: 12px; }
 .promotion-metric-grid strong { color: var(--ink); font-size: 27px; line-height: 1; }
 .promotion-metric-grid small { color: #8b949d; font-size: 11px; }
+.promotion-quick-guide { display: flex; align-items: flex-start; gap: 12px; margin-top: 18px; padding: 15px 16px; border: 1px solid #d8e2df; border-radius: 7px; color: #34423f; background: #f5f8f7; }
+.promotion-quick-guide > svg { flex: 0 0 auto; margin-top: 1px; color: var(--success); }
+.promotion-quick-guide > div { min-width: 0; }
+.promotion-quick-guide > div > strong { display: block; color: var(--ink); font-size: 13px; }
+.promotion-quick-guide ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 12px 0 0; padding-left: 20px; }
+.promotion-quick-guide li { padding-left: 2px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.promotion-quick-guide li::marker { color: var(--success); font-weight: 800; }
+.promotion-quick-guide li b, .promotion-quick-guide li span { display: block; }
+.promotion-quick-guide li b { margin-bottom: 2px; color: #34423f; }
+.promotion-quick-guide code, .promotion-create-form small code { color: #25574d; font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; }
 .promotion-create-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
 .promotion-create-form .form-field { display: grid; gap: 7px; }
 .promotion-create-form .form-field span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.promotion-create-form .form-field small { color: #69736f; font-size: 11px; line-height: 1.5; }
 .promotion-create-form input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 .promotion-create-form input:focus { border-color: var(--success); outline: 2px solid rgba(8, 118, 90, .12); }
 .promotion-target-field { grid-column: span 2; }
@@ -383,6 +402,8 @@ textarea:focus-visible {
 }
 
 @media (max-width: 620px) {
+  .homepage-upload-help, .promotion-quick-guide ol { grid-template-columns: 1fr; }
+  .promotion-quick-guide ol { gap: 9px; }
   .homepage-default-grid, .promotion-metric-grid, .promotion-create-form { grid-template-columns: 1fr; }
   .promotion-target-field { grid-column: auto; }
   .homepage-draft-row, .homepage-upload-actions { align-items: stretch; flex-direction: column; }

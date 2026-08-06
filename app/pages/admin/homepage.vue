@@ -214,10 +214,14 @@ function showError(cause: unknown, fallback: string) { notice.type = 'error'; no
       </section>
 
       <section class="admin-section homepage-upload-section">
-        <header class="admin-section__heading"><div><span>Custom files</span><h2>上传自定义首页</h2><p>选择整个静态目录，必须包含根目录 <code>index.html</code>。上传后先预览，再点击发布。</p></div><div class="homepage-upload-actions"><button class="secondary-command" type="button" :disabled="working !== ''" @click="chooseFiles"><FileUp :size="16" />选择文件</button><button class="primary-command" type="button" :disabled="working !== ''" @click="chooseDirectory"><Upload :size="16" />选择首页目录</button></div></header>
-        <input ref="directoryInput" class="sr-only" type="file" multiple webkitdirectory directory @change="upload">
-        <input ref="fileInput" class="sr-only" type="file" multiple accept=".html,.htm,.css,.js,.mjs,.json,.map,.txt,.png,.jpg,.jpeg,.webp,.gif,.svg,.ico,.woff,.woff2,.ttf,.otf,.webmanifest" @change="upload">
-        <div class="homepage-upload-drop" :class="{ 'is-dragging': dragging }" @dragenter="dragEnter" @dragover="dragEnter" @dragleave="dragLeave" @drop="dropFiles"><strong>把 HTML 或静态资源拖到这里即可覆盖上传</strong><span>支持 HTML、CSS、JS、图片、字体和其他静态资源；也可以选择整个首页目录。</span></div>
+        <header class="admin-section__heading"><div><span>Custom files</span><h2>上传自定义首页</h2><p>两种上传方式都会覆盖当前草稿，文件中必须包含 <code>index.html</code>。上传后先预览，确认无误再发布。</p></div><div class="homepage-upload-actions"><button class="secondary-command" type="button" :disabled="working !== ''" @click="chooseFiles"><FileUp :size="16" />上传文件</button><button class="primary-command" type="button" :disabled="working !== ''" @click="chooseDirectory"><Upload :size="16" />上传完整目录</button></div></header>
+        <div class="homepage-upload-help">
+          <div><FileUp :size="18" aria-hidden="true" /><p><strong>上传文件</strong><span>可以一次多选，适合只有 <code>index.html</code> 和少量同级图片的小首页。</span></p></div>
+          <div><Upload :size="18" aria-hidden="true" /><p><strong>上传完整目录（推荐）</strong><span>会保留 <code>css/</code>、<code>js/</code>、<code>assets/</code> 等子目录结构，适合常规静态首页。</span></p></div>
+        </div>
+        <input ref="directoryInput" class="sr-only" hidden type="file" multiple webkitdirectory directory @change="upload">
+        <input ref="fileInput" class="sr-only" hidden type="file" multiple accept=".html,.htm,.css,.js,.mjs,.json,.map,.txt,.png,.jpg,.jpeg,.webp,.gif,.svg,.ico,.woff,.woff2,.ttf,.otf,.webmanifest" @change="upload">
+        <div class="homepage-upload-drop" :class="{ 'is-dragging': dragging }" @dragenter="dragEnter" @dragover="dragEnter" @dragleave="dragLeave" @drop="dropFiles"><strong>也可以把首页文件拖到这里</strong><span>拖入后会形成待发布草稿，不会立即影响当前线上首页。</span></div>
         <div v-if="state?.draft" class="homepage-draft-row"><span>待发布草稿：{{ state.draft.file_count }} 个文件，{{ formatBytes(state.draft.total_bytes) }}</span><div><a class="secondary-command" :href="previewUrl(true)" target="_blank" rel="noreferrer"><ExternalLink :size="15" />预览草稿</a><button class="primary-command" type="button" :disabled="working !== ''" @click="publish"><Send :size="15" />{{ working === 'publish' ? '发布中...' : '发布草稿' }}</button></div></div>
       </section>
 

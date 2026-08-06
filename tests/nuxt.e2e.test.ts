@@ -212,8 +212,9 @@ describe('Nuxt application routes', () => {
   it('allows an administrator to stage and publish a custom homepage', async () => {
     const cookie = await administratorCookie()
     const form = new FormData()
-    form.append('manifest', JSON.stringify(['index.html']))
-    form.append('files', new Blob(['<!doctype html><title>测试首页</title><h1>测试首页</h1>'], { type: 'text/html' }), 'index.html')
+    form.append('manifest', JSON.stringify(['index.html', 'assets/logo.png']))
+    form.append('files', new Blob(['<!doctype html><title>测试首页</title><h1>测试首页</h1><img src="/assets/logo.png">'], { type: 'text/html' }), 'index.html')
+    form.append('files', new Blob(['test-logo'], { type: 'image/png' }), 'assets/logo.png')
     const upload = await fetch('/api/admin/homepage/upload', { method: 'POST', headers: { cookie }, body: form })
     expect(upload.status).toBe(200)
     expect((await json(upload)).data.has_index).toBe(true)
@@ -221,7 +222,10 @@ describe('Nuxt application routes', () => {
     const publish = await fetch('/api/admin/homepage/publish', { method: 'POST', headers: { cookie } })
     expect(publish.status).toBe(200)
     const homepage = await fetch('/site-home/')
-    expect(await homepage.text()).toContain('测试首页')
+    const homepageHtml = await homepage.text()
+    expect(homepageHtml).toContain('测试首页')
+    expect(homepageHtml).toContain('src="/site-home/assets/logo.png"')
+    expect((await fetch('/site-home/assets/logo.png')).status).toBe(200)
 
     const restoreDefault = await fetch('/api/admin/homepage/apply', {
       method: 'POST',

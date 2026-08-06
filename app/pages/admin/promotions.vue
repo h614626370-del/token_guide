@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BarChart3, Copy, Link2, Plus, Power, Trash2 } from 'lucide-vue-next'
+import { BarChart3, Copy, Info, Link2, Plus, Power, Trash2 } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 
@@ -86,14 +86,25 @@ function percent(value: number, total: number) { return total ? `${Math.round(va
 
       <section class="admin-section promotion-create-section">
         <header class="admin-section__heading"><div><span>New source</span><h2>创建推广来源</h2><p>外部广告只需要使用生成的短链接，系统会自动记录并跳转到目标地址。</p></div></header>
+        <div class="promotion-quick-guide">
+          <Info :size="20" aria-hidden="true" />
+          <div>
+            <strong>最简单的用法：只填写前三项，后面的 UTM 信息都可以留空。</strong>
+            <ol>
+              <li><b>创建链接</b><span>填写来源代码、来源名称和最终要打开的目标地址。</span></li>
+              <li><b>复制投放</b><span>创建后复制系统生成的 <code>/go/来源代码</code> 链接，放到外部网站或广告中。</span></li>
+              <li><b>查看统计</b><span>访客点击该链接后会自动计数，再跳转到你的主站。</span></li>
+            </ol>
+          </div>
+        </div>
         <form class="promotion-create-form" @submit.prevent="createSource">
-          <label class="form-field"><span>来源代码</span><input v-model="form.code" required pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{1,47}" placeholder="site-a"></label>
-          <label class="form-field"><span>来源名称</span><input v-model="form.name" required maxlength="80" placeholder="网站 A 首页广告"></label>
-          <label class="form-field promotion-target-field"><span>目标地址</span><input v-model="form.target_url" required type="url" placeholder="https://aiziyou.org"></label>
-          <label class="form-field"><span>UTM 来源</span><input v-model="form.utm_source" placeholder="site-a"></label>
-          <label class="form-field"><span>UTM 媒介</span><input v-model="form.utm_medium" placeholder="referral"></label>
-          <label class="form-field"><span>活动名称</span><input v-model="form.utm_campaign" placeholder="summer-2026"></label>
-          <label class="form-field"><span>广告位置</span><input v-model="form.utm_content" placeholder="banner-1"></label>
+          <label class="form-field"><span>来源代码（必填）</span><input v-model="form.code" required pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{1,47}" placeholder="site-a"><small>短链接中的唯一标识，例如 <code>/go/site-a</code>。只能使用字母、数字、短横线和下划线。</small></label>
+          <label class="form-field"><span>来源名称（必填）</span><input v-model="form.name" required maxlength="80" placeholder="网站 A 首页广告"><small>仅在后台显示，写清楚投放网站和位置，例如“少数派首页横幅”。</small></label>
+          <label class="form-field promotion-target-field"><span>目标地址（必填）</span><input v-model="form.target_url" required type="url" placeholder="https://aiziyou.org"><small>访客点击推广链接后最终打开的页面，通常填写主站首页或活动落地页。</small></label>
+          <label class="form-field"><span>UTM 来源（可选）</span><input v-model="form.utm_source" placeholder="site-a"><small>投放渠道的英文标识，例如 <code>shaoshupai</code>、<code>google</code>。</small></label>
+          <label class="form-field"><span>UTM 媒介（可选）</span><input v-model="form.utm_medium" placeholder="referral"><small>渠道类型：友情链接可填 <code>referral</code>，横幅广告可填 <code>banner</code>。</small></label>
+          <label class="form-field"><span>活动名称（可选）</span><input v-model="form.utm_campaign" placeholder="launch-2026-08"><small>同一轮推广使用相同名称，方便区分活动，例如 <code>launch-2026-08</code>。</small></label>
+          <label class="form-field"><span>广告位置（可选）</span><input v-model="form.utm_content" placeholder="header-banner"><small>区分同一网站上的不同入口，例如顶部横幅、文章底部或侧边栏。</small></label>
           <button class="primary-command" type="submit" :disabled="saving"><Plus :size="16" />{{ saving ? '创建中...' : '创建链接' }}</button>
         </form>
       </section>
