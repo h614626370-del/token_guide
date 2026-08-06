@@ -6,7 +6,7 @@ import { getPublicRequestOrigin } from './request-url'
 
 declare global {
   // eslint-disable-next-line no-var
-  var __kkflowSiteSettings: SiteSettingsInput | undefined
+  var __guideSiteSettings: SiteSettingsInput | undefined
 }
 
 function csv(value: unknown, fallback: string[]) {
@@ -29,7 +29,7 @@ export function getGuideConfig(event?: H3Event) {
   const databasePath = String(runtime.databasePath || 'data/guide.sqlite')
   const isProduction = process.env.NODE_ENV === 'production'
 
-  const configured = globalThis.__kkflowSiteSettings
+  const configured = globalThis.__guideSiteSettings
   const siteUrl = getPublicRequestOrigin(event, 'http://127.0.0.1:3000')
   const sub2apiOrigin = String(configured?.main_site_url || deriveMainSiteOrigin(siteUrl) || siteUrl).replace(/\/+$/, '')
 
@@ -57,8 +57,8 @@ export function getGuideConfig(event?: H3Event) {
     trustedProxyIps,
     usdToCny: Number(runtime.usdToCny || 6.8102),
     appVersion: String(runtime.appVersion || process.env.NUXT_APP_VERSION || '2.1.2'),
-    homepageDefaultsPath: String(runtime.homepageDefaultsPath || path.resolve(process.cwd(), 'homeApps')),
-    homepageDefaultId: String(runtime.homepageDefaultId || 'ziyou'),
+    homepageDefaultsPath: path.resolve(process.cwd(), 'homeApps'),
+    homepageDefaultId: 'ziyou',
     updateImageRepository: String(runtime.updateImageRepository || '614626370/sub2api-guide'),
     updateGithubRepo: String(runtime.updateGithubRepo || 'h614626370-del/token_guide'),
     updateContainerName: String(runtime.updateContainerName || 'sub2api-guide'),

@@ -62,14 +62,14 @@ export function getPublicSiteConfig(event?: H3Event): PublicSiteConfig {
   merged.logo_path = absoluteUrl(siteUrl, merged.logo_path)
   const parsed = siteSettingsSchema.safeParse(merged)
   const settings = parsed.success ? parsed.data : siteSettingsSchema.parse(defaultSettings)
-  globalThis.__kkflowSiteSettings = settings
+  globalThis.__guideSiteSettings = settings
   return toPublic(settings, siteUrl, event)
 }
 
 export function updatePublicSiteConfig(input: SiteSettingsInput, event?: H3Event): PublicSiteConfig {
   const settings = siteSettingsSchema.parse(input)
   createSiteSettingsRepository(useGuideDatabase()).update(settings)
-  globalThis.__kkflowSiteSettings = settings
+  globalThis.__guideSiteSettings = settings
   return toPublic(settings, runtimeDefaults(event).site_url, event)
 }
 

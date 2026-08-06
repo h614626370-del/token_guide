@@ -4,19 +4,19 @@ import { getGuideConfig } from './config'
 
 declare global {
   // eslint-disable-next-line no-var
-  var __kkflowGuideDatabase: Database.Database | undefined
+  var __guideDatabase: Database.Database | undefined
 }
 
 export function useGuideDatabase() {
-  if (!globalThis.__kkflowGuideDatabase) {
+  if (!globalThis.__guideDatabase) {
     const config = getGuideConfig()
-    globalThis.__kkflowGuideDatabase = openDatabase(config.dbPath) as Database.Database
+    globalThis.__guideDatabase = openDatabase(config.dbPath) as Database.Database
   }
-  return globalThis.__kkflowGuideDatabase
+  return globalThis.__guideDatabase
 }
 
 export function closeGuideDatabase() {
-  if (!globalThis.__kkflowGuideDatabase) return
-  globalThis.__kkflowGuideDatabase.close()
-  globalThis.__kkflowGuideDatabase = undefined
+  if (!globalThis.__guideDatabase) return
+  globalThis.__guideDatabase.close()
+  globalThis.__guideDatabase = undefined
 }
