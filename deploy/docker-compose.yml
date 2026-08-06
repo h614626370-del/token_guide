@@ -1,6 +1,7 @@
 services:
   guide:
     image: ${IMAGE_REPOSITORY:-614626370/sub2api-guide}:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: sub2api-guide
     restart: unless-stopped
     env_file:

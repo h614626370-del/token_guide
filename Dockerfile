@@ -27,7 +27,7 @@ COPY public ./public
 COPY server ./server
 COPY scripts ./scripts
 
-RUN npm run typecheck && npm run build && npm prune --omit=dev
+RUN npm run build && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 

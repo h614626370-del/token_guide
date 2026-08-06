@@ -4,12 +4,12 @@
 services:
   guide:
     image: ${IMAGE_REPOSITORY:-614626370/sub2api-guide}:${IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: sub2api-guide
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      NUXT_APP_VERSION: ${IMAGE_TAG:-latest}
       NUXT_UPDATE_IMAGE_REPOSITORY: ${IMAGE_REPOSITORY:-614626370/sub2api-guide}
       NUXT_UPDATE_CONTAINER_NAME: sub2api-guide
     group_add:

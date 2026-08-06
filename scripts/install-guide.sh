@@ -17,7 +17,7 @@ Usage: install-guide.sh [options]
 本机安装（非远程）：准备文件并 docker compose up -d。
 
 Options:
-  --version VERSION          Image tag. Default: latest.
+  --version VERSION          Image tag for this install run. Default: latest.
   --image IMAGE              Image repository. Default: 614626370/sub2api-guide.
   --install-dir DIR          Install directory. Default: current directory.
   --port PORT                Loopback host port. Default: 3000.
@@ -66,9 +66,9 @@ fi
 echo "Pulling image..."
 # shellcheck disable=SC1091
 set -a
-# 读取 .env 中的镜像信息
+# 读取 .env 中的镜像仓库和端口；版本号仅对本次安装命令生效
 # shellcheck disable=SC1091
-source <(grep -E '^(IMAGE_REPOSITORY|IMAGE_TAG|HOST_PORT)=' .env | sed 's/\r$//')
+source <(grep -E '^(IMAGE_REPOSITORY|HOST_PORT)=' .env | sed 's/\r$//')
 set +a
 IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-614626370/sub2api-guide}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"

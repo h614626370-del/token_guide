@@ -69,6 +69,17 @@ force_env_value() {
   fi
 }
 
+remove_env_value() {
+  local key="$1"
+  local file="${2:-.env}"
+  grep -q "^${key}=" "$file" 2>/dev/null || return 0
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    sed -i '' "/^${key}=/d" "$file"
+  else
+    sed -i "/^${key}=/d" "$file"
+  fi
+}
+
 read_env() {
   local key="$1"
   [[ -f .env ]] || return 0
@@ -112,6 +123,9 @@ else
 fi
 chmod 600 .env
 
+# 旧部署可能固定了版本号。Compose 默认使用 latest，避免后台更新后又回到旧镜像。
+remove_env_value IMAGE_TAG
+
 SESSION_PASSWORD="$(read_env NUXT_SESSION_PASSWORD)"
 ADMIN_TOKEN="$(read_env NUXT_ADMIN_TOKEN)"
 IP_HASH_SALT="$(read_env NUXT_IP_HASH_SALT)"
@@ -130,7 +144,6 @@ if [[ -z "${IP_HASH_SALT}" || "${IP_HASH_SALT}" == replace-* ]]; then
 fi
 
 force_env_value IMAGE_REPOSITORY "${IMAGE_REPOSITORY}"
-force_env_value IMAGE_TAG "${IMAGE_TAG}"
 force_env_value HOST_PORT "${HOST_PORT}"
 set_env_value NUXT_PUBLIC_SITE_URL "${SITE_URL}"
 set_env_value NUXT_PUBLIC_SUB2API_ORIGIN "${SUB2API_ORIGIN}"
@@ -157,7 +170,7 @@ echo "=========================================="
 echo " 部署准备完成"
 echo "=========================================="
 echo "目录: $(pwd)"
-echo "镜像: ${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+echo "镜像: ${IMAGE_REPOSITORY}:${IMAGE_TAG}（版本号不写入 .env）"
 echo "端口: 127.0.0.1:${HOST_PORT}"
 echo
 echo "请保存以下管理员凭证（仅本次完整打印）："

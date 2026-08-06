@@ -94,7 +94,7 @@ Unified guide application image: $imageRef
 Local install (prepare on the server, then compose up):
 
 mkdir -p sub2api-guide-deploy && cd sub2api-guide-deploy
-IMAGE_TAG=$tag IMAGE_REPOSITORY=$ImageRepository curl -sSL $deployUrl | bash
+curl -sSL $deployUrl | IMAGE_REPOSITORY=$ImageRepository bash
 docker compose up -d
 docker compose logs -f guide
 "@
