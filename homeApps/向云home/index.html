@@ -58,16 +58,30 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Token向云",
-        "url": "https://kkflow.org/",
-        "description": "Token向云提供稳定的 AI API 聚合网关，支持 Claude、GPT、Gemini 等主流大模型统一接入，提供 API Key 管理、Token 用量统计、按量计费和团队成本控制。",
-        "inLanguage": "zh-CN",
-        "publisher": {
-          "@type": "Organization",
-          "name": "Token向云",
-          "url": "https://kkflow.org/"
-        }
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://kkflow.org/#website",
+            "name": "Token向云",
+            "url": "https://kkflow.org/",
+            "description": "Token向云提供稳定的 AI API 聚合网关，支持 Claude、GPT、Gemini 等主流大模型统一接入，提供 API Key 管理、Token 用量统计、按量计费和团队成本控制。",
+            "inLanguage": "zh-CN",
+            "publisher": {
+              "@id": "https://kkflow.org/#organization"
+            }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://kkflow.org/#organization",
+            "name": "Token向云",
+            "url": "https://kkflow.org/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://kkflow.org/assets/logo-256.png"
+            },
+            "description": "Token向云提供稳定的 AI API 聚合网关，支持主流大模型统一接入、API Key 管理、Token 用量统计和按量计费。"
+          }
+        ]
       }
     </script>
     <style>

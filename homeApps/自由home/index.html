@@ -58,16 +58,30 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "自由",
-        "url": "https://home.aiziyou.org/",
-        "description": "自由提供稳定的 AI API 聚合网关，支持 Claude、GPT、Gemini 等主流大模型统一接入，提供 API Key 管理、Token 用量统计、按量计费和团队成本控制。",
-        "inLanguage": "zh-CN",
-        "publisher": {
-          "@type": "Organization",
-          "name": "自由",
-          "url": "https://home.aiziyou.org/"
-        }
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://aiziyou.org/#website",
+            "name": "自由",
+            "url": "https://aiziyou.org/",
+            "description": "自由提供稳定的 AI API 聚合网关，支持 Claude、GPT、Gemini 等主流大模型统一接入，提供 API Key 管理、Token 用量统计、按量计费和团队成本控制。",
+            "inLanguage": "zh-CN",
+            "publisher": {
+              "@id": "https://aiziyou.org/#organization"
+            }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://aiziyou.org/#organization",
+            "name": "自由",
+            "url": "https://aiziyou.org/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://home.aiziyou.org/assets/logo-256.png"
+            },
+            "description": "自由提供稳定的 AI API 聚合网关，支持主流大模型统一接入、API Key 管理、Token 用量统计和按量计费。"
+          }
+        ]
       }
     </script>
     <style>
