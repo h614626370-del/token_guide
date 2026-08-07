@@ -154,7 +154,7 @@ describe('Nuxt application routes', () => {
         project_name: 'Token向云',
         site_title: 'Token向云指南',
         site_description: '会员、API 接入、模型试用与价格参考。',
-        logo_path: 'https://guide.aiziyou.org/logo-80.png',
+        logo_path: url('/logo-80.png'),
         footer_text: '清晰接入，稳定调用。',
         main_site_url: upstreamOrigin,
         login_path: '/login',
@@ -214,6 +214,15 @@ describe('Nuxt application routes', () => {
   })
 
   it('serves the active static homepage and protects preview selection', async () => {
+    const favicon = await fetch('/favicon.ico', { redirect: 'manual' })
+    expect(favicon.status).toBe(302)
+    expect(favicon.headers.get('location')).toBe('/logo-80.png')
+
+    const faviconImage = await fetch('/favicon.ico')
+    expect(faviconImage.status).toBe(200)
+    expect(faviconImage.headers.get('content-type')).toContain('image/png')
+    expect((await faviconImage.arrayBuffer()).byteLength).toBeGreaterThan(1000)
+
     const homepage = await fetch('/site-home/')
     expect(homepage.status).toBe(200)
     expect(homepage.headers.get('content-type')).toContain('text/html')
@@ -223,12 +232,21 @@ describe('Nuxt application routes', () => {
     expect(homepage.headers.get('cross-origin-resource-policy')).toBe('cross-origin')
     const homepageHtml = await homepage.text()
     expect(homepageHtml).toContain('自由')
-    expect(homepageHtml).toContain('href="/site-home/assets/logo-80.png"')
+    expect(homepageHtml).toContain('href="/logo-80.png"')
 
     const asset = await fetch('/site-home/assets/logo-80.png')
     expect(asset.status).toBe(200)
     expect(asset.headers.get('content-type')).toBe('image/png')
     expect(asset.headers.get('cross-origin-resource-policy')).toBe('cross-origin')
+
+    const previewCookie = await administratorCookie()
+    const xiangyunPreview = await fetch('/site-home/?default=xiangyun', {
+      headers: { cookie: previewCookie },
+    })
+    expect(xiangyunPreview.status).toBe(200)
+    const xiangyunHtml = await xiangyunPreview.text()
+    expect(xiangyunHtml).toContain('href="/logo-80.png"')
+    expect(xiangyunHtml).not.toContain('guide.kkflow.org/site-home/assets/logo-')
 
     const unauthorizedPreview = await fetch('/site-home/?default=xiangyun')
     expect(unauthorizedPreview.status).toBe(401)

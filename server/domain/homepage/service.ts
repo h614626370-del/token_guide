@@ -7,6 +7,7 @@ import type { H3Event } from 'h3'
 import { getGuideConfig } from '../../utils/config'
 import { useGuideDatabase } from '../../utils/database'
 import { getPublicRequestOrigin } from '../../utils/request-url'
+import { getPublicSiteConfig } from '../../utils/site-config'
 
 const maxHomepageBytes = 20 * 1024 * 1024
 const maxHomepageFileBytes = 5 * 1024 * 1024
@@ -234,14 +235,16 @@ export async function readHomepageFile(relativePath: string, event?: H3Event, pr
     const info = await stat(fullPath)
     if (!info.isFile()) return null
     const contentType = contentTypeFromPath(safePath)
-    const bytes = rewriteHomepageAssetUrls(await readFile(fullPath), contentType)
+    const site = getPublicSiteConfig(event)
+    const logoUrl = sameOriginAssetUrl(site.logo_path, event)
+    const bytes = rewriteHomepageAssetUrls(await readFile(fullPath), contentType, logoUrl)
     return { bytes, size: bytes.length, contentType, preview }
   } catch {
     return null
   }
 }
 
-function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string) {
+function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string, logoUrl: string) {
   if (!contentType.startsWith('text/html') && !contentType.startsWith('text/css')) return bytes
 
   let content = bytes.toString('utf8')
@@ -259,6 +262,10 @@ function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string) {
         }).join(', ')
         return `srcset=${quote}${rewritten}${quote}`
       })
+    content = content.replace(
+      /(?:https?:\/\/[^"'\s]+\/|\.\/|\/site-home\/|\/)?assets\/logo-(?:80|256)\.png(?:\?[^"'\s]*)?/gi,
+      logoUrl,
+    )
   }
 
   if (contentType.startsWith('text/html')) {
@@ -267,6 +274,19 @@ function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string) {
     content = content.replace(/url\(\s*(["']?)\/(?!\/|site-home(?:\/|$))/gi, 'url($1/site-home/')
   }
   return Buffer.from(content, 'utf8')
+}
+
+function sameOriginAssetUrl(value: string, event?: H3Event) {
+  try {
+    const url = new URL(value)
+    const requestOrigin = getPublicRequestOrigin(event)
+    if (requestOrigin && url.origin === requestOrigin) {
+      return `${url.pathname}${url.search}${url.hash}`
+    }
+    return value
+  } catch {
+    return value
+  }
 }
 
 function homepageAssetUrl(value: string) {
