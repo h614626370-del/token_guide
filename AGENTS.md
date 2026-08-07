@@ -44,6 +44,17 @@ curl -sSL https://raw.githubusercontent.com/h614626370-del/token_guide/main/depl
 docker compose up -d
 ```
 
+## Docker 构建与发布
+
+- Windows 侧只负责准备源码和启动发布脚本，最终 Linux 镜像由 WSL 中的 Docker 构建。
+- `npm ci` 和 `npm run build` 必须保留在 Docker 的 Linux 构建阶段，不要复制 Windows 生成的 `node_modules` 或 `.output` 制作生产镜像。
+- Dockerfile 必须保留 BuildKit npm 缓存挂载；依赖文件未变化时应复用安装层，依赖变化时优先复用 npm 下载缓存。
+- `package.json` 和 `package-lock.json` 必须先于业务源码复制，以免普通源码改动导致依赖层失效。
+- 构建代理通过发布脚本的 `--build-arg HTTP_PROXY/HTTPS_PROXY` 传入，不要在 Dockerfile 中再次声明代理 `ARG` 或写入 `ENV`，避免代理值破坏依赖缓存。
+- 本机需要代理时默认使用 `http://127.0.0.1:7897`；构建前确认代理已启动。
+- 除非明确需要清理或排查缓存问题，不要使用 `--no-cache`、`docker builder prune` 或 `docker system prune -a`。
+- 新环境第一次构建仍需下载依赖；同一 Docker builder 后续构建才会复用本地缓存。
+
 ## 认证与代理约定
 
 - sub2api 自定义菜单进入 `/auth/embed?token=<jwt>`。
