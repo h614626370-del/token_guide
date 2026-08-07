@@ -1,5 +1,6 @@
-import { defineEventHandler, deleteCookie, getCookie, getQuery, setCookie, setHeader } from 'h3'
+import { defineEventHandler, deleteCookie, getCookie, getQuery, getRequestHeader, setCookie, setHeader } from 'h3'
 import { readHomepageFile } from '../../domain/homepage/service'
+import { recordHomepageVisit } from '../../domain/promotion/service'
 import { apiError } from '../../utils/api'
 import { requireAdminSession } from '../../utils/session'
 
@@ -20,12 +21,19 @@ export default defineEventHandler(async (event) => {
   const file = await readHomepageFile('index.html', event, preview, requestedDefaultId)
   if (!file) apiError(404, 'HOMEPAGE_FILE_NOT_FOUND', '首页文件不存在。')
 
+  if (!preview && !requestedDefaultId && getRequestHeader(event, 'x-public-homepage') === '1') {
+    try {
+      recordHomepageVisit(event)
+    } catch (error) {
+      console.warn('Failed to record public homepage visit.', error instanceof Error ? error.message : error)
+    }
+  }
+
   setHeader(event, 'content-type', file.contentType)
   setHeader(event, 'cache-control', preview ? 'no-store' : 'no-cache, no-store, must-revalidate')
   setHeader(event, 'x-content-type-options', 'nosniff')
   setHeader(event, 'cross-origin-resource-policy', 'cross-origin')
-  setHeader(event, 'content-security-policy', 'sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation')
-  setHeader(event, 'referrer-policy', 'no-referrer')
+  setHeader(event, 'referrer-policy', 'strict-origin-when-cross-origin')
   setHeader(event, 'content-length', file.size)
   return file.bytes
 })

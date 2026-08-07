@@ -360,4 +360,56 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 13,
+    name: 'create_direct_promotion_visits',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS promotion_visits (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          legacy_event_id INTEGER UNIQUE,
+          source_id INTEGER REFERENCES promotion_sources(id) ON DELETE CASCADE,
+          occurred_at TEXT NOT NULL,
+          visitor_hash TEXT,
+          referer_host TEXT,
+          user_agent TEXT,
+          landing_path TEXT NOT NULL DEFAULT '/',
+          ref_code TEXT,
+          utm_source TEXT,
+          utm_medium TEXT,
+          utm_campaign TEXT,
+          utm_content TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_promotion_visits_source_time
+          ON promotion_visits(source_id, occurred_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_promotion_visits_time
+          ON promotion_visits(occurred_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_promotion_visits_referer_time
+          ON promotion_visits(referer_host, occurred_at DESC);
+
+        INSERT OR IGNORE INTO promotion_visits (
+          legacy_event_id,
+          source_id,
+          occurred_at,
+          visitor_hash,
+          referer_host,
+          user_agent,
+          landing_path
+        )
+        SELECT
+          id,
+          source_id,
+          occurred_at,
+          visitor_hash,
+          referer_host,
+          user_agent,
+          '/'
+        FROM promotion_events
+        WHERE event_type = 'click';
+      `)
+    },
+  },
 ]

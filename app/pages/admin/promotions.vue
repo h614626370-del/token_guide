@@ -25,16 +25,22 @@ interface PromotionSource {
 }
 
 interface PromotionOverview {
-  summary: { clicks: number; unique_visitors: number; clicks_today: number; clicks_7d: number; clicks_30d: number }
+  summary: { clicks: number; unique_visitors: number; clicks_today: number; clicks_7d: number; clicks_30d: number; direct_visits: number; automatic_referrals: number }
   trend: Array<{ day: string; clicks: number; unique_visitors: number }>
+  referrals: Array<{ host: string; visits: number; unique_visitors: number }>
   sources: PromotionSource[]
 }
 
+const site = useSiteConfigState()
 const overview = ref<PromotionOverview | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
-const form = reactive({ code: '', name: '', target_url: '', utm_source: '', utm_medium: 'referral', utm_campaign: '', utm_content: '' })
+const form = reactive({ code: '', name: '', target_url: site.value.main_site_url, utm_source: '', utm_medium: 'referral', utm_campaign: '', utm_content: '' })
+
+watch(() => site.value.main_site_url, (value) => {
+  if (!form.target_url) form.target_url = value
+})
 
 onMounted(() => { void load() })
 
@@ -47,7 +53,7 @@ async function createSource() {
   saving.value = true; clearNotice()
   try {
     await $fetch<ApiSuccess<PromotionSource>>('/api/admin/promotions', { method: 'POST', body: form })
-    Object.assign(form, { code: '', name: '', target_url: '', utm_source: '', utm_medium: 'referral', utm_campaign: '', utm_content: '' })
+    Object.assign(form, { code: '', name: '', target_url: site.value.main_site_url, utm_source: '', utm_medium: 'referral', utm_campaign: '', utm_content: '' })
     await load(); showSuccess('推广链接已创建。')
   } catch (cause) { showError(cause, '推广链接创建失败。') } finally { saving.value = false }
 }
@@ -78,27 +84,27 @@ function percent(value: number, total: number) { return total ? `${Math.round(va
       <div v-if="notice.message" class="admin-notice" :class="`admin-notice--${notice.type}`">{{ notice.message }}</div>
 
       <section v-if="overview" class="promotion-metric-grid">
-        <article><span>累计点击</span><strong>{{ overview.summary.clicks }}</strong><small>所有启用和历史来源</small></article>
+        <article><span>累计访问</span><strong>{{ overview.summary.clicks }}</strong><small>所有落地页访问记录</small></article>
         <article><span>独立访客</span><strong>{{ overview.summary.unique_visitors }}</strong><small>按匿名访客标识去重</small></article>
-        <article><span>今日点击</span><strong>{{ overview.summary.clicks_today }}</strong><small>按服务器时间统计</small></article>
+        <article><span>今日访问</span><strong>{{ overview.summary.clicks_today }}</strong><small>按服务器时间统计</small></article>
         <article><span>近 30 天</span><strong>{{ overview.summary.clicks_30d }}</strong><small>可用于来源比较</small></article>
       </section>
 
       <section class="admin-section promotion-create-section">
-        <header class="admin-section__heading"><div><span>New source</span><h2>创建推广来源</h2><p>外部广告只需要使用生成的短链接，系统会自动记录并跳转到目标地址。</p></div></header>
+        <header class="admin-section__heading"><div><span>New source</span><h2>创建推广来源</h2><p>生成的链接直接指向主站，首页返回时由 guide 在服务端记录来源，不经过中转跳转。</p></div></header>
         <div class="promotion-quick-guide">
           <Info :size="20" aria-hidden="true" />
           <div>
             <strong>最简单的用法：只填写前三项，后面的 UTM 信息都可以留空。</strong>
             <ol>
-              <li><b>创建链接</b><span>填写来源代码、来源名称和最终要打开的目标地址。</span></li>
-              <li><b>复制投放</b><span>创建后复制系统生成的 <code>/go/来源代码</code> 链接，放到外部网站或广告中。</span></li>
-              <li><b>查看统计</b><span>访客点击该链接后会自动计数，再跳转到你的主站。</span></li>
+              <li><b>创建链接</b><span>填写来源代码、来源名称和主站落地地址。</span></li>
+              <li><b>复制投放</b><span>生成的地址是带 <code>ref</code> 和 UTM 参数的主站直链，可直接放到广告位。</span></li>
+              <li><b>查看统计</b><span>访问主站首页时自动记录参数和 Referer，不改变用户地址。</span></li>
             </ol>
           </div>
         </div>
         <form class="promotion-create-form" @submit.prevent="createSource">
-          <label class="form-field"><span>来源代码（必填）</span><input v-model="form.code" required pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{1,47}" placeholder="site-a"><small>短链接中的唯一标识，例如 <code>/go/site-a</code>。只能使用字母、数字、短横线和下划线。</small></label>
+          <label class="form-field"><span>来源代码（必填）</span><input v-model="form.code" required pattern="[a-zA-Z0-9][a-zA-Z0-9_-]{1,47}" placeholder="site-a"><small>主站直链中的唯一标识，例如 <code>?ref=site-a</code>。只能使用字母、数字、短横线和下划线。</small></label>
           <label class="form-field"><span>来源名称（必填）</span><input v-model="form.name" required maxlength="80" placeholder="网站 A 首页广告"><small>仅在后台显示，写清楚投放网站和位置，例如“少数派首页横幅”。</small></label>
           <label class="form-field promotion-target-field"><span>目标地址（必填）</span><input v-model="form.target_url" required type="url" placeholder="https://aiziyou.org"><small>访客点击推广链接后最终打开的页面，通常填写主站首页或活动落地页。</small></label>
           <label class="form-field"><span>UTM 来源（可选）</span><input v-model="form.utm_source" placeholder="site-a"><small>投放渠道的英文标识，例如 <code>shaoshupai</code>、<code>google</code>。</small></label>
@@ -110,7 +116,7 @@ function percent(value: number, total: number) { return total ? `${Math.round(va
       </section>
 
       <section class="admin-section">
-        <header class="admin-section__heading"><div><span>Traffic sources</span><h2>来源排行</h2><p>点击量统计发生在跳转接口，不受首页 iframe 加载方式影响。</p></div></header>
+        <header class="admin-section__heading"><div><span>Traffic sources</span><h2>已配置来源</h2><p>统计由主站首页的服务端响应完成；机器人和 30 分钟内的重复刷新不会计入。</p></div></header>
         <div class="promotion-source-list">
           <article v-for="source in overview?.sources" :key="source.id" class="promotion-source-row">
             <div class="promotion-source-main"><div class="promotion-source-title"><strong>{{ source.name }}</strong><code>{{ source.code }}</code><span :class="source.enabled ? 'promotion-enabled' : 'promotion-disabled'">{{ source.enabled ? '启用' : '停用' }}</span></div><a :href="source.link" target="_blank" rel="noreferrer">{{ source.link }}</a><small>目标：{{ source.target_url }}</small></div>
@@ -121,8 +127,17 @@ function percent(value: number, total: number) { return total ? `${Math.round(va
         </div>
       </section>
 
+      <section class="admin-section">
+        <header class="admin-section__heading"><div><span>HTTP Referer</span><h2>自动发现的来源站点</h2><p>即使广告链接没有参数，也会尽可能根据浏览器提供的 Referer 统计来源域名；隐私策略可能导致 Referer 缺失。</p></div></header>
+        <div class="promotion-referral-list">
+          <div v-for="item in overview?.referrals" :key="item.host" class="promotion-referral-row"><strong>{{ item.host }}</strong><span>{{ item.visits }} 次访问</span><span>{{ item.unique_visitors }} 位访客</span></div>
+          <div v-if="!overview?.referrals.length && !loading" class="empty-result"><Link2 :size="20" />还没有可识别的外部 Referer。</div>
+        </div>
+        <div v-if="overview" class="promotion-referral-summary"><span>无已配置来源的自动引荐：<strong>{{ overview.summary.automatic_referrals }}</strong></span><span>直接访问或来源不可用：<strong>{{ overview.summary.direct_visits }}</strong></span></div>
+      </section>
+
       <section v-if="overview?.trend.length" class="admin-section">
-        <header class="admin-section__heading"><div><span>Last 30 days</span><h2>访问趋势</h2><p>按天汇总点击量和独立访客。</p></div><BarChart3 :size="22" /></header>
+        <header class="admin-section__heading"><div><span>Last 30 days</span><h2>访问趋势</h2><p>按天汇总落地访问量和独立访客。</p></div><BarChart3 :size="22" /></header>
         <div class="promotion-trend-list"><div v-for="item in overview.trend" :key="item.day" class="promotion-trend-row"><time>{{ item.day }}</time><div class="promotion-trend-bar"><i :style="{ width: `${Math.max(4, item.clicks / Math.max(...overview.trend.map(row => row.clicks), 1) * 100)}%` }" /></div><strong>{{ item.clicks }}</strong><span>{{ item.unique_visitors }} 人</span></div></div>
       </section>
     </div>

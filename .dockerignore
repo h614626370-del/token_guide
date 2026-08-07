@@ -22,3 +22,8 @@ config
 README.md
 AGENTS.md
 PRODUCT.md
+homeApps/**/*.conf
+homeApps/**/*.nginx.conf
+homeApps/**/robots.txt
+homeApps/**/sitemap.xml
+homeApps/**/* copy.html

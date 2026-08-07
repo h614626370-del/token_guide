@@ -217,9 +217,13 @@ describe('Nuxt application routes', () => {
     const homepage = await fetch('/site-home/')
     expect(homepage.status).toBe(200)
     expect(homepage.headers.get('content-type')).toContain('text/html')
-    expect(homepage.headers.get('content-security-policy')).toContain('sandbox')
+    expect(homepage.headers.get('content-security-policy')).not.toContain('sandbox')
+    expect(homepage.headers.get('content-security-policy')).toContain("frame-ancestors 'self'")
+    expect(homepage.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin')
     expect(homepage.headers.get('cross-origin-resource-policy')).toBe('cross-origin')
-    expect(await homepage.text()).toContain('自由')
+    const homepageHtml = await homepage.text()
+    expect(homepageHtml).toContain('自由')
+    expect(homepageHtml).toContain('href="/site-home/assets/logo-80.png"')
 
     const asset = await fetch('/site-home/assets/logo-80.png')
     expect(asset.status).toBe(200)
@@ -256,7 +260,7 @@ describe('Nuxt application routes', () => {
     expect(restoreDefault.status).toBe(200)
   })
 
-  it('creates promotion links, records redirects and reports source totals', async () => {
+  it('creates direct promotion links and records public homepage visits without redirecting', async () => {
     const cookie = await administratorCookie()
     const create = await fetch('/api/admin/promotions', {
       method: 'POST',
@@ -271,24 +275,56 @@ describe('Nuxt application routes', () => {
     })
     expect(create.status).toBe(200)
     const source = (await json(create)).data
+    expect(source.link).toBe('https://aiziyou.org/?ref=e2e-source&utm_source=e2e&utm_medium=referral')
 
-    const redirect = await fetch('/go/e2e-source', { redirect: 'manual' })
-    expect(redirect.status).toBe(302)
-    expect(redirect.headers.get('location')).toContain('ref=e2e-source')
+    const landing = await fetch('/site-home/?ref=e2e-source&utm_source=e2e&utm_medium=referral', {
+      headers: {
+        'x-public-homepage': '1',
+        'x-original-uri': '/?ref=e2e-source&utm_source=e2e&utm_medium=referral',
+        referer: 'https://ads.example/article',
+        'user-agent': 'E2E Browser',
+      },
+    })
+    expect(landing.status).toBe(200)
+    expect(landing.headers.get('location')).toBeNull()
 
     const overview = await fetch('/api/admin/promotions', { headers: { cookie } })
     expect(overview.status).toBe(200)
     const result = (await json(overview)).data
     expect(result.summary.clicks).toBe(1)
     expect(result.sources.find((item: any) => item.id === source.id).clicks).toBe(1)
+    expect(result.referrals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ host: 'ads.example', visits: 1 }),
+    ]))
 
     const remove = await fetch(`/api/admin/promotions/${source.id}`, { method: 'DELETE', headers: { cookie } })
     expect(remove.status).toBe(200)
   })
 
+  it('generates robots and sitemaps for both the guide and proxied main-site host', async () => {
+    const guideRobots = await fetch('/robots.txt')
+    expect(guideRobots.headers.get('content-type')).toContain('text/plain')
+    expect(await guideRobots.text()).toContain(`Sitemap: ${url('/').replace(/\/$/, '')}/sitemap.xml`)
+
+    const guideSitemap = await fetch('/sitemap.xml')
+    expect(guideSitemap.headers.get('content-type')).toContain('application/xml')
+    expect(await guideSitemap.text()).toContain('/integration</loc>')
+
+    const mainHeaders = {
+      'x-forwarded-host': new URL(upstreamOrigin).host,
+      'x-forwarded-proto': 'http',
+    }
+    const mainRobots = await fetch('/robots.txt', { headers: mainHeaders })
+    expect(await mainRobots.text()).toContain(`Sitemap: ${upstreamOrigin}/sitemap.xml`)
+    const mainSitemap = await fetch('/sitemap.xml', { headers: mainHeaders })
+    const mainXml = await mainSitemap.text()
+    expect(mainXml).toContain(`<loc>${upstreamOrigin}/</loc>`)
+    expect(mainXml).not.toContain('/integration</loc>')
+  })
+
   it('sends the iframe and browser security policy without an X-Frame-Options conflict', async () => {
     const response = await fetch('/playground')
-    expect(response.headers.get('content-security-policy')).toMatch(/frame-ancestors https?:\/\/127\.0\.0\.1:\d+/)
+    expect(response.headers.get('content-security-policy')).toMatch(/frame-ancestors 'self' https?:\/\/127\.0\.0\.1:\d+/)
     expect(response.headers.get('content-security-policy')).toContain("connect-src 'self'")
     expect(response.headers.get('content-security-policy')).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'")
     expect(response.headers.get('content-security-policy')).not.toContain("'unsafe-eval'")

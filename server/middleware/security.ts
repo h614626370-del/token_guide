@@ -16,7 +16,7 @@ export default defineEventHandler((event) => {
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
-      `frame-ancestors ${mainSiteOrigin}`,
+      `frame-ancestors 'self' ${mainSiteOrigin}`,
       "form-action 'self'",
       "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",

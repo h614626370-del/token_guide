@@ -233,22 +233,43 @@ function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string) {
   if (!contentType.startsWith('text/html') && !contentType.startsWith('text/css')) return bytes
 
   let content = bytes.toString('utf8')
-  const rootPath = String.raw`\/(?!\/|site-home(?:\/|$))`
 
   if (contentType.startsWith('text/html')) {
-    const resourceAttribute = new RegExp(`(<(?:img|script|source|video|audio|embed|input)\\b[^>]*\\b(?:src|poster)\\s*=\\s*["'])${rootPath}`, 'gi')
-    const linkAttribute = new RegExp(`(<link\\b[^>]*\\bhref\\s*=\\s*["'])${rootPath}`, 'gi')
+    const resourceAttribute = /(<(?:img|script|source|video|audio|embed|input)\b[^>]*\b(?:src|poster)\s*=\s*["'])([^"']+)(["'])/gi
+    const linkAttribute = /(<link\b[^>]*\bhref\s*=\s*["'])([^"']+)(["'])/gi
     content = content
-      .replace(resourceAttribute, '$1/site-home/')
-      .replace(linkAttribute, '$1/site-home/')
+      .replace(resourceAttribute, (_match, prefix: string, value: string, suffix: string) => `${prefix}${homepageAssetUrl(value)}${suffix}`)
+      .replace(linkAttribute, (_match, prefix: string, value: string, suffix: string) => `${prefix}${homepageAssetUrl(value)}${suffix}`)
       .replace(/\bsrcset\s*=\s*(["'])(.*?)\1/gi, (match, quote: string, value: string) => {
-        const rewritten = value.replace(/(^|,\s*)\/(?!\/|site-home(?:\/|$))/g, '$1/site-home/')
+        const rewritten = value.split(',').map((item) => {
+          const [url, ...descriptor] = item.trim().split(/\s+/)
+          return [homepageAssetUrl(url || ''), ...descriptor].join(' ')
+        }).join(', ')
         return `srcset=${quote}${rewritten}${quote}`
       })
   }
 
-  content = content.replace(/url\(\s*(["']?)\/(?!\/|site-home(?:\/|$))/gi, 'url($1/site-home/')
+  if (contentType.startsWith('text/html')) {
+    content = content.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (_match, quote: string, value: string) => `url(${quote}${homepageAssetUrl(value.trim())}${quote})`)
+  } else {
+    content = content.replace(/url\(\s*(["']?)\/(?!\/|site-home(?:\/|$))/gi, 'url($1/site-home/')
+  }
   return Buffer.from(content, 'utf8')
+}
+
+function homepageAssetUrl(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed || /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(trimmed)) return value
+  try {
+    const resolved = new URL(trimmed, 'https://homepage.invalid/site-home/')
+    if (resolved.origin !== 'https://homepage.invalid') return value
+    if (resolved.pathname === '/site-home' || resolved.pathname.startsWith('/site-home/')) {
+      return `${resolved.pathname}${resolved.search}${resolved.hash}`
+    }
+    return `/site-home${resolved.pathname}${resolved.search}${resolved.hash}`
+  } catch {
+    return value
+  }
 }
 
 export async function stageHomepageFiles(files: Array<{ path: string; data: Buffer }>, event?: H3Event) {

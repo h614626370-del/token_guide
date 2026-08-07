@@ -384,6 +384,13 @@ textarea:focus-visible {
 .promotion-source-stats span { color: var(--muted); font-size: 11px; }
 .promotion-source-actions { display: flex; gap: 6px; }
 .icon-button--danger:hover:not(:disabled) { border-color: #e4b8b6; color: var(--danger); background: #fff5f4; }
+.promotion-referral-list { display: grid; margin-top: 18px; border: 1px solid var(--soft-line); border-radius: 7px; overflow: hidden; }
+.promotion-referral-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 110px; gap: 16px; align-items: center; min-height: 43px; padding: 9px 13px; border-bottom: 1px solid var(--soft-line); font-size: 12px; }
+.promotion-referral-row:last-child { border-bottom: 0; }
+.promotion-referral-row strong { overflow: hidden; color: var(--ink-soft); text-overflow: ellipsis; white-space: nowrap; }
+.promotion-referral-row span { color: var(--muted); text-align: right; }
+.promotion-referral-summary { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+.promotion-referral-summary strong { color: var(--ink); }
 .promotion-trend-list { display: grid; gap: 8px; margin-top: 20px; }
 .promotion-trend-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 60px 80px; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
 .promotion-trend-row strong { color: var(--ink); text-align: right; }
@@ -411,6 +418,8 @@ textarea:focus-visible {
   .promotion-source-row { grid-template-columns: 1fr; }
   .promotion-source-stats, .promotion-source-actions { grid-column: auto; grid-row: auto; }
   .promotion-source-actions { justify-content: flex-start; }
+  .promotion-referral-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .promotion-referral-row span:last-child { display: none; }
   .promotion-trend-row { grid-template-columns: 74px minmax(0, 1fr) 38px; }
   .promotion-trend-row span { display: none; }
 }

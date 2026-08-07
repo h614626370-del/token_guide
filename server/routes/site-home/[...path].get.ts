@@ -19,8 +19,7 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'cache-control', preview ? 'no-store' : 'no-cache, no-store, must-revalidate')
   setHeader(event, 'x-content-type-options', 'nosniff')
   setHeader(event, 'cross-origin-resource-policy', 'cross-origin')
-  setHeader(event, 'content-security-policy', 'sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation')
-  setHeader(event, 'referrer-policy', 'no-referrer')
+  setHeader(event, 'referrer-policy', 'strict-origin-when-cross-origin')
   setHeader(event, 'content-length', file.size)
   return file.bytes
 })

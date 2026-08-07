@@ -1,5 +1,4 @@
 import crypto from 'node:crypto'
-import type Database from 'better-sqlite3'
 import type { H3Event } from 'h3'
 import { getQuery, getRequestHeader, getRequestURL } from 'h3'
 import { getGuideConfig } from '../../utils/config'
@@ -37,7 +36,15 @@ export interface PromotionSource {
   clicks_30d: number
 }
 
-function sourceRow(row: Record<string, unknown>, event?: H3Event): PromotionSource {
+interface TrackingValues {
+  ref_code: string | null
+  utm_source: string | null
+  utm_medium: string | null
+  utm_campaign: string | null
+  utm_content: string | null
+}
+
+function sourceRow(row: Record<string, unknown>): PromotionSource {
   return {
     id: Number(row.id),
     code: String(row.code),
@@ -50,7 +57,7 @@ function sourceRow(row: Record<string, unknown>, event?: H3Event): PromotionSour
     enabled: Boolean(row.enabled),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
-    link: new URL(`/go/${encodeURIComponent(String(row.code))}`, `${getGuideConfig(event).siteUrl}/`).toString(),
+    link: promotionLink(row),
     clicks: Number(row.clicks || 0),
     unique_visitors: Number(row.unique_visitors || 0),
     clicks_today: Number(row.clicks_today || 0),
@@ -59,22 +66,31 @@ function sourceRow(row: Record<string, unknown>, event?: H3Event): PromotionSour
   }
 }
 
-export function listPromotionSources(event?: H3Event) {
+function promotionLink(row: Record<string, unknown>) {
+  const target = new URL(String(row.target_url))
+  target.searchParams.set('ref', String(row.code))
+  for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'] as const) {
+    if (row[key]) target.searchParams.set(key, String(row[key]))
+  }
+  return target.toString()
+}
+
+export function listPromotionSources(_event?: H3Event) {
   const db = useGuideDatabase()
   const rows = db.prepare(`
     SELECT
       s.*,
-      COUNT(e.id) AS clicks,
-      COUNT(DISTINCT e.visitor_hash) AS unique_visitors,
-      SUM(CASE WHEN e.occurred_at >= datetime('now', 'start of day') THEN 1 ELSE 0 END) AS clicks_today,
-      SUM(CASE WHEN e.occurred_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS clicks_7d,
-      SUM(CASE WHEN e.occurred_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS clicks_30d
+      COUNT(v.id) AS clicks,
+      COUNT(DISTINCT v.visitor_hash) AS unique_visitors,
+      SUM(CASE WHEN datetime(v.occurred_at) >= datetime('now', 'start of day') THEN 1 ELSE 0 END) AS clicks_today,
+      SUM(CASE WHEN datetime(v.occurred_at) >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS clicks_7d,
+      SUM(CASE WHEN datetime(v.occurred_at) >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS clicks_30d
     FROM promotion_sources s
-    LEFT JOIN promotion_events e ON e.source_id = s.id AND e.event_type = 'click'
+    LEFT JOIN promotion_visits v ON v.source_id = s.id
     GROUP BY s.id
     ORDER BY clicks_30d DESC, s.created_at DESC
   `).all() as Array<Record<string, unknown>>
-  return rows.map(row => sourceRow(row, event))
+  return rows.map(row => sourceRow(row))
 }
 
 export function promotionOverview(event?: H3Event) {
@@ -84,19 +100,28 @@ export function promotionOverview(event?: H3Event) {
     SELECT
       COUNT(*) AS clicks,
       COUNT(DISTINCT visitor_hash) AS unique_visitors,
-      SUM(CASE WHEN occurred_at >= datetime('now', 'start of day') THEN 1 ELSE 0 END) AS clicks_today,
-      SUM(CASE WHEN occurred_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS clicks_7d,
-      SUM(CASE WHEN occurred_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS clicks_30d
-    FROM promotion_events
-    WHERE event_type = 'click'
+      SUM(CASE WHEN datetime(occurred_at) >= datetime('now', 'start of day') THEN 1 ELSE 0 END) AS clicks_today,
+      SUM(CASE WHEN datetime(occurred_at) >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS clicks_7d,
+      SUM(CASE WHEN datetime(occurred_at) >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS clicks_30d,
+      SUM(CASE WHEN source_id IS NULL AND referer_host IS NULL THEN 1 ELSE 0 END) AS direct_visits,
+      SUM(CASE WHEN source_id IS NULL AND referer_host IS NOT NULL THEN 1 ELSE 0 END) AS automatic_referrals
+    FROM promotion_visits
   `).get() as Record<string, unknown>
   const trend = db.prepare(`
     SELECT substr(occurred_at, 1, 10) AS day, COUNT(*) AS clicks, COUNT(DISTINCT visitor_hash) AS unique_visitors
-    FROM promotion_events
-    WHERE event_type = 'click' AND occurred_at >= datetime('now', '-30 days')
+    FROM promotion_visits
+    WHERE datetime(occurred_at) >= datetime('now', '-30 days')
     GROUP BY day
     ORDER BY day ASC
-  `).all() as Array<{ day: string; clicks: number; unique_visitors: number }>
+  `).all() as Array<{ day: string, clicks: number, unique_visitors: number }>
+  const referrals = db.prepare(`
+    SELECT referer_host AS host, COUNT(*) AS visits, COUNT(DISTINCT visitor_hash) AS unique_visitors
+    FROM promotion_visits
+    WHERE referer_host IS NOT NULL AND datetime(occurred_at) >= datetime('now', '-30 days')
+    GROUP BY referer_host
+    ORDER BY visits DESC, referer_host ASC
+    LIMIT 50
+  `).all() as Array<{ host: string, visits: number, unique_visitors: number }>
   return {
     summary: {
       clicks: Number(summary.clicks || 0),
@@ -104,8 +129,11 @@ export function promotionOverview(event?: H3Event) {
       clicks_today: Number(summary.clicks_today || 0),
       clicks_7d: Number(summary.clicks_7d || 0),
       clicks_30d: Number(summary.clicks_30d || 0),
+      direct_visits: Number(summary.direct_visits || 0),
+      automatic_referrals: Number(summary.automatic_referrals || 0),
     },
     trend: trend.map(item => ({ day: item.day, clicks: Number(item.clicks), unique_visitors: Number(item.unique_visitors) })),
+    referrals: referrals.map(item => ({ host: String(item.host), visits: Number(item.visits), unique_visitors: Number(item.unique_visitors) })),
     sources: rows,
   }
 }
@@ -149,52 +177,132 @@ export function deletePromotionSource(id: number) {
   return Boolean(db.prepare('DELETE FROM promotion_sources WHERE id = ?').run(id).changes)
 }
 
-export function getPromotionSource(id: number, event?: H3Event) {
+export function getPromotionSource(id: number, _event?: H3Event) {
   const db = useGuideDatabase()
   const row = db.prepare(`
-    SELECT s.*, COUNT(e.id) AS clicks, COUNT(DISTINCT e.visitor_hash) AS unique_visitors,
-      SUM(CASE WHEN e.occurred_at >= datetime('now', 'start of day') THEN 1 ELSE 0 END) AS clicks_today,
-      SUM(CASE WHEN e.occurred_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS clicks_7d,
-      SUM(CASE WHEN e.occurred_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS clicks_30d
-    FROM promotion_sources s LEFT JOIN promotion_events e ON e.source_id = s.id AND e.event_type = 'click'
+    SELECT s.*, COUNT(v.id) AS clicks, COUNT(DISTINCT v.visitor_hash) AS unique_visitors,
+      SUM(CASE WHEN datetime(v.occurred_at) >= datetime('now', 'start of day') THEN 1 ELSE 0 END) AS clicks_today,
+      SUM(CASE WHEN datetime(v.occurred_at) >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS clicks_7d,
+      SUM(CASE WHEN datetime(v.occurred_at) >= datetime('now', '-30 days') THEN 1 ELSE 0 END) AS clicks_30d
+    FROM promotion_sources s LEFT JOIN promotion_visits v ON v.source_id = s.id
     WHERE s.id = ? GROUP BY s.id
   `).get(id) as Record<string, unknown> | undefined
-  return row ? sourceRow(row, event) : null
+  return row ? sourceRow(row) : null
 }
 
-export function buildPromotionTarget(source: PromotionSource, event?: H3Event) {
-  const target = new URL(source.target_url)
-  target.searchParams.set('ref', source.code)
-  if (source.utm_source) target.searchParams.set('utm_source', source.utm_source)
-  if (source.utm_medium) target.searchParams.set('utm_medium', source.utm_medium)
-  if (source.utm_campaign) target.searchParams.set('utm_campaign', source.utm_campaign)
-  if (source.utm_content) target.searchParams.set('utm_content', source.utm_content)
-  return target.toString()
-}
-
-export function recordPromotionClick(code: string, event: H3Event) {
-  const db = useGuideDatabase()
-  const row = db.prepare(`
-    SELECT s.*, COUNT(e.id) AS clicks, COUNT(DISTINCT e.visitor_hash) AS unique_visitors,
-      0 AS clicks_today, 0 AS clicks_7d, 0 AS clicks_30d
-    FROM promotion_sources s LEFT JOIN promotion_events e ON e.source_id = s.id
-    WHERE s.code = ? GROUP BY s.id
-  `).get(code) as Record<string, unknown> | undefined
-  if (!row || !Boolean(row.enabled)) return null
-  const source = sourceRow(row, event)
-  const ipHash = hashRequestIp(event)
+export function recordHomepageVisit(event: H3Event) {
   const userAgent = String(getRequestHeader(event, 'user-agent') || '').slice(0, 512)
-  const visitorHash = crypto.createHash('sha256').update(`${ipHash}:${userAgent}`).digest('hex')
-  const referer = getRequestHeader(event, 'referer') || ''
-  let refererHost = ''
-  try { refererHost = new URL(referer).hostname.slice(0, 255) } catch { /* external referer is optional */ }
-  const query = getQuery(event)
-  const metadata = Object.fromEntries(Object.entries(query).filter(([key]) => key.startsWith('utm_')).map(([key, value]) => [key, String(value)]))
+  if (isRobot(userAgent)) return { recorded: false, reason: 'robot' as const }
+
+  const db = useGuideDatabase()
+  const tracking = trackingValues(event)
+  const source = findTrackingSource(tracking.ref_code, tracking.utm_source)
+  const refererHost = externalRefererHost(event)
+  const ipHash = hashRequestIp(event)
+  const visitorHash = ipHash
+    ? crypto.createHash('sha256').update(`${ipHash}:${userAgent}`).digest('hex')
+    : null
+  const occurredAt = new Date().toISOString()
+  const sourceId = source ? Number(source.id) : null
+
+  if (visitorHash) {
+    const duplicate = db.prepare(`
+      SELECT id FROM promotion_visits
+      WHERE visitor_hash = ?
+        AND occurred_at >= ?
+        AND COALESCE(source_id, 0) = COALESCE(?, 0)
+        AND COALESCE(referer_host, '') = COALESCE(?, '')
+        AND COALESCE(utm_campaign, '') = COALESCE(?, '')
+        AND COALESCE(utm_content, '') = COALESCE(?, '')
+      LIMIT 1
+    `).get(
+      visitorHash,
+      new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      sourceId,
+      refererHost,
+      tracking.utm_campaign,
+      tracking.utm_content,
+    )
+    if (duplicate) return { recorded: false, reason: 'duplicate' as const }
+  }
+
   db.prepare(`
-    INSERT INTO promotion_events (source_id, event_type, occurred_at, visitor_hash, referer_host, user_agent, metadata_json)
-    VALUES (?, 'click', ?, ?, ?, ?, ?)
-  `).run(source.id, new Date().toISOString(), visitorHash, refererHost || null, userAgent || null, JSON.stringify(metadata))
-  return { source, target: buildPromotionTarget(source, event) }
+    INSERT INTO promotion_visits (
+      source_id, occurred_at, visitor_hash, referer_host, user_agent, landing_path,
+      ref_code, utm_source, utm_medium, utm_campaign, utm_content
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    sourceId,
+    occurredAt,
+    visitorHash,
+    refererHost,
+    userAgent || null,
+    landingPath(event),
+    tracking.ref_code,
+    tracking.utm_source,
+    tracking.utm_medium,
+    tracking.utm_campaign,
+    tracking.utm_content,
+  )
+  return { recorded: true, source_id: sourceId, referer_host: refererHost }
+}
+
+function findTrackingSource(refCode: string | null, utmSource: string | null) {
+  const db = useGuideDatabase()
+  if (refCode) {
+    const source = db.prepare('SELECT id FROM promotion_sources WHERE enabled = 1 AND code = ?').get(refCode) as { id: number } | undefined
+    if (source) return source
+  }
+  if (!utmSource) return null
+  return db.prepare(`
+    SELECT id FROM promotion_sources
+    WHERE enabled = 1 AND (lower(code) = lower(?) OR lower(utm_source) = lower(?))
+    ORDER BY id ASC LIMIT 1
+  `).get(utmSource, utmSource) as { id: number } | undefined || null
+}
+
+function trackingValues(event: H3Event): TrackingValues {
+  const query = getQuery(event)
+  return {
+    ref_code: cleanTrackingParam(query.ref, 48)?.toLowerCase() || null,
+    utm_source: cleanTrackingParam(query.utm_source),
+    utm_medium: cleanTrackingParam(query.utm_medium),
+    utm_campaign: cleanTrackingParam(query.utm_campaign),
+    utm_content: cleanTrackingParam(query.utm_content),
+  }
+}
+
+function externalRefererHost(event: H3Event) {
+  const referer = getRequestHeader(event, 'referer') || ''
+  try {
+    const url = new URL(referer)
+    if (!['http:', 'https:'].includes(url.protocol)) return null
+    const host = url.hostname.toLowerCase().slice(0, 255)
+    const requestHost = getRequestURL(event).hostname.toLowerCase()
+    const mainHost = new URL(getGuideConfig(event).sub2apiOrigin).hostname.toLowerCase()
+    return host && host !== requestHost && host !== mainHost ? host : null
+  } catch {
+    return null
+  }
+}
+
+function landingPath(event: H3Event) {
+  const original = getRequestHeader(event, 'x-original-uri') || getRequestURL(event).pathname
+  try {
+    return new URL(original, 'https://landing.invalid').pathname.slice(0, 500) || '/'
+  } catch {
+    return '/'
+  }
+}
+
+function cleanTrackingParam(value: unknown, maxLength = 120) {
+  const item = Array.isArray(value) ? value[0] : value
+  const text = String(item || '').trim()
+  return text ? text.slice(0, maxLength) : null
+}
+
+function isRobot(userAgent: string) {
+  return /bot|crawler|spider|slurp|bingpreview|facebookexternalhit|headless|lighthouse|monitoring|uptime/i.test(userAgent)
 }
 
 function normalizeSourceInput(input: PromotionSourceInput) {
