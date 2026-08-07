@@ -36,6 +36,7 @@ describe('database migrations', () => {
         { id: 11, name: 'create_promotion_tracking' },
         { id: 12, name: 'create_email_settings' },
         { id: 13, name: 'create_direct_promotion_visits' },
+        { id: 14, name: 'create_guide_document_management' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -74,16 +75,16 @@ describe('database migrations', () => {
     const first = openDatabase(databasePath)
     let firstAppliedAt: any
     try {
-      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 13').get()
+      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 14').get()
     } finally {
       first.close()
     }
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 13 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 14 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
-      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 13').get()).toEqual(firstAppliedAt)
+      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 14').get()).toEqual(firstAppliedAt)
     } finally {
       second.close()
     }

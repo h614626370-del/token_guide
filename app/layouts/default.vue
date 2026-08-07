@@ -2,7 +2,7 @@
 const route = useRoute()
 const embedded = computed(() => route.query.embedded === '1')
 const guideRoutes = new Set(['/', '/member', '/integration'])
-const showGuideSidebar = computed(() => !embedded.value && guideRoutes.has(route.path))
+const showGuideSidebar = computed(() => !embedded.value && (guideRoutes.has(route.path) || route.meta.guideDoc === true))
 </script>
 
 <template>

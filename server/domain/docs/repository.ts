@@ -1,13 +1,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
-import type { AdminDocUpdateInput, EditableDocId } from './schema'
+import type { AdminDocSettingsInput, AdminDocUpdateInput, EditableDocId } from './schema'
 
 interface DocDefinition {
   id: EditableDocId
-  path: '/' | '/integration' | '/member'
-  file: string
+  path: string
+  file?: string
   label: string
+  enabled: boolean
+  sort_order: number
+  is_custom: boolean
 }
 
 interface DocContent {
@@ -29,6 +33,17 @@ interface ContentOverrideRow extends DocContent {
   last_action: string | null
 }
 
+interface DocumentSettingRow {
+  id: EditableDocId
+  path: string
+  label: string
+  enabled: number
+  sort_order: number
+  is_custom: number
+  created_at: string
+  updated_at: string
+}
+
 interface ContentVersionRow extends DocContent {
   version_id: number
   doc_id: EditableDocId
@@ -39,9 +54,9 @@ interface ContentVersionRow extends DocContent {
 }
 
 const docDefinitions: DocDefinition[] = [
-  { id: 'index', path: '/', file: 'index.md', label: '指南首页' },
-  { id: 'integration', path: '/integration', file: 'integration.md', label: 'API 接入配置' },
-  { id: 'member', path: '/member', file: 'member.md', label: '会员充值流程' },
+  { id: 'index', path: '/', file: 'index.md', label: '指南首页', enabled: true, sort_order: 10, is_custom: false },
+  { id: 'integration', path: '/integration', file: 'integration.md', label: 'API 接入配置', enabled: true, sort_order: 20, is_custom: false },
+  { id: 'member', path: '/member', file: 'member.md', label: '会员充值流程', enabled: true, sort_order: 30, is_custom: false },
 ]
 
 export interface EditableDocVersion extends DocContent {
@@ -65,6 +80,9 @@ export interface EditableDocView extends DocContent {
   default_content: DocContent
   published_content: (DocContent & { updated_at: string | null }) | null
   history: EditableDocVersion[]
+  enabled: boolean
+  sort_order: number
+  is_custom: boolean
 }
 
 export interface PublicDocOverride extends DocContent {
@@ -72,13 +90,8 @@ export interface PublicDocOverride extends DocContent {
   updated_at: string
 }
 
-function definitionById(id: string | undefined) {
+function builtinDefinition(id: string | undefined) {
   return docDefinitions.find(item => item.id === id) || null
-}
-
-function definitionByPath(value: string | undefined) {
-  const normalized = value === '' ? '/' : value
-  return docDefinitions.find(item => item.path === normalized) || null
 }
 
 function sameContent(left: DocContent | null | undefined, right: DocContent | null | undefined) {
@@ -88,7 +101,7 @@ function sameContent(left: DocContent | null | undefined, right: DocContent | nu
     && left.body === right.body
 }
 
-function parseFrontmatter(markdown: string, fallbackTitle: string): DocContent {
+export function parseFrontmatter(markdown: string, fallbackTitle: string): DocContent {
   const normalized = markdown.replace(/^\uFEFF/, '')
   if (!normalized.startsWith('---\n') && !normalized.startsWith('---\r\n')) {
     return { title: fallbackTitle, description: '', body: normalized.trimStart() }
@@ -127,6 +140,9 @@ function contentCandidates(file: string) {
 }
 
 function readDefaultDoc(definition: DocDefinition) {
+  if (!definition.file) {
+    return { title: definition.label, description: '', body: '' }
+  }
   for (const filePath of contentCandidates(definition.file)) {
     try {
       if (!fs.existsSync(filePath)) continue
@@ -226,6 +242,9 @@ function toView(
     default_content: defaultContent,
     published_content: published,
     history: history.map(toVersion),
+    enabled: definition.enabled,
+    sort_order: definition.sort_order,
+    is_custom: definition.is_custom,
   }
 }
 
@@ -233,6 +252,23 @@ export function createDocsRepository(db: Database.Database) {
   const listOverrides = db.prepare('SELECT * FROM content_overrides')
   const getById = db.prepare('SELECT * FROM content_overrides WHERE id = ?')
   const getByPath = db.prepare('SELECT * FROM content_overrides WHERE path = ?')
+  const listSettings = db.prepare('SELECT * FROM guide_document_settings ORDER BY sort_order ASC, created_at ASC, id ASC')
+  const getSetting = db.prepare('SELECT * FROM guide_document_settings WHERE id = ?')
+  const getSettingByPath = db.prepare('SELECT * FROM guide_document_settings WHERE path = ?')
+  const insertSetting = db.prepare(`
+    INSERT INTO guide_document_settings (id, path, label, enabled, sort_order, is_custom, created_at, updated_at)
+    VALUES (@id, @path, @label, @enabled, @sort_order, @is_custom, @created_at, @updated_at)
+  `)
+  const updateSetting = db.prepare(`
+    UPDATE guide_document_settings
+    SET label = COALESCE(@label, label),
+        enabled = COALESCE(@enabled, enabled),
+        sort_order = COALESCE(@sort_order, sort_order),
+        updated_at = @updated_at
+    WHERE id = @id
+  `)
+  const deleteSetting = db.prepare('DELETE FROM guide_document_settings WHERE id = ?')
+  const updateOverridePath = db.prepare('UPDATE content_overrides SET path = ? WHERE id = ?')
   const getVersionById = db.prepare('SELECT * FROM content_versions WHERE version_id = ? AND doc_id = ?')
   const listHistory = db.prepare('SELECT * FROM content_versions WHERE doc_id = ? ORDER BY created_at DESC, version_id DESC LIMIT 20')
   const insertVersion = db.prepare(`
@@ -241,33 +277,11 @@ export function createDocsRepository(db: Database.Database) {
   `)
   const upsertPublished = db.prepare(`
     INSERT INTO content_overrides (
-      id,
-      path,
-      title,
-      description,
-      body,
-      created_at,
-      updated_at,
-      draft_title,
-      draft_description,
-      draft_body,
-      draft_updated_at,
-      published_at,
-      last_action
+      id, path, title, description, body, created_at, updated_at,
+      draft_title, draft_description, draft_body, draft_updated_at, published_at, last_action
     ) VALUES (
-      @id,
-      @path,
-      @title,
-      @description,
-      @body,
-      @created_at,
-      @updated_at,
-      NULL,
-      NULL,
-      NULL,
-      NULL,
-      @published_at,
-      @last_action
+      @id, @path, @title, @description, @body, @created_at, @updated_at,
+      NULL, NULL, NULL, NULL, @published_at, @last_action
     )
     ON CONFLICT(id) DO UPDATE SET
       path = excluded.path,
@@ -284,33 +298,11 @@ export function createDocsRepository(db: Database.Database) {
   `)
   const upsertDraft = db.prepare(`
     INSERT INTO content_overrides (
-      id,
-      path,
-      title,
-      description,
-      body,
-      created_at,
-      updated_at,
-      draft_title,
-      draft_description,
-      draft_body,
-      draft_updated_at,
-      published_at,
-      last_action
+      id, path, title, description, body, created_at, updated_at,
+      draft_title, draft_description, draft_body, draft_updated_at, published_at, last_action
     ) VALUES (
-      @id,
-      @path,
-      @published_title,
-      @published_description,
-      @published_body,
-      @created_at,
-      @updated_at,
-      @draft_title,
-      @draft_description,
-      @draft_body,
-      @draft_updated_at,
-      @published_at,
-      @last_action
+      @id, @path, @published_title, @published_description, @published_body, @created_at, @updated_at,
+      @draft_title, @draft_description, @draft_body, @draft_updated_at, @published_at, @last_action
     )
     ON CONFLICT(id) DO UPDATE SET
       path = excluded.path,
@@ -322,6 +314,38 @@ export function createDocsRepository(db: Database.Database) {
       last_action = excluded.last_action
   `)
   const deleteOverride = db.prepare('DELETE FROM content_overrides WHERE id = ?')
+
+  function setting(id: string | undefined) {
+    return id ? getSetting.get(id) as DocumentSettingRow | undefined : undefined
+  }
+
+  function settingPath(value: string | undefined) {
+    const normalized = value === '' || !value ? '/' : value
+    return getSettingByPath.get(normalized) as DocumentSettingRow | undefined
+  }
+
+  function definitionFromSetting(row: DocumentSettingRow): DocDefinition {
+    const builtin = builtinDefinition(row.id)
+    return {
+      id: row.id,
+      path: row.path,
+      file: builtin?.file,
+      label: row.label,
+      enabled: Boolean(row.enabled),
+      sort_order: row.sort_order,
+      is_custom: Boolean(row.is_custom),
+    }
+  }
+
+  function definitionById(id: string | undefined) {
+    const row = setting(id)
+    return row ? definitionFromSetting(row) : null
+  }
+
+  function definitionByPath(value: string | undefined) {
+    const row = settingPath(value)
+    return row ? definitionFromSetting(row) : null
+  }
 
   function row(id: EditableDocId) {
     return getById.get(id) as ContentOverrideRow | undefined
@@ -335,8 +359,14 @@ export function createDocsRepository(db: Database.Database) {
     return toView(definition, row(definition.id), history(definition.id))
   }
 
+  function summary(definition: DocDefinition) {
+    const item = view(definition)
+    const { body, default_content, published_content, history, ...result } = item
+    return result
+  }
+
   function recordSnapshot(definition: DocDefinition, content: DocContent | null, source: 'published' | 'draft' | 'default', action: string, now: string) {
-    if (!content) return
+    if (!content || !content.body) return
     insertVersion.run({
       doc_id: definition.id,
       path: definition.path,
@@ -392,13 +422,23 @@ export function createDocsRepository(db: Database.Database) {
     })
   })
 
-  const removeOverride = db.transaction((definition: DocDefinition) => {
+  const removeOverride = (definition: DocDefinition) => {
     const existing = row(definition.id)
     if (!existing) return
     const now = new Date().toISOString()
     recordSnapshot(definition, publishedFromRow(existing), 'published', 'before_delete', now)
     recordSnapshot(definition, draftFromRow(existing), 'draft', 'before_delete', now)
     deleteOverride.run(definition.id)
+  }
+
+  const deleteDocument = db.transaction((definition: DocDefinition) => {
+    if (!definition.is_custom) {
+      removeOverride(definition)
+      return false
+    }
+    deleteOverride.run(definition.id)
+    deleteSetting.run(definition.id)
+    return true
   })
 
   const restoreVersion = db.transaction((definition: DocDefinition, versionId: number) => {
@@ -426,22 +466,68 @@ export function createDocsRepository(db: Database.Database) {
     return true
   })
 
+  const updateSettings = db.transaction((id: string, input: AdminDocSettingsInput) => {
+    const definition = definitionById(id)
+    if (!definition) return false
+    updateSetting.run({
+      id,
+      label: input.label ?? null,
+      enabled: input.enabled === undefined ? null : input.enabled ? 1 : 0,
+      sort_order: input.sort_order ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    return true
+  })
+
+  const reorder = db.transaction((ids: string[]) => {
+    const all = listSettings.all() as DocumentSettingRow[]
+    const known = new Set(all.map(item => item.id))
+    const requested = ids.filter((id, index) => known.has(id) && ids.indexOf(id) === index)
+    const ordered = [...requested, ...all.map(item => item.id).filter(id => !requested.includes(id))]
+    const now = new Date().toISOString()
+    ordered.forEach((id, index) => updateSetting.run({ id, label: null, enabled: null, sort_order: (index + 1) * 10, updated_at: now }))
+  })
+
+  const createCustom = db.transaction((input: { id: string, path: string, label: string, content: DocContent }) => {
+    if (settingPath(input.path)) return null
+    const now = new Date().toISOString()
+    const highest = db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS value FROM guide_document_settings').get() as { value: number }
+    insertSetting.run({
+      id: input.id,
+      path: input.path,
+      label: input.label,
+      enabled: 0,
+      sort_order: Number(highest.value || 0) + 10,
+      is_custom: 1,
+      created_at: now,
+      updated_at: now,
+    })
+    upsertDraft.run({
+      id: input.id,
+      path: input.path,
+      published_title: '',
+      published_description: '',
+      published_body: '',
+      created_at: now,
+      updated_at: now,
+      draft_title: input.content.title,
+      draft_description: input.content.description,
+      draft_body: input.content.body,
+      draft_updated_at: now,
+      published_at: null,
+      last_action: 'upload',
+    })
+    return input.id
+  })
+
   return {
     list() {
-      const rows = new Map(
-        (listOverrides.all() as ContentOverrideRow[]).map(item => [item.id, item]),
-      )
-      return docDefinitions.map((definition) => {
-        const item = toView(definition, rows.get(definition.id))
-        const { body, default_content, published_content, history, ...summary } = item
-        return summary
-      })
+      return (listSettings.all() as DocumentSettingRow[]).map(definitionFromSetting).map(summary)
     },
 
     get(id: string) {
       const definition = definitionById(id)
-      if (!definition) return null
-      return view(definition)
+      return definition ? view(definition) : null
     },
 
     saveDraft(id: string, input: AdminDocUpdateInput) {
@@ -460,16 +546,23 @@ export function createDocsRepository(db: Database.Database) {
 
     overwriteWithDefault(id: string) {
       const definition = definitionById(id)
-      if (!definition) return null
+      if (!definition || definition.is_custom || !definition.file) return null
       publishContent(definition, readDefaultDoc(definition), 'default_publish')
       return view(definition)
     },
 
     deleteOverride(id: string) {
       const definition = definitionById(id)
-      if (!definition) return null
+      if (!definition || definition.is_custom) return null
       removeOverride(definition)
       return view(definition)
+    },
+
+    deleteDocument(id: string) {
+      const definition = definitionById(id)
+      if (!definition) return null
+      const deleted = deleteDocument(definition)
+      return deleted ? { deleted: true, id } : view(definition)
     },
 
     restoreVersion(id: string, versionId: number) {
@@ -479,9 +572,34 @@ export function createDocsRepository(db: Database.Database) {
       return view(definition)
     },
 
+    updateSettings(id: string, input: AdminDocSettingsInput) {
+      if (!updateSettings(id, input)) return null
+      return this.get(id)
+    },
+
+    reorder(ids: string[]) {
+      reorder(ids)
+      return this.list()
+    },
+
+    createCustom(input: { path: string, label: string, content: DocContent }) {
+      const id = `custom_${randomUUID()}`
+      const created = createCustom({ ...input, id })
+      return created ? this.get(created) : null
+    },
+
+    getNavigation() {
+      return (listSettings.all() as DocumentSettingRow[])
+        .map(definitionFromSetting)
+        .filter(item => item.enabled)
+        .filter(item => !item.is_custom || Boolean(row(item.id)?.published_at))
+        .map(item => ({ id: item.id, path: item.path, label: item.label, sort_order: item.sort_order, is_custom: item.is_custom }))
+    },
+
     getOverrideByPath(value: string): PublicDocOverride | null {
       const definition = definitionByPath(value)
       if (!definition) return null
+      if (definition.is_custom && !definition.enabled) return null
       const item = getByPath.get(definition.path) as ContentOverrideRow | undefined
       if (!item?.published_at) return null
       return {
@@ -491,6 +609,12 @@ export function createDocsRepository(db: Database.Database) {
         body: item.body,
         updated_at: item.published_at,
       }
+    },
+
+    getPublishedCustomByPath(value: string): PublicDocOverride | null {
+      const definition = definitionByPath(value)
+      if (!definition || !definition.is_custom || !definition.enabled) return null
+      return this.getOverrideByPath(value)
     },
   }
 }

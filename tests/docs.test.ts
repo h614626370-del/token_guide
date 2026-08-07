@@ -61,4 +61,40 @@ describe('docs repository', () => {
       db.close()
     }
   })
+
+  it('supports uploaded documents with enablement and persistent ordering', () => {
+    const db = openDatabase(createDatabasePath())
+    try {
+      const repo = createDocsRepository(db)
+      const created = repo.createCustom({
+        path: '/quick-start',
+        label: '快速开始',
+        content: { title: '快速开始', description: '说明', body: '# 内容' },
+      })
+
+      expect(created?.is_custom).toBe(true)
+      expect(created?.enabled).toBe(false)
+      expect(repo.getNavigation().some(item => item.id === created?.id)).toBe(false)
+
+      const published = repo.publish(created!.id, {
+        title: '快速开始',
+        description: '说明',
+        body: '# 已发布',
+      })
+      expect(published?.has_draft).toBe(false)
+      expect(repo.getOverrideByPath('/quick-start')).toBeNull()
+
+      repo.updateSettings(created!.id, { enabled: true })
+      expect(repo.getOverrideByPath('/quick-start')?.body).toBe('# 已发布')
+      expect(repo.getNavigation()[0]?.id).toBe('index')
+
+      const reordered = repo.reorder([created!.id, 'index', 'integration', 'member'])
+      expect(reordered[0]?.id).toBe(created!.id)
+
+      repo.updateSettings(created!.id, { enabled: false })
+      expect(repo.getNavigation().some(item => item.id === created!.id)).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
 })

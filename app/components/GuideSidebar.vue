@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { BookOpen, Cable, ChevronDown, House, WalletCards } from 'lucide-vue-next'
+import { FileText } from 'lucide-vue-next'
+
+interface GuideNavigationItem {
+  id: string
+  path: string
+  label: string
+  sort_order: number
+  is_custom: boolean
+}
 
 interface GuideLink {
   label: string
@@ -17,11 +26,21 @@ interface GuideGroup {
 const route = useRoute()
 const menuOpen = ref(false)
 
-const guideStructureItems: GuideLink[] = [
-  { label: '指南首页', to: '/', icon: House },
-  { label: '会员充值流程', to: '/member', icon: WalletCards },
-  { label: 'API 接入配置', to: '/integration', icon: Cable },
+const fallbackNavigation: GuideNavigationItem[] = [
+  { id: 'index', path: '/', label: '指南首页', sort_order: 10, is_custom: false },
+  { id: 'integration', path: '/integration', label: 'API 接入配置', sort_order: 20, is_custom: false },
+  { id: 'member', path: '/member', label: '会员充值流程', sort_order: 30, is_custom: false },
 ]
+
+const { data: navigation } = await useAsyncData('guide-navigation', () => $fetch<{ ok: true, data: GuideNavigationItem[] }>('/api/docs/navigation').then(response => response.data), {
+  default: () => fallbackNavigation,
+})
+
+const guideStructureItems = computed<GuideLink[]>(() => navigation.value.map(item => ({
+  label: item.label,
+  to: item.path,
+  icon: item.id === 'index' ? House : item.id === 'member' ? WalletCards : item.id === 'integration' ? Cable : FileText,
+})))
 
 const memberItems: GuideLink[] = [
   { label: '注册账号', to: '/member#_1-注册账号' },
@@ -61,11 +80,11 @@ const groups = computed<GuideGroup[]>(() => {
     ? { label: '本页目录 · 会员充值', items: memberItems }
     : route.path === '/integration'
       ? { label: '本页目录 · API 接入', items: integrationItems }
-      : { label: '本页目录 · 指南首页', items: homeItems }
+      : route.path === '/' ? { label: '本页目录 · 指南首页', items: homeItems } : null
 
   return [
-    { label: '指南', kind: 'pages', items: guideStructureItems },
-    { ...currentPage, kind: 'toc' },
+    { label: '指南', kind: 'pages', items: guideStructureItems.value },
+    ...(currentPage ? [{ ...currentPage, kind: 'toc' as const }] : []),
   ]
 })
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, FileText, RefreshCw, RotateCcw, Save, Send, Trash2 } from 'lucide-vue-next'
+import { ArrowDown, ArrowUp, ExternalLink, FileText, Power, RefreshCw, RotateCcw, Save, Send, Trash2, Upload } from 'lucide-vue-next'
 import { replaceGuideDefaults } from '#shared/utils/guide-content'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
@@ -30,6 +30,9 @@ interface AdminDocSummary {
   updated_at: string | null
   published_at: string | null
   draft_updated_at: string | null
+  enabled: boolean
+  sort_order: number
+  is_custom: boolean
 }
 
 interface AdminDocDetail extends AdminDocSummary {
@@ -51,6 +54,7 @@ const admin = useAdminSessionState()
 const site = useSiteConfigState()
 const loading = ref(false)
 const saving = ref(false)
+const uploading = ref(false)
 const docs = ref<AdminDocSummary[]>([])
 const selectedId = ref('')
 const loadedDoc = ref<AdminDocDetail | null>(null)
@@ -58,6 +62,9 @@ const activeTab = ref<'edit' | 'preview' | 'diff' | 'history'>('edit')
 const diffBase = ref<'published' | 'default'>('published')
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 const form = reactive({ title: '', description: '', body: '' })
+const uploadLabel = ref('')
+const uploadPath = ref('')
+const uploadInput = ref<HTMLInputElement | null>(null)
 
 const editorContent = computed<DocContent>(() => ({
   title: form.title,
@@ -93,6 +100,77 @@ async function loadDocs() {
   } finally {
     loading.value = false
   }
+}
+
+function chooseMarkdown() {
+  uploadInput.value?.click()
+}
+
+async function uploadMarkdown(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  uploading.value = true
+  notice.type = 'idle'
+  notice.message = ''
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    if (uploadLabel.value.trim()) body.append('label', uploadLabel.value.trim())
+    if (uploadPath.value.trim()) body.append('path', uploadPath.value.trim())
+    const response = await $fetch<ApiSuccess<AdminDocDetail>>('/api/admin/docs', { method: 'POST', body })
+    uploadLabel.value = ''
+    uploadPath.value = ''
+    input.value = ''
+    notice.type = 'success'
+    notice.message = 'Markdown 已上传为草稿，请确认内容后发布。'
+    await loadDocs()
+    await selectDoc(response.data.id)
+  } catch (cause) {
+    notice.type = 'error'
+    notice.message = apiErrorMessage(cause, 'Markdown 上传失败')
+    input.value = ''
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function toggleDoc(item: AdminDocSummary) {
+  await mutateDoc('文档状态更新失败', async () => {
+    const response = await $fetch<ApiSuccess<AdminDocDetail>>(`/api/admin/docs/${item.id}/settings`, {
+      method: 'PUT',
+      body: { enabled: !item.enabled },
+    })
+    const index = docs.value.findIndex(doc => doc.id === item.id)
+    if (selectedId.value === item.id) {
+      applyLoadedDoc(response.data)
+    } else if (index >= 0) {
+      docs.value[index] = docSummary(response.data)
+    }
+    notice.message = response.data.enabled ? '文档已启用。' : '文档已停用，前台导航不会再显示。'
+  })
+}
+
+async function moveDoc(item: AdminDocSummary, direction: -1 | 1) {
+  const index = docs.value.findIndex(doc => doc.id === item.id)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= docs.value.length) return
+
+  const ids = docs.value.map(doc => doc.id)
+  const currentId = ids[index]
+  const targetId = ids[target]
+  if (!currentId || !targetId) return
+  ids[index] = targetId
+  ids[target] = currentId
+  await mutateDoc('文档排序保存失败', async () => {
+    const response = await $fetch<ApiSuccess<AdminDocSummary[]>>('/api/admin/docs/order', {
+      method: 'PUT',
+      body: { ids },
+    })
+    docs.value = response.data
+    notice.message = '文档顺序已保存。'
+  })
 }
 
 async function selectDoc(id: string) {
@@ -155,11 +233,18 @@ async function deleteDatabaseOverride() {
   if (!confirmed) return
 
   await mutateDoc('数据库覆盖删除失败', async () => {
-    const response = await $fetch<ApiSuccess<AdminDocDetail>>(`/api/admin/docs/${selectedId.value}`, {
+    const response = await $fetch<ApiSuccess<AdminDocDetail | { deleted: true, id: string }>>(`/api/admin/docs/${selectedId.value}`, {
       method: 'DELETE',
     })
-    applyLoadedDoc(response.data)
-    notice.message = '已删除数据库覆盖，前台回到默认 Markdown。'
+    if ('deleted' in response.data) {
+      loadedDoc.value = null
+      selectedId.value = ''
+      await loadDocs()
+      notice.message = '自定义文档已删除。'
+    } else {
+      applyLoadedDoc(response.data)
+      notice.message = '已删除数据库覆盖，前台回到默认 Markdown。'
+    }
   })
 }
 
@@ -197,8 +282,12 @@ function applyLoadedDoc(doc: AdminDocDetail) {
   loadedDoc.value = doc
   apply(doc)
   const index = docs.value.findIndex(item => item.id === doc.id)
+  if (index >= 0) docs.value[index] = docSummary(doc)
+}
+
+function docSummary(doc: AdminDocDetail): AdminDocSummary {
   const { body, default_content, published_content, history, ...summary } = doc
-  if (index >= 0) docs.value[index] = summary
+  return summary
 }
 
 function apply(doc: AdminDocDetail) {
@@ -221,6 +310,10 @@ function statusLabel(doc: AdminDocSummary | AdminDocDetail) {
     draft_differs: '有未发布草稿',
   }
   return labels[doc.sync_status]
+}
+
+function enabledLabel(doc: AdminDocSummary | AdminDocDetail) {
+  return doc.enabled ? '已启用' : '已停用'
 }
 
 function sourceLabel(source: AdminDocSummary['source'] | AdminDocVersion['source']) {
@@ -273,6 +366,9 @@ function lineDiff(before: string, after: string) {
           <button class="secondary-command" type="button" :disabled="loading || saving" @click="loadDocs">
             <RefreshCw :size="16" :class="{ spinning: loading }" />刷新
           </button>
+          <button class="secondary-command" type="button" :disabled="loading || saving || uploading" @click="chooseMarkdown">
+            <Upload :size="16" />{{ uploading ? '上传中...' : '上传 Markdown' }}
+          </button>
           <button class="secondary-command" type="button" :disabled="loading || saving || !selectedId" @click="saveDraft">
             <Save :size="16" />{{ saving ? '处理中...' : '保存草稿' }}
           </button>
@@ -286,22 +382,50 @@ function lineDiff(before: string, after: string) {
         {{ notice.message }}
       </div>
 
+      <input ref="uploadInput" class="sr-only" type="file" accept=".md,.markdown,.mdown,text/markdown" @change="uploadMarkdown">
+
+      <section class="admin-section admin-doc-upload-bar">
+        <div>
+          <strong>新增 Markdown 文档</strong>
+          <span>选择文件后会先保存为停用草稿，确认内容并发布后，再手动启用它。</span>
+        </div>
+        <label class="admin-doc-upload-field">
+          <span>显示名称（可选）</span>
+          <input v-model.trim="uploadLabel" maxlength="120" placeholder="默认读取 Markdown 标题">
+        </label>
+        <label class="admin-doc-upload-field">
+          <span>访问路径（可选）</span>
+          <input v-model.trim="uploadPath" maxlength="100" placeholder="例如 /quick-start">
+        </label>
+      </section>
+
       <div class="admin-docs-layout">
         <section class="admin-doc-list" aria-label="可编辑文档">
-          <button
+          <div
             v-for="item in docs"
             :key="item.id"
-            type="button"
-            :class="{ active: selectedId === item.id }"
-            :disabled="saving"
-            @click="selectDoc(item.id)"
+            :class="['admin-doc-list__row', { active: selectedId === item.id, disabled: !item.enabled }]"
           >
-            <FileText :size="18" />
-            <div>
-              <strong>{{ item.label }}</strong>
-              <span>{{ statusLabel(item) }} · {{ formatTime(item.updated_at) }}</span>
+            <button class="admin-doc-list__select" type="button" :disabled="saving" @click="selectDoc(item.id)">
+              <FileText :size="18" />
+              <span>
+                <strong>{{ item.label }}</strong>
+                <small>{{ item.is_custom ? '自定义文件' : '默认文件' }} · {{ enabledLabel(item) }}</small>
+                <small>{{ statusLabel(item) }} · {{ formatTime(item.updated_at) }}</small>
+              </span>
+            </button>
+            <div class="admin-doc-list__actions">
+              <button class="icon-button icon-button--small" type="button" :disabled="saving || docs.indexOf(item) === 0" title="上移" aria-label="上移文档" @click="moveDoc(item, -1)">
+                <ArrowUp :size="15" />
+              </button>
+              <button class="icon-button icon-button--small" type="button" :disabled="saving || docs.indexOf(item) === docs.length - 1" title="下移" aria-label="下移文档" @click="moveDoc(item, 1)">
+                <ArrowDown :size="15" />
+              </button>
+              <button class="icon-button icon-button--small" type="button" :class="{ 'is-enabled': item.enabled }" :disabled="saving" :title="item.enabled ? '停用文档' : '启用文档'" :aria-label="item.enabled ? '停用文档' : '启用文档'" @click="toggleDoc(item)">
+                <Power :size="15" />
+              </button>
             </div>
-          </button>
+          </div>
         </section>
 
         <form v-if="loadedDoc" class="admin-doc-editor" @submit.prevent="saveDraft">
@@ -309,7 +433,7 @@ function lineDiff(before: string, after: string) {
             <header>
               <h2>{{ loadedDoc.label }}</h2>
               <div class="admin-doc-title-actions">
-                <button class="secondary-command" type="button" :disabled="loading || saving" @click="overwriteWithDefault">
+                <button v-if="!loadedDoc.is_custom" class="secondary-command" type="button" :disabled="loading || saving" @click="overwriteWithDefault">
                   <RotateCcw :size="16" />默认覆盖数据库
                 </button>
                 <button class="secondary-command danger-command" type="button" :disabled="loading || saving || (!loadedDoc.has_override && !loadedDoc.has_draft)" @click="deleteDatabaseOverride">
@@ -323,6 +447,8 @@ function lineDiff(before: string, after: string) {
               <span>路径：{{ loadedDoc.path }}</span>
               <span>编辑源：{{ sourceLabel(loadedDoc.source) }}</span>
               <span>状态：{{ statusLabel(loadedDoc) }}</span>
+              <span>启用：{{ enabledLabel(loadedDoc) }}</span>
+              <span>排序：{{ loadedDoc.sort_order }}</span>
               <span>发布时间：{{ formatTime(loadedDoc.published_at) }}</span>
               <span>草稿时间：{{ formatTime(loadedDoc.draft_updated_at) }}</span>
             </div>

@@ -412,4 +412,42 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 14,
+    name: 'create_guide_document_management',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS guide_document_settings (
+          id TEXT PRIMARY KEY,
+          path TEXT NOT NULL UNIQUE,
+          label TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 1000,
+          is_custom INTEGER NOT NULL DEFAULT 0 CHECK (is_custom IN (0, 1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_guide_document_settings_order
+          ON guide_document_settings(enabled, sort_order, created_at);
+      `)
+
+      const now = new Date().toISOString()
+      const seed = db.prepare(`
+        INSERT OR IGNORE INTO guide_document_settings (
+          id, path, label, enabled, sort_order, is_custom, created_at, updated_at
+        ) VALUES (?, ?, ?, 1, ?, 0, ?, ?)
+      `)
+
+      const defaults = [
+        ['index', '/', '指南首页', 10],
+        ['integration', '/integration', 'API 接入配置', 20],
+        ['member', '/member', '会员充值流程', 30],
+      ]
+
+      for (const item of defaults) {
+        seed.run(item[0], item[1], item[2], item[3], now, now)
+      }
+    },
+  },
 ]
