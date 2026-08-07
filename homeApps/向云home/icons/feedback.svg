@@ -1,5 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M20.5 14.5a4 4 0 0 1-4 4H8L3.5 21v-14a4 4 0 0 1 4-4h9a4 4 0 0 1 4 4v7.5Z"/>
-  <path d="M8 8h8"/>
-  <path d="M8 12h6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="feedback-bubble" x1="4" y1="3" x2="20" y2="20" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF9F6"/>
+      <stop offset="1" stop-color="#FFE0D6"/>
+    </linearGradient>
+  </defs>
+  <path d="M20.4 14.35a4.05 4.05 0 0 1-4.05 4.05H8.05L3.6 20.9V7.15A4.05 4.05 0 0 1 7.65 3.1h8.7a4.05 4.05 0 0 1 4.05 4.05v7.2Z" fill="url(#feedback-bubble)" stroke="#FF3D32" stroke-width="1.45" stroke-linejoin="round"/>
+  <path d="M8.05 8.15h7.9" stroke="#E43A30" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M8.05 12.05h5.7" stroke="#FF806B" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="16.85" cy="15.05" r="1.55" fill="#FF4A3C" stroke="#FFFDFC" stroke-width=".8"/>
 </svg>

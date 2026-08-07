@@ -1,6 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-  <path d="m4 7 8-4 8 4-8 4-8-4Z"/>
-  <path d="M4 7v10l8 4 8-4V7"/>
-  <path d="M12 11v10"/>
-  <path d="M8.5 13.5 12 17l3.5-3.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="install-top" x1="4" y1="3" x2="20" y2="11" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF3D32"/>
+      <stop offset="1" stop-color="#FF8E6D"/>
+    </linearGradient>
+    <linearGradient id="install-side" x1="4" y1="8" x2="20" y2="21" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF8F5"/>
+      <stop offset="1" stop-color="#FFD9CF"/>
+    </linearGradient>
+  </defs>
+  <path d="m4.15 7.1 7.85-4 7.85 4-7.85 4-7.85-4Z" fill="url(#install-top)" stroke="#C9302C" stroke-width="1.35" stroke-linejoin="round"/>
+  <path d="M4.15 7.1v9.8l7.85 4V11.1l-7.85-4Z" fill="#FFF1ED" stroke="#C9302C" stroke-width="1.35" stroke-linejoin="round"/>
+  <path d="M19.85 7.1v9.8l-7.85 4V11.1l7.85-4Z" fill="url(#install-side)" stroke="#C9302C" stroke-width="1.35" stroke-linejoin="round"/>
+  <path d="M8.55 13.45 12 16.9l3.45-3.45M12 11.25v5.25" stroke="#F04438" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8.4 7.15 12 8.95l3.6-1.8" stroke="#FFB09A" stroke-width=".8" stroke-linecap="round" opacity=".9"/>
 </svg>
