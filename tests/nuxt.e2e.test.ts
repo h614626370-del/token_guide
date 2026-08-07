@@ -232,7 +232,7 @@ describe('Nuxt application routes', () => {
     expect(homepage.headers.get('cross-origin-resource-policy')).toBe('cross-origin')
     const homepageHtml = await homepage.text()
     expect(homepageHtml).toContain('自由')
-    expect(homepageHtml).toContain('href="/logo-80.png"')
+    expect(homepageHtml).toContain(`href="${url('/logo-80.png')}"`)
 
     const asset = await fetch('/site-home/assets/logo-80.png')
     expect(asset.status).toBe(200)
@@ -245,7 +245,7 @@ describe('Nuxt application routes', () => {
     })
     expect(xiangyunPreview.status).toBe(200)
     const xiangyunHtml = await xiangyunPreview.text()
-    expect(xiangyunHtml).toContain('href="/logo-80.png"')
+    expect(xiangyunHtml).toContain(`href="${url('/logo-80.png')}"`)
     expect(xiangyunHtml).not.toContain('guide.kkflow.org/site-home/assets/logo-')
 
     const unauthorizedPreview = await fetch('/site-home/?default=xiangyun')
@@ -691,7 +691,7 @@ describe('authentication and same-origin API protection', () => {
       project_name: '灵链',
       site_title: '灵链指南',
       site_description: '灵链开发者与会员接入中心。',
-      logo_path: 'https://cdn.example/linglink-logo.png',
+      logo_path: 'https://guide.kkflow.org/uploads/20260807071432-logo-80-0e8670142a.png',
       footer_text: '连接服务与开发者。',
       login_path: '/account/login',
       register_path: '/account/register',
@@ -711,7 +711,7 @@ describe('authentication and same-origin API protection', () => {
         data: {
           project_name: '灵链',
           site_title: '灵链指南',
-          logo_path: 'https://cdn.example/linglink-logo.png',
+          logo_path: 'https://guide.kkflow.org/uploads/20260807071432-logo-80-0e8670142a.png',
           support_wechat: 'QQ 2754632844',
           login_url: `${upstreamOrigin}/account/login`,
           api_base_url: `${upstreamOrigin}/v1`,
@@ -728,6 +728,11 @@ describe('authentication and same-origin API protection', () => {
       expect(guideHtml).toContain('src="https://cdn.example/linglink-group-qr.png"')
       expect(guideHtml).not.toContain('href="https://cdn.example/linglink-group-qr.png"')
       expect(guideHtml).toContain('这里是群二维码图片。如果无法显示，请关闭网络代理。')
+
+      const homepage = await fetch('/site-home/')
+      const homepageHtml = await homepage.text()
+      expect(homepageHtml).toContain(`src="${custom.logo_path}"`)
+      expect(homepageHtml).not.toContain('src="/uploads/20260807071432-logo-80-0e8670142a.png"')
 
       const invalidLogo = await fetch('/api/admin/site-config', {
         method: 'PUT',

@@ -236,7 +236,8 @@ export async function readHomepageFile(relativePath: string, event?: H3Event, pr
     if (!info.isFile()) return null
     const contentType = contentTypeFromPath(safePath)
     const site = getPublicSiteConfig(event)
-    const logoUrl = sameOriginAssetUrl(site.logo_path, event)
+    // Keep the configured absolute URL because this HTML can be embedded by another origin.
+    const logoUrl = site.logo_path
     const bytes = rewriteHomepageAssetUrls(await readFile(fullPath), contentType, logoUrl)
     return { bytes, size: bytes.length, contentType, preview }
   } catch {
@@ -274,19 +275,6 @@ function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string, logoUrl: s
     content = content.replace(/url\(\s*(["']?)\/(?!\/|site-home(?:\/|$))/gi, 'url($1/site-home/')
   }
   return Buffer.from(content, 'utf8')
-}
-
-function sameOriginAssetUrl(value: string, event?: H3Event) {
-  try {
-    const url = new URL(value)
-    const requestOrigin = getPublicRequestOrigin(event)
-    if (requestOrigin && url.origin === requestOrigin) {
-      return `${url.pathname}${url.search}${url.hash}`
-    }
-    return value
-  } catch {
-    return value
-  }
 }
 
 function homepageAssetUrl(value: string) {

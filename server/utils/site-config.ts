@@ -4,7 +4,7 @@ import { normalizeSupportContact } from '#shared/utils/support-contact'
 import { createSiteSettingsRepository } from '../domain/site-settings/repository'
 import { siteSettingsSchema, type SiteSettingsInput } from '../domain/site-settings/schema'
 import { useGuideDatabase } from './database'
-import { getPublicRequestOrigin, rebasePublicUploadUrl } from './request-url'
+import { getPublicRequestOrigin } from './request-url'
 import { deriveMainSiteOrigin } from '#shared/utils/site-origin'
 
 function runtimeDefaults(event?: H3Event): SiteSettingsInput & { site_url: string } {
@@ -37,14 +37,11 @@ function absoluteUrl(origin: string, path: string) {
   return new URL(value || '/', `${origin.replace(/\/+$/, '')}/`).toString().replace(/\/$/, value === '/' ? '/' : '')
 }
 
-function toPublic(settings: SiteSettingsInput, siteUrl: string, event?: H3Event): PublicSiteConfig {
+function toPublic(settings: SiteSettingsInput, siteUrl: string): PublicSiteConfig {
   const mainSiteUrl = settings.main_site_url.replace(/\/+$/, '')
-  const requestOrigin = getPublicRequestOrigin(event)
   return {
     ...settings,
-    logo_path: rebasePublicUploadUrl(settings.logo_path, requestOrigin),
     support_wechat: normalizeSupportContact(settings.support_wechat),
-    support_group_url: rebasePublicUploadUrl(settings.support_group_url, requestOrigin),
     main_site_url: mainSiteUrl,
     site_url: siteUrl,
     login_url: absoluteUrl(mainSiteUrl, settings.login_path),
@@ -63,14 +60,14 @@ export function getPublicSiteConfig(event?: H3Event): PublicSiteConfig {
   const parsed = siteSettingsSchema.safeParse(merged)
   const settings = parsed.success ? parsed.data : siteSettingsSchema.parse(defaultSettings)
   globalThis.__guideSiteSettings = settings
-  return toPublic(settings, siteUrl, event)
+  return toPublic(settings, siteUrl)
 }
 
 export function updatePublicSiteConfig(input: SiteSettingsInput, event?: H3Event): PublicSiteConfig {
   const settings = siteSettingsSchema.parse(input)
   createSiteSettingsRepository(useGuideDatabase()).update(settings)
   globalThis.__guideSiteSettings = settings
-  return toPublic(settings, runtimeDefaults(event).site_url, event)
+  return toPublic(settings, runtimeDefaults(event).site_url)
 }
 
 export function warmSiteSettingsCache() {
