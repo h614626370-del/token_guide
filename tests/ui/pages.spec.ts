@@ -81,6 +81,67 @@ test('guide pages render document content and navigation', async ({ page }, test
   await expect(page.getByRole('heading', { level: 2, name: '5. Codex CLI（Windows）' })).toBeVisible()
 })
 
+test('uploaded markdown automatically builds a page table of contents', async ({ page }, testInfo) => {
+  const suffix = testInfo.project.name
+  const label = `Grok-API-${suffix}`
+  const path = `/grok-api-${suffix}`
+
+  await page.goto('/admin/docs', { waitUntil: 'networkidle' })
+  await page.getByLabel('管理员 Token').fill('playwright-admin-token')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '指南内容' })).toBeVisible()
+
+  await page.getByPlaceholder('默认读取 Markdown 标题').fill(label)
+  await page.getByPlaceholder('例如 /quick-start').fill(path)
+  await page.locator('input[type="file"][accept*=".md"]').setInputFiles({
+    name: `${label}.md`,
+    mimeType: 'text/markdown',
+    buffer: Buffer.from([
+      `# ${label}`,
+      '',
+      '## 一、文本',
+      '',
+      '文本说明。',
+      '',
+      '## 五、视频',
+      '',
+      '视频说明。',
+      '',
+      '### 场景与模型',
+      '',
+      '场景说明。',
+    ].join('\n')),
+  })
+
+  const row = page.locator('.admin-doc-list__row').filter({ hasText: label })
+  await expect(row).toBeVisible()
+  await page.getByRole('button', { name: '发布', exact: true }).click()
+  await row.getByRole('button', { name: '启用文档' }).click()
+
+  await page.goto(path, { waitUntil: 'networkidle' })
+  await expect(page.getByRole('heading', { level: 1, name: label })).toBeVisible()
+  const sidebar = page.locator('.guide-sidebar')
+  if (testInfo.project.name === 'mobile') {
+    await sidebar.getByRole('button', { name: '指南目录' }).click()
+  }
+  const navigation = sidebar.getByRole('navigation', { name: '指南目录' })
+  await expect(navigation.getByRole('link', { name: '一、文本' })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: '五、视频' })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: '场景与模型' })).toBeVisible()
+  const videoLink = navigation.getByRole('link', { name: '五、视频' })
+  await expect(videoLink).toHaveAttribute('href', new RegExp(`^${path}#.+`))
+  await videoLink.click()
+  await expect(page.getByRole('heading', { level: 2, name: '五、视频' })).toBeVisible()
+  await expect(page).toHaveURL(/#.+/)
+
+  await page.goto('/admin/docs', { waitUntil: 'networkidle' })
+  const cleanupRow = page.locator('.admin-doc-list__row').filter({ hasText: label })
+  await cleanupRow.getByRole('button').first().click()
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: '删除覆盖' }).click()
+  await expect(cleanupRow).toHaveCount(0)
+})
+
 test('guide home renders the configured contact and group QR without links', async ({ page }) => {
   await page.route('https://www.kdocs.cn/**', route => route.fulfill({
     status: 200,

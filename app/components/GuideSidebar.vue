@@ -25,6 +25,8 @@ interface GuideGroup {
 
 const route = useRoute()
 const menuOpen = ref(false)
+const dynamicTocItems = ref<GuideLink[]>([])
+let headingObserver: MutationObserver | undefined
 
 const fallbackNavigation: GuideNavigationItem[] = [
   { id: 'index', path: '/', label: '指南首页', sort_order: 10, is_custom: false },
@@ -76,11 +78,16 @@ const homeItems: GuideLink[] = [
 ]
 
 const groups = computed<GuideGroup[]>(() => {
+  const dynamicLabel = navigation.value.find(item => item.path === route.path)?.label || '当前文档'
   const currentPage = route.path === '/member'
     ? { label: '本页目录 · 会员充值', items: memberItems }
     : route.path === '/integration'
       ? { label: '本页目录 · API 接入', items: integrationItems }
-      : route.path === '/' ? { label: '本页目录 · 指南首页', items: homeItems } : null
+      : route.path === '/'
+        ? { label: '本页目录 · 指南首页', items: homeItems }
+        : dynamicTocItems.value.length
+          ? { label: `本页目录 · ${dynamicLabel}`, items: dynamicTocItems.value }
+          : null
 
   return [
     { label: '指南', kind: 'pages', items: guideStructureItems.value },
@@ -91,6 +98,47 @@ const groups = computed<GuideGroup[]>(() => {
 watch(() => route.fullPath, () => {
   menuOpen.value = false
 })
+
+watch(() => route.path, async () => {
+  dynamicTocItems.value = []
+  await nextTick()
+  window.requestAnimationFrame(startHeadingObserver)
+})
+
+onMounted(() => window.requestAnimationFrame(startHeadingObserver))
+onBeforeUnmount(() => headingObserver?.disconnect())
+
+function startHeadingObserver() {
+  headingObserver?.disconnect()
+  if (['/', '/member', '/integration'].includes(route.path)) return
+
+  const content = document.querySelector('.guide-layout__content .doc-content')
+  if (!content) return
+  collectHeadings(content)
+  headingObserver = new MutationObserver(() => collectHeadings(content))
+  headingObserver.observe(content, { childList: true, subtree: true })
+}
+
+function collectHeadings(content: Element) {
+  dynamicTocItems.value = Array.from(content.querySelectorAll<HTMLElement>('h2, h3'))
+    .map((heading, index) => {
+      const label = heading.textContent?.trim() || ''
+      if (!label) return null
+      if (!heading.id) heading.id = fallbackHeadingId(label, index)
+      return { label, to: `${route.path}#${heading.id}` }
+    })
+    .filter((item): item is GuideLink => Boolean(item))
+}
+
+function fallbackHeadingId(label: string, index: number) {
+  const normalized = label
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}_-]+/gu, '')
+    .replace(/^-+|-+$/g, '')
+  return normalized || `section-${index + 1}`
+}
 
 function isCurrent(item: GuideLink) {
   if (item.to.includes('#')) {
