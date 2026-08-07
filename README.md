@@ -42,8 +42,9 @@ curl -fsS http://127.0.0.1:3000/api/health
 ```
 
 默认始终拉取 `latest` 镜像，`.env` 不固化版本号；如需临时锁定版本，可执行
-`IMAGE_TAG=v2.0.10 docker compose up -d`。Nginx 反代示例见
-`config/guide.nginx.example.conf`（`/auth/embed` 须关闭 access log）。
+`IMAGE_TAG=v2.0.10 docker compose up -d`。实际 Nginx 配置保存在
+`homeApps/自由home/guide.aiziyou.org.conf` 和 `homeApps/向云home/guide.kkflow.org.conf`，
+其中 `/auth/embed` 必须关闭 access log。
 
 ## sub2api 嵌入
 
