@@ -314,6 +314,15 @@ textarea:focus-visible {
 .admin-section__heading p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .admin-section__heading code { padding: 2px 5px; border-radius: 4px; color: var(--ink); background: var(--surface-subtle); }
 .homepage-upload-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.homepage-upload-actions--grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-content: stretch; gap: 10px; margin-top: 22px; }
+.homepage-upload-card { display: flex; align-items: flex-start; gap: 11px; min-width: 0; min-height: 92px; padding: 15px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink-soft); background: var(--surface); text-align: left; cursor: pointer; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.homepage-upload-card:hover:not(:disabled) { border-color: var(--success); background: #f7fbf9; transform: translateY(-1px); }
+.homepage-upload-card:disabled { cursor: not-allowed; opacity: .56; }
+.homepage-upload-card svg { flex: 0 0 auto; margin-top: 1px; color: var(--success); }
+.homepage-upload-card > span { display: grid; gap: 6px; min-width: 0; }
+.homepage-upload-card strong { color: var(--ink); font-size: 13px; }
+.homepage-upload-card small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.homepage-upload-card--primary { border-color: rgba(8, 118, 90, .45); background: #f1faf6; }
 .homepage-upload-help { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; padding: 14px 0; border-top: 1px solid var(--soft-line); border-bottom: 1px solid var(--soft-line); }
 .homepage-upload-help > div { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
 .homepage-upload-help svg { flex: 0 0 auto; margin-top: 1px; color: var(--success); }
@@ -325,8 +334,15 @@ textarea:focus-visible {
 .homepage-upload-drop.is-dragging { border-color: var(--success); color: var(--success); background: #edf9f5; }
 .homepage-upload-drop strong { color: var(--ink-soft); font-size: 13px; }
 .homepage-upload-drop span { font-size: 12px; }
-.homepage-draft-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--soft-line); color: var(--ink-soft); font-size: 13px; }
+.homepage-draft-panel { margin-top: 16px; border-top: 1px solid var(--soft-line); }
+.homepage-draft-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 16px; color: var(--ink-soft); font-size: 13px; }
+.homepage-draft-row > div:first-child { display: grid; gap: 5px; min-width: 0; }
+.homepage-draft-row > div:first-child span { color: var(--muted); font-size: 12px; }
 .homepage-draft-row > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.homepage-draft-files { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; max-height: 240px; margin-top: 14px; overflow: auto; border: 1px solid var(--soft-line); border-radius: 6px; background: var(--soft-line); }
+.homepage-draft-files > span { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 8px 10px; background: var(--surface); font-size: 11px; }
+.homepage-draft-files code { min-width: 0; overflow: hidden; color: var(--ink-soft); text-overflow: ellipsis; white-space: nowrap; }
+.homepage-draft-files small { flex: 0 0 auto; color: var(--muted); }
 .homepage-default-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 22px; }
 .homepage-default-card { display: grid; gap: 14px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
 .homepage-default-card.active { border-color: var(--success); box-shadow: 0 0 0 2px rgba(8, 118, 90, .1); }
@@ -414,6 +430,8 @@ textarea:focus-visible {
   .homepage-default-grid, .promotion-metric-grid, .promotion-create-form { grid-template-columns: 1fr; }
   .promotion-target-field { grid-column: auto; }
   .homepage-draft-row, .homepage-upload-actions { align-items: stretch; flex-direction: column; }
+  .homepage-upload-actions--grid { display: grid; grid-template-columns: 1fr; }
+  .homepage-draft-files { grid-template-columns: 1fr; }
   .homepage-status-meta { justify-content: flex-start; margin-left: 0; }
   .promotion-source-row { grid-template-columns: 1fr; }
   .promotion-source-stats, .promotion-source-actions { grid-column: auto; grid-row: auto; }

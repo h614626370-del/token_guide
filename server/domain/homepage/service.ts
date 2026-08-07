@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type Database from 'better-sqlite3'
+import { unzipSync } from 'fflate'
 import type { H3Event } from 'h3'
 import { getGuideConfig } from '../../utils/config'
 import { useGuideDatabase } from '../../utils/database'
@@ -10,6 +11,7 @@ import { getPublicRequestOrigin } from '../../utils/request-url'
 const maxHomepageBytes = 20 * 1024 * 1024
 const maxHomepageFileBytes = 5 * 1024 * 1024
 const maxHomepageFiles = 300
+const maxHomepageArchiveBytes = 25 * 1024 * 1024
 
 export const homepageDefaults = [
   { id: 'ziyou', label: '自由home', directory: '自由home' },
@@ -45,6 +47,16 @@ export interface HomepageFileSummary {
   file_count: number
   total_bytes: number
   has_index: boolean
+}
+
+export type HomepageUploadMode = 'index' | 'merge' | 'directory' | 'archive'
+
+export interface HomepageUploadResult extends HomepageFileSummary {
+  files: HomepageFile[]
+  mode: HomepageUploadMode
+  preserved_count: number
+  replaced_count: number
+  added_count: number
 }
 
 export interface HomepageAdminState {
@@ -272,10 +284,106 @@ function homepageAssetUrl(value: string) {
   }
 }
 
-export async function stageHomepageFiles(files: Array<{ path: string; data: Buffer }>, event?: H3Event) {
+export async function stageHomepageFiles(files: Array<{ path: string; data: Buffer }>, event?: H3Event): Promise<HomepageUploadResult> {
   const normalized = normalizeUploadFiles(files)
   if (!normalized.length) throw new Error('请至少选择一个首页文件。')
   if (!normalized.some(file => file.path === 'index.html')) throw new Error('首页文件必须包含根目录 index.html。')
+
+  const summary = await writeHomepageDraft(normalized, event)
+  return { ...summary, mode: 'directory', preserved_count: 0, replaced_count: 0, added_count: normalized.length }
+}
+
+export async function stageHomepageIndex(file: { path: string; data: Buffer }, event?: H3Event): Promise<HomepageUploadResult> {
+  const originalPath = normalizeHomepagePath(file.path)
+  if (!originalPath || !['index.html', 'index.htm'].includes(originalPath.toLowerCase())) {
+    throw new Error('替换首页只能上传根目录 index.html 或 index.htm。')
+  }
+  if (file.data.length > maxHomepageFileBytes) throw new Error('index.html 不能超过 5MB。')
+
+  const result = await stageHomepageMerge([{ path: 'index.html', data: file.data }], event)
+  return { ...result, mode: 'index' }
+}
+
+export async function stageHomepageMerge(files: Array<{ path: string; data: Buffer }>, event?: H3Event): Promise<HomepageUploadResult> {
+  const normalized = normalizeUploadFiles(files)
+  if (!normalized.length) throw new Error('请至少选择一个首页文件。')
+
+  const db = useGuideDatabase()
+  const currentState = state(db)
+  const draftSummary = await directorySummary(draftRoot(event))
+  const baseRoot = draftSummary.has_index
+    ? draftRoot(event)
+    : currentState.active_source === 'custom'
+      ? customRoot(event)
+      : defaultRoot(currentState.active_default_id, event)
+  const baseFiles = await readHomepageDirectoryFiles(baseRoot)
+  const merged = new Map(baseFiles.map(item => [item.path, item]))
+  let replacedCount = 0
+  let addedCount = 0
+  for (const file of normalized) {
+    if (merged.has(file.path)) replacedCount += 1
+    else addedCount += 1
+    merged.set(file.path, file)
+  }
+  const result = [...merged.values()]
+  if (!result.some(file => file.path === 'index.html')) throw new Error('首页文件必须包含根目录 index.html。')
+
+  const summary = await writeHomepageDraft(result, event)
+  return {
+    ...summary,
+    mode: 'merge',
+    preserved_count: baseFiles.length - replacedCount,
+    replaced_count: replacedCount,
+    added_count: addedCount,
+  }
+}
+
+export async function stageHomepageArchive(data: Buffer, event?: H3Event): Promise<HomepageUploadResult> {
+  if (!data.length) throw new Error('ZIP 压缩包为空。')
+  if (data.length > maxHomepageArchiveBytes) throw new Error('ZIP 压缩包不能超过 25MB。')
+
+  let archive: Record<string, Uint8Array>
+  let archiveFileCount = 0
+  let archiveTotalBytes = 0
+  try {
+    archive = unzipSync(data, {
+      filter: (file) => {
+        if (!file.name || file.name.endsWith('/') || isIgnoredHomepageUploadPath(file.name)) return false
+        if (!normalizeHomepagePath(file.name)) throw new Error(`ZIP 文件路径不安全：${file.name}`)
+        archiveFileCount += 1
+        archiveTotalBytes += file.originalSize
+        if (archiveFileCount > maxHomepageFiles) throw new Error(`首页文件不能超过 ${maxHomepageFiles} 个。`)
+        if (file.originalSize > maxHomepageFileBytes) throw new Error(`文件 ${file.name} 不能超过 5MB。`)
+        if (archiveTotalBytes > maxHomepageBytes) throw new Error('ZIP 解压后的总大小不能超过 20MB。')
+        return true
+      },
+    })
+  } catch (error) {
+    if (error instanceof Error && /^(?:ZIP 文件路径不安全|首页文件不能超过|文件 .+ 不能超过|ZIP 解压后的总大小)/.test(error.message)) throw error
+    throw new Error('ZIP 压缩包无法解压，请确认文件没有损坏。')
+  }
+
+  const files: Array<{ path: string; data: Buffer }> = []
+  for (const [archivePath, bytes] of Object.entries(archive)) {
+    if (!archivePath || archivePath.endsWith('/')) continue
+    if (archivePath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(archivePath)) {
+      throw new Error(`ZIP 文件路径不安全：${archivePath}`)
+    }
+    const normalized = normalizeHomepagePath(archivePath)
+    if (!normalized) throw new Error(`ZIP 文件路径不安全：${archivePath}`)
+    files.push({ path: normalized, data: Buffer.from(bytes) })
+  }
+  if (!files.length) throw new Error('ZIP 压缩包中没有可用文件。')
+
+  const normalized = normalizeUploadFiles(files)
+  if (!normalized.some(file => file.path === 'index.html')) throw new Error('ZIP 压缩包必须包含根目录 index.html。')
+  const summary = await writeHomepageDraft(normalized, event)
+  return { ...summary, mode: 'archive', preserved_count: 0, replaced_count: 0, added_count: normalized.length }
+}
+
+async function writeHomepageDraft(normalized: Array<{ path: string; data: Buffer }>, event?: H3Event) {
+  if (!normalized.length) throw new Error('请至少选择一个首页文件。')
+  if (normalized.some(file => file.path === 'index.html' && !file.data.length)) throw new Error('index.html 不能为空。')
 
   const totalBytes = normalized.reduce((sum, file) => sum + file.data.length, 0)
   if (totalBytes > maxHomepageBytes) throw new Error('首页文件总大小不能超过 20MB。')
@@ -301,6 +409,31 @@ export async function stageHomepageFiles(files: Array<{ path: string; data: Buff
     await rm(temporary, { recursive: true, force: true })
     throw error
   }
+}
+
+async function readHomepageDirectoryFiles(root: string) {
+  const files: Array<{ path: string; data: Buffer }> = []
+
+  async function walk(directory: string, prefix = '') {
+    let entries
+    try {
+      entries = await readdir(directory, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name
+      const fullPath = path.join(directory, entry.name)
+      if (entry.isDirectory()) {
+        await walk(fullPath, relative)
+      } else if (entry.isFile() && isSafeHomepagePath(relative)) {
+        files.push({ path: relative, data: await readFile(fullPath) })
+      }
+    }
+  }
+
+  await walk(root)
+  return files
 }
 
 export async function applyHomepageDefault(id: string, event?: H3Event) {
@@ -372,10 +505,17 @@ async function replaceDirectory(source: string, target: string) {
 }
 
 function normalizeUploadFiles(files: Array<{ path: string; data: Buffer }>) {
-  const paths = files.map(file => normalizeHomepagePath(file.path)).filter(Boolean)
-  const indexPath = paths.find(value => value === 'index.html' || value.endsWith('/index.html'))
+  const uploadFiles = files.filter(file => !isIgnoredHomepageUploadPath(file.path))
+  const paths = uploadFiles.map(file => {
+    const normalized = normalizeHomepagePath(file.path)
+    if (!normalized) throw new Error(`首页文件路径不安全：${file.path}`)
+    return normalized
+  })
+  const indexPath = paths.includes('index.html')
+    ? 'index.html'
+    : paths.filter(value => value.endsWith('/index.html')).sort((a, b) => a.length - b.length)[0]
   const prefix = indexPath && indexPath !== 'index.html' ? indexPath.slice(0, -'index.html'.length) : ''
-  const result = files.map(file => {
+  const result = uploadFiles.map(file => {
     const normalized = normalizeHomepagePath(file.path)
     const relative = prefix && normalized.startsWith(prefix) ? normalized.slice(prefix.length) : normalized
     return { path: relative, data: file.data }
@@ -388,8 +528,15 @@ function normalizeUploadFiles(files: Array<{ path: string; data: Buffer }>) {
   return result
 }
 
+function isIgnoredHomepageUploadPath(value: string) {
+  const normalized = String(value || '').replace(/\\/g, '/')
+  return normalized.split('/').some(part => part === '__MACOSX' || part === '.DS_Store' || part === 'Thumbs.db')
+}
+
 function normalizeHomepagePath(value: string) {
-  const normalized = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/')
+  const original = String(value || '')
+  if (original.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(original)) return ''
+  const normalized = original.replace(/\\/g, '/').replace(/\/+/g, '/')
   if (!normalized || normalized.includes('\0')) return ''
   const parts = normalized.split('/').filter(Boolean)
   if (parts.some(part => part === '.' || part === '..')) return ''
@@ -408,12 +555,12 @@ function isSafeHomepagePath(value: string) {
   const normalized = normalizeHomepagePath(value)
   if (!normalized || normalized.length > 240 || normalized === 'index.html') return normalized === 'index.html'
   const ext = path.posix.extname(normalized).toLowerCase()
-  return Boolean(ext) && ['.html', '.htm', '.css', '.js', '.mjs', '.json', '.map', '.txt', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.webmanifest'].includes(ext)
+  return Boolean(ext) && ['.html', '.htm', '.css', '.js', '.mjs', '.json', '.map', '.txt', '.xml', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.otf', '.webmanifest'].includes(ext)
 }
 
 function contentTypeFromPath(value: string) {
   const ext = path.posix.extname(value).toLowerCase()
   return ({
-    '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.map': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.webmanifest': 'application/manifest+json',
+    '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.map': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.webmanifest': 'application/manifest+json',
   } as Record<string, string>)[ext] || 'application/octet-stream'
 }

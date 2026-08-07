@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Copy, ExternalLink, FileUp, Home, RefreshCcw, Send, Upload } from 'lucide-vue-next'
+import { Archive, Check, Copy, ExternalLink, FileCode2, FileUp, FolderUp, Home, RefreshCcw, Send, Upload } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 
@@ -18,6 +18,28 @@ interface HomepageSummary {
   total_bytes: number
   has_index: boolean
   files: HomepageFile[]
+}
+
+interface HomepageUploadResult extends HomepageSummary {
+  mode: 'index' | 'merge' | 'directory' | 'archive'
+  preserved_count: number
+  replaced_count: number
+  added_count: number
+}
+
+interface DroppedHomepageFile {
+  file: File
+  path: string
+}
+
+interface DragFileEntry {
+  isFile: boolean
+  isDirectory: boolean
+  name: string
+  file?: (success: (file: File) => void, failure?: (error: DOMException) => void) => void
+  createReader?: () => {
+    readEntries: (success: (entries: DragFileEntry[]) => void, failure?: (error: DOMException) => void) => void
+  }
 }
 
 interface HomepageDefault extends HomepageSummary {
@@ -53,9 +75,11 @@ interface HomepageState {
 const state = ref<HomepageState | null>(null)
 const loading = ref(false)
 const working = ref('')
-const directoryInput = ref<HTMLInputElement | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
+const directoryInput = ref<HTMLInputElement | null>(null)
+const archiveInput = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
+const lastUpload = ref<HomepageUploadResult | null>(null)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 
 onMounted(() => { void load() })
@@ -72,33 +96,77 @@ async function load() {
   }
 }
 
-function chooseDirectory() { directoryInput.value?.click() }
 function chooseFiles() { fileInput.value?.click() }
+function chooseDirectory() { directoryInput.value?.click() }
+function chooseArchive() { archiveInput.value?.click() }
 
 function filePath(file: File) {
   return String((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name)
 }
 
-async function upload(event: Event) {
+async function uploadFilesInput(event: Event) {
   const input = event.target as HTMLInputElement
   const files = Array.from(input.files || [])
   input.value = ''
-  await uploadFiles(files)
+  await uploadMerge(files)
 }
 
-async function uploadFiles(files: File[]) {
+async function uploadDirectoryInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+  input.value = ''
+  await uploadDirectory(files)
+}
+
+async function uploadArchiveInput(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (file) await uploadArchive(file)
+}
+
+async function uploadMerge(files: File[], manifest = files.map(filePath)) {
   if (!files.length) return
+
+  const body = new FormData()
+  body.append('mode', 'merge')
+  body.append('manifest', JSON.stringify(manifest))
+  files.forEach(file => body.append('files', file, file.name))
+  await sendUpload(body, 'merge')
+}
+
+async function uploadDirectory(files: File[]) {
+  if (!files.length) return
+
+  const body = new FormData()
+  body.append('mode', 'directory')
+  body.append('manifest', JSON.stringify(files.map(filePath)))
+  files.forEach(file => body.append('files', file, file.name))
+  await sendUpload(body, 'directory')
+}
+
+async function uploadArchive(file: File) {
+  const body = new FormData()
+  body.append('mode', 'archive')
+  body.append('archive', file, file.name)
+  await sendUpload(body, 'archive')
+}
+
+async function sendUpload(body: FormData, mode: HomepageUploadResult['mode']) {
 
   working.value = 'upload'
   clearNotice()
   try {
-    const manifest = files.map(filePath)
-    const body = new FormData()
-    body.append('manifest', JSON.stringify(manifest))
-    files.forEach(file => body.append('files', file, file.name))
-    const response = await $fetch<ApiSuccess<HomepageSummary>>('/api/admin/homepage/upload', { method: 'POST', body })
+    const response = await $fetch<ApiSuccess<HomepageUploadResult>>('/api/admin/homepage/upload', { method: 'POST', body })
+    lastUpload.value = response.data
     await load()
-    showSuccess(`已上传 ${response.data.file_count} 个文件，请预览确认后发布。`)
+    const messages = {
+      index: `首页 HTML 已替换，保留了 ${response.data.preserved_count} 个现有资源文件。`,
+      merge: `已覆盖 ${response.data.replaced_count} 个同名文件、新增 ${response.data.added_count} 个文件，并保留 ${response.data.preserved_count} 个原有文件。`,
+      directory: `完整目录已上传，共 ${response.data.file_count} 个文件。`,
+      archive: `ZIP 已解压并上传，共 ${response.data.file_count} 个文件。`,
+    }
+    showSuccess(`${messages[mode]} 请预览确认后发布。`)
   } catch (cause) {
     showError(cause, '首页上传失败。')
   } finally {
@@ -116,10 +184,50 @@ function dragLeave(event: DragEvent) {
   dragging.value = false
 }
 
-function dropFiles(event: DragEvent) {
+async function dropFiles(event: DragEvent) {
   event.preventDefault()
   dragging.value = false
-  void uploadFiles(Array.from(event.dataTransfer?.files || []))
+  try {
+    const dropped = await collectDroppedFiles(event.dataTransfer)
+    const item = dropped[0]
+    if (dropped.length === 1 && item?.file.name.toLowerCase().endsWith('.zip')) {
+      await uploadArchive(item.file)
+    } else {
+      await uploadMerge(dropped.map(item => item.file), dropped.map(item => item.path))
+    }
+  } catch (cause) {
+    showError(cause, '文件夹读取失败，请改用“上传完整目录”。')
+  }
+}
+
+async function collectDroppedFiles(transfer: DataTransfer | null): Promise<DroppedHomepageFile[]> {
+  if (!transfer) return []
+  const entries: DragFileEntry[] = []
+  for (const item of Array.from(transfer.items)) {
+    const withEntry = item as unknown as { webkitGetAsEntry?: () => DragFileEntry | null }
+    const entry = withEntry.webkitGetAsEntry?.()
+    if (entry) entries.push(entry)
+  }
+  if (!entries.length) return Array.from(transfer.files).map(file => ({ file, path: filePath(file) }))
+  return (await Promise.all(entries.map(entry => readDroppedEntry(entry)))).flat()
+}
+
+async function readDroppedEntry(entry: DragFileEntry, parent = ''): Promise<DroppedHomepageFile[]> {
+  const relativePath = parent ? `${parent}/${entry.name}` : entry.name
+  if (entry.isFile && entry.file) {
+    const file = await new Promise<File>((resolve, reject) => entry.file?.(resolve, reject))
+    return [{ file, path: relativePath }]
+  }
+  if (!entry.isDirectory || !entry.createReader) return []
+
+  const reader = entry.createReader()
+  const children: DragFileEntry[] = []
+  while (true) {
+    const batch = await new Promise<DragFileEntry[]>((resolve, reject) => reader.readEntries(resolve, reject))
+    if (!batch.length) break
+    children.push(...batch)
+  }
+  return (await Promise.all(children.map(child => readDroppedEntry(child, relativePath)))).flat()
 }
 
 async function applyDefault(item: HomepageDefault) {
@@ -187,6 +295,7 @@ function formatBytes(value: number) {
 }
 
 function formatTime(value: string | null) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—' }
+function uploadModeLabel(mode: HomepageUploadResult['mode']) { return ({ index: '替换首页 HTML', merge: '合并覆盖文件', directory: '完整目录', archive: 'ZIP 压缩包' })[mode] }
 function clearNotice() { notice.type = 'idle'; notice.message = '' }
 function showSuccess(message: string) { notice.type = 'success'; notice.message = message }
 function showError(cause: unknown, fallback: string) { notice.type = 'error'; notice.message = apiErrorMessage(cause, fallback) }
@@ -214,15 +323,24 @@ function showError(cause: unknown, fallback: string) { notice.type = 'error'; no
       </section>
 
       <section class="admin-section homepage-upload-section">
-        <header class="admin-section__heading"><div><span>Custom files</span><h2>上传自定义首页</h2><p>两种上传方式都会覆盖当前草稿，文件中必须包含 <code>index.html</code>。上传后先预览，确认无误再发布。</p></div><div class="homepage-upload-actions"><button class="secondary-command" type="button" :disabled="working !== ''" @click="chooseFiles"><FileUp :size="16" />上传文件</button><button class="primary-command" type="button" :disabled="working !== ''" @click="chooseDirectory"><Upload :size="16" />上传完整目录</button></div></header>
-        <div class="homepage-upload-help">
-          <div><FileUp :size="18" aria-hidden="true" /><p><strong>上传文件</strong><span>可以一次多选，适合只有 <code>index.html</code> 和少量同级图片的小首页。</span></p></div>
-          <div><Upload :size="18" aria-hidden="true" /><p><strong>上传完整目录（推荐）</strong><span>会保留 <code>css/</code>、<code>js/</code>、<code>assets/</code> 等子目录结构，适合常规静态首页。</span></p></div>
+        <header class="admin-section__heading"><div><span>Custom files</span><h2>上传自定义首页</h2><p>先生成待发布草稿，预览确认后才会替换线上首页。可以只换 HTML，也可以上传完整目录或 ZIP。</p></div></header>
+        <div class="homepage-upload-actions homepage-upload-actions--grid">
+          <button class="homepage-upload-card" type="button" :disabled="working !== ''" @click="chooseFiles"><FileCode2 :size="20" /><span><strong>上传或覆盖文件</strong><small>可多选文件；同名文件会覆盖，其他 CSS、JS、图片和字体会保留。</small></span></button>
+          <button class="homepage-upload-card homepage-upload-card--primary" type="button" :disabled="working !== ''" @click="chooseDirectory"><FolderUp :size="20" /><span><strong>上传完整目录</strong><small>替换整个待发布草稿，适合完整静态首页目录。</small></span></button>
+          <button class="homepage-upload-card" type="button" :disabled="working !== ''" @click="chooseArchive"><Archive :size="20" /><span><strong>上传 ZIP 压缩包</strong><small>自动解压并识别最外层目录，必须包含 index.html。</small></span></button>
         </div>
-        <input ref="directoryInput" class="sr-only" hidden type="file" multiple webkitdirectory directory @change="upload">
-        <input ref="fileInput" class="sr-only" hidden type="file" multiple accept=".html,.htm,.css,.js,.mjs,.json,.map,.txt,.png,.jpg,.jpeg,.webp,.gif,.svg,.ico,.woff,.woff2,.ttf,.otf,.webmanifest" @change="upload">
-        <div class="homepage-upload-drop" :class="{ 'is-dragging': dragging }" @dragenter="dragEnter" @dragover="dragEnter" @dragleave="dragLeave" @drop="dropFiles"><strong>也可以把首页文件拖到这里</strong><span>拖入后会形成待发布草稿，不会立即影响当前线上首页。</span></div>
-        <div v-if="state?.draft" class="homepage-draft-row"><span>待发布草稿：{{ state.draft.file_count }} 个文件，{{ formatBytes(state.draft.total_bytes) }}</span><div><a class="secondary-command" :href="previewUrl(true)" target="_blank" rel="noreferrer"><ExternalLink :size="15" />预览草稿</a><button class="primary-command" type="button" :disabled="working !== ''" @click="publish"><Send :size="15" />{{ working === 'publish' ? '发布中...' : '发布草稿' }}</button></div></div>
+        <div class="homepage-upload-help">
+          <div><FileUp :size="18" aria-hidden="true" /><p><strong>如何选择</strong><span>只改文案或 SEO 时上传 <code>index.html</code>；网站打包后选“完整目录”或 ZIP。</span></p></div>
+          <div><Upload :size="18" aria-hidden="true" /><p><strong>安全发布</strong><span>上传只生成草稿，不会立即影响线上页面；预览正常后再点击发布。</span></p></div>
+        </div>
+        <input ref="fileInput" class="sr-only" hidden type="file" multiple accept=".html,.htm,.css,.js,.mjs,.json,.map,.txt,.xml,.png,.jpg,.jpeg,.webp,.gif,.svg,.ico,.woff,.woff2,.ttf,.otf,.webmanifest" @change="uploadFilesInput">
+        <input ref="directoryInput" class="sr-only" hidden type="file" multiple webkitdirectory directory @change="uploadDirectoryInput">
+        <input ref="archiveInput" class="sr-only" hidden type="file" accept=".zip,application/zip,application/x-zip-compressed" @change="uploadArchiveInput">
+        <div class="homepage-upload-drop" :class="{ 'is-dragging': dragging }" @dragenter="dragEnter" @dragover="dragEnter" @dragleave="dragLeave" @drop="dropFiles"><strong>可同时拖入多个文件和文件夹</strong><span>子目录结构会保留；普通文件合并覆盖，单独拖入 ZIP 时自动解压。</span></div>
+        <div v-if="state?.draft" class="homepage-draft-panel">
+          <div class="homepage-draft-row"><div><strong>待发布草稿</strong><span>{{ state.draft.file_count }} 个文件 · {{ formatBytes(state.draft.total_bytes) }}<template v-if="lastUpload"> · 本次{{ uploadModeLabel(lastUpload.mode) }}</template></span></div><div><a class="secondary-command" :href="previewUrl(true)" target="_blank" rel="noreferrer"><ExternalLink :size="15" />预览草稿</a><button class="primary-command" type="button" :disabled="working !== ''" @click="publish"><Send :size="15" />{{ working === 'publish' ? '发布中...' : '发布草稿' }}</button></div></div>
+          <div class="homepage-draft-files"><span v-for="file in state.draft.files" :key="file.path"><code>{{ file.path }}</code><small>{{ formatBytes(file.size) }}</small></span></div>
+        </div>
       </section>
 
       <section class="admin-section">
