@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -18,6 +18,26 @@ afterEach(() => {
 })
 
 describe('installer configuration', () => {
+  it('keeps Windows installer templates and rendered scripts UTF-8 BOM encoded', () => {
+    const templatePaths = [
+      join(process.cwd(), 'scripts', 'codex-cli', 'setup.ps1'),
+      join(process.cwd(), 'scripts', 'claude-cli', 'setup.ps1'),
+    ]
+    for (const templatePath of templatePaths) {
+      expect(readFileSync(templatePath).subarray(0, 3)).toEqual(Buffer.from([0xEF, 0xBB, 0xBF]))
+    }
+
+    const db = database()
+    try {
+      const repository = createInstallerRepository(db)
+      expect(Buffer.from(repository.publicScript('codex', 'windows')!.content, 'utf8').subarray(0, 3)).toEqual(Buffer.from([0xEF, 0xBB, 0xBF]))
+      expect(Buffer.from(repository.publicScript('claude', 'windows')!.content, 'utf8').subarray(0, 3)).toEqual(Buffer.from([0xEF, 0xBB, 0xBF]))
+      expect(repository.publicScript('codex', 'linux')?.content.startsWith('\uFEFF')).toBe(false)
+    } finally {
+      db.close()
+    }
+  })
+
   it('keeps independent macOS and Linux script records for both tools', () => {
     const db = database()
     try {

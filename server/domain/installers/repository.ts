@@ -50,6 +50,9 @@ const settingDefaults: InstallerSettingsInput = {
   claude_enabled: true,
 }
 
+// Windows PowerShell 5.1 needs a BOM to detect downloaded UTF-8 scripts reliably.
+const utf8Bom = '\uFEFF'
+
 export function installerDefinition(id: string | undefined) {
   return definitions.find(item => item.id === id) || null
 }
@@ -101,8 +104,8 @@ export function renderInstallerScript(content: string, tool: InstallerTool, sett
 }
 
 function renderInstallerDefinition(content: string, definition: InstallerDefinition, settings: InstallerSettingsInput) {
-  const rendered = renderInstallerScript(content, definition.tool, settings)
-  return definition.platform === 'windows' ? rendered : rendered.replace(/\r\n?/g, '\n')
+  const rendered = renderInstallerScript(content.replace(/^\uFEFF/, ''), definition.tool, settings)
+  return definition.platform === 'windows' ? `${utf8Bom}${rendered}` : rendered.replace(/\r\n?/g, '\n')
 }
 
 export function createInstallerRepository(db: Database.Database) {
