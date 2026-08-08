@@ -12,6 +12,7 @@ const temporaryDirectory = mkdtempSync(join(tmpdir(), 'kkflow-guide-e2e-'))
 const databasePath = join(temporaryDirectory, 'guide.sqlite')
 const jwt = `e30.${Buffer.from(JSON.stringify({ exp: 4_102_444_800 })).toString('base64url')}.signature`
 const savedApiKey = 'sk-saved-1234567890'
+const savedClaudeApiKey = 'sk-ant-saved-1234567890'
 const upstreamRequests: Array<{ path: string, authorization: string, body: any }> = []
 
 const upstream = createServer(async (request, response) => {
@@ -42,15 +43,25 @@ const upstream = createServer(async (request, response) => {
     response.end(JSON.stringify({
       code: 0,
       data: {
-        items: [{
-          id: 7,
-          key: savedApiKey,
-          name: 'Integration key',
-          status: 'active',
-          group_id: 11,
-          group: { id: 11, name: 'OpenAI', platform: 'openai' },
-        }],
-        total: 1,
+        items: [
+          {
+            id: 7,
+            key: savedApiKey,
+            name: 'Integration key',
+            status: 'active',
+            group_id: 11,
+            group: { id: 11, name: 'OpenAI', platform: 'openai' },
+          },
+          {
+            id: 8,
+            key: savedClaudeApiKey,
+            name: 'Claude integration key',
+            status: 'active',
+            group_id: 12,
+            group: { id: 12, name: 'Anthropic', platform: 'anthropic' },
+          },
+        ],
+        total: 2,
       },
     }))
     return
@@ -64,6 +75,19 @@ const upstream = createServer(async (request, response) => {
         name: 'Integration key',
         status: 'active',
         group_id: 11,
+      },
+    }))
+    return
+  }
+  if (requestUrl.pathname === '/api/v1/keys/8' && authorization === `Bearer ${jwt}`) {
+    response.end(JSON.stringify({
+      code: 0,
+      data: {
+        id: 8,
+        key: savedClaudeApiKey,
+        name: 'Claude integration key',
+        status: 'active',
+        group_id: 12,
       },
     }))
     return
@@ -466,14 +490,23 @@ describe('authentication and same-origin API protection', () => {
     const keysBody = await json(keys)
     expect(keysBody).toMatchObject({
       ok: true,
-      data: [{
-        id: 7,
-        name: 'Integration key',
-        masked_key: 'sk-save...7890',
-        group: { id: 11, name: 'OpenAI', platform: 'openai' },
-      }],
+      data: [
+        {
+          id: 7,
+          name: 'Integration key',
+          masked_key: 'sk-save...7890',
+          group: { id: 11, name: 'OpenAI', platform: 'openai' },
+        },
+        {
+          id: 8,
+          name: 'Claude integration key',
+          masked_key: 'sk-ant-...7890',
+          group: { id: 12, name: 'Anthropic', platform: 'anthropic' },
+        },
+      ],
     })
     expect(JSON.stringify(keysBody)).not.toContain(savedApiKey)
+    expect(JSON.stringify(keysBody)).not.toContain(savedClaudeApiKey)
 
     const textResponse = await fetch('/api/playground/responses', {
       method: 'POST',
@@ -867,6 +900,12 @@ describe('authentication and same-origin API protection', () => {
     expect(Array.from(windowsSetupBytes.subarray(0, 3))).toEqual([0xEF, 0xBB, 0xBF])
     expect(new TextDecoder().decode(windowsSetupBytes)).toContain('$ProviderId = "custom"')
 
+    const claudeWindowsSetup = await fetch('/api/install/scripts/claude/windows')
+    expect(claudeWindowsSetup.status).toBe(200)
+    const claudeWindowsSetupBytes = new Uint8Array(await claudeWindowsSetup.arrayBuffer())
+    expect(Array.from(claudeWindowsSetupBytes.subarray(0, 3))).toEqual([0xEF, 0xBB, 0xBF])
+    expect(new TextDecoder().decode(claudeWindowsSetupBytes)).toContain('Claude Code 一键安装与中转站配置')
+
     const shellSetup = await fetch('/setup.sh')
     expect(shellSetup.status).toBe(200)
     expect(shellSetup.headers.get('content-disposition')).toContain('setup.sh')
@@ -879,7 +918,7 @@ describe('authentication and same-origin API protection', () => {
     const codexKeys = await fetch('/api/install/keys?tool=codex', { headers: { cookie } })
     expect(await json(codexKeys)).toMatchObject({ ok: true, data: [{ id: 7, masked_key: 'sk-save...7890' }] })
     const claudeKeys = await fetch('/api/install/keys?tool=claude', { headers: { cookie } })
-    expect(await json(claudeKeys)).toMatchObject({ ok: true, data: [] })
+    expect(await json(claudeKeys)).toMatchObject({ ok: true, data: [{ id: 8, masked_key: 'sk-ant-...7890' }] })
 
     const generated = await fetch('/api/install/command', {
       method: 'POST',
@@ -896,8 +935,26 @@ describe('authentication and same-origin API protection', () => {
     const windowsCommand = generatedBody.data.remote[0].command
     expect(windowsCommand).toContain(savedApiKey)
     expect(windowsCommand).toContain(`$env:CODEX_BASE_URL='${upstreamOrigin}'`)
-    expect(windowsCommand).toMatch(/irm '.*\/setup\.ps1' \| iex/)
+    expect(windowsCommand).toMatch(/\$installerSource=irm '.*\/setup\.ps1';iex \$installerSource\.TrimStart\(\[char\]0xFEFF\)/)
+    expect(windowsCommand).not.toContain('| iex')
     expect(windowsCommand).not.toContain('EncodedCommand')
+
+    const generatedClaude = await fetch('/api/install/command', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ tool: 'claude', platform: 'windows', key_id: 8 }),
+    })
+    expect(generatedClaude.status).toBe(200)
+    const generatedClaudeBody = await json(generatedClaude)
+    expect(generatedClaudeBody.data).toMatchObject({
+      filename: 'setup-claude-windows.ps1',
+      download_url: expect.stringMatching(/\/api\/install\/scripts\/claude\/windows$/),
+    })
+    const claudeWindowsCommand = generatedClaudeBody.data.remote[0].command
+    expect(claudeWindowsCommand).toContain(savedClaudeApiKey)
+    expect(claudeWindowsCommand).toContain('$env:CLAUDE_API_KEY=')
+    expect(claudeWindowsCommand).toMatch(/\$installerSource=irm '.*\/api\/install\/scripts\/claude\/windows';iex \$installerSource\.TrimStart\(\[char\]0xFEFF\)/)
+    expect(claudeWindowsCommand).not.toContain('| iex')
 
     const generatedShell = await fetch('/api/install/command', {
       method: 'POST',

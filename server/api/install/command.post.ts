@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
     const clearBaseUrl = parsed.data.tool === 'codex' ? 'Remove-Item Env:CODEX_BASE_URL -ErrorAction SilentlyContinue;' : ''
     const prefix = `$env:${envName}='${powershellQuote(apiKey)}';${baseUrlEnv}`
     const cleanup = `Remove-Item Env:${envName} -ErrorAction SilentlyContinue;${clearBaseUrl}`
-    const remote = `${prefix}try{irm '${powershellQuote(scriptUrl)}' | iex}finally{${cleanup}}`
+    const remote = `${prefix}try{$installerSource=irm '${powershellQuote(scriptUrl)}';iex $installerSource.TrimStart([char]0xFEFF)}finally{${cleanup}}`
     const local = `${prefix}try{& .\\${script.definition.filename}}finally{${cleanup}}`
     return apiOk({
       remote: [
