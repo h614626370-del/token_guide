@@ -168,6 +168,19 @@ export function createPricingRepository(db) {
       updated_at = excluded.updated_at
   `)
   const deleteRuntimeSetting = db.prepare('DELETE FROM pricing_runtime_settings WHERE key = ?')
+  const getSourceSnapshot = db.prepare(`
+    SELECT payload_json, fetched_at
+    FROM pricing_source_snapshots
+    WHERE id = 1
+  `)
+  const saveSourceSnapshot = db.prepare(`
+    INSERT INTO pricing_source_snapshots (id, payload_json, fetched_at, updated_at)
+    VALUES (1, @payload_json, @fetched_at, @updated_at)
+    ON CONFLICT(id) DO UPDATE SET
+      payload_json = excluded.payload_json,
+      fetched_at = excluded.fetched_at,
+      updated_at = excluded.updated_at
+  `)
 
   const saveModel = (input) => {
     const now = new Date().toISOString()
@@ -310,6 +323,31 @@ export function createPricingRepository(db) {
       }
 
       return this.listRuntimeSettings()
+    },
+
+    getPricingSourceSnapshot() {
+      const row = getSourceSnapshot.get()
+      if (!row?.payload_json) return null
+      try {
+        const payload = JSON.parse(row.payload_json)
+        if (!payload || typeof payload !== 'object') return null
+        return {
+          ...payload,
+          fetched_at: row.fetched_at || payload.fetched_at || null,
+        }
+      } catch {
+        return null
+      }
+    },
+
+    savePricingSourceSnapshot(value) {
+      const fetchedAt = String(value?.fetched_at || new Date().toISOString())
+      saveSourceSnapshot.run({
+        payload_json: JSON.stringify(value || {}),
+        fetched_at: fetchedAt,
+        updated_at: new Date().toISOString(),
+      })
+      return value
     },
   }
 }

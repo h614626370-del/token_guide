@@ -13,6 +13,7 @@ $NodeVersion = "v22.16.0"
 $ProviderId = "custom"
 if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "{{DEFAULT_MODEL}}" }
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) { $BaseUrl = "{{BASE_URL}}" }
+if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "{{DEFAULT_MODEL}}" }
 $BaseUrl = $BaseUrl.TrimEnd("/")
 
 # Windows PowerShell 5.1 defaults to the active legacy code page.
@@ -170,7 +171,7 @@ function Install-Node {
 
 if ($Help) {
     Write-Host "用法: .\setup.ps1 [-Model MODEL] [-BaseUrl URL] [-ApiKey KEY] [-NoLaunch]"
-    Write-Host "默认模型: gpt-5.6-sol"
+    Write-Host "默认模型: {{DEFAULT_MODEL}}"
     Write-Host "API Key 必须通过 -ApiKey 或 CODEX_API_KEY 传入。"
     exit 0
 }

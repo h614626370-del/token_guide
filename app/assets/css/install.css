@@ -77,6 +77,13 @@
 .install-key-panel dl div { display: grid; min-width: 0; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--soft-line); }
 .install-key-panel dt { color: var(--muted); font-size: 11px; }
 .install-key-panel dd { overflow: hidden; margin: 0; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.install-key-panel > .install-model-policy { margin-top: 13px; padding: 11px 12px; border: 1px solid #bfe0d5; border-radius: 6px; color: #245c4b; background: #eef8f4; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.install-model-policy strong { display: block; color: #245c4b; font-size: 12px; }
+.install-model-policy p { margin: 4px 0 0; }
+.install-model-policy--unknown { border-color: #e3c89f; color: #74521d; background: #fff8eb; }
+.install-model-policy--unknown strong { color: #74521d; }
+.install-model-policy--unrestricted { border-color: #cfd9df; color: #4e5c66; background: #f5f7f8; }
+.install-model-policy--unrestricted strong { color: #3b4b55; }
 
 .install-methods > header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid var(--line); background: #f8f9f9; }
 .install-methods > header p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
@@ -111,6 +118,9 @@
 
 .installer-settings { margin-bottom: 16px; }
 .installer-settings h2 { display: inline-flex; align-items: center; gap: 8px; }
+.installer-model-policy { display: grid; grid-column: 1 / -1; gap: 4px; padding: 12px 14px; border: 1px solid #c5ded4; border-radius: 7px; background: #f2f7f5; }
+.installer-model-policy strong { color: var(--ink); font-size: 13px; }
+.installer-model-policy span { color: var(--muted); font-size: 12px; line-height: 1.55; }
 .installer-visibility-settings { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0 0 16px; border: 0; border-bottom: 1px solid var(--soft-line); }
 .installer-visibility-settings legend { margin-bottom: 9px; padding: 0; color: var(--ink); font-size: 12px; font-weight: 800; }
 .installer-visibility-toggle { display: grid; min-width: 0; min-height: 68px; align-items: center; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: #f7f8f8; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease; }

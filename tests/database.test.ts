@@ -40,6 +40,7 @@ describe('database migrations', () => {
         { id: 15, name: 'prioritize_current_pricing_models' },
         { id: 16, name: 'track_pricing_model_discoveries' },
         { id: 17, name: 'reset_pricing_model_discovery_baseline' },
+        { id: 18, name: 'create_pricing_source_snapshots' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -69,6 +70,7 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'promotion_visits'").get()).toEqual({ name: 'promotion_visits' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'email_settings'").get()).toEqual({ name: 'email_settings' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_model_discoveries'").get()).toEqual({ name: 'pricing_model_discoveries' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_source_snapshots'").get()).toEqual({ name: 'pricing_source_snapshots' })
     } finally {
       db.close()
     }
@@ -79,16 +81,16 @@ describe('database migrations', () => {
     const first = openDatabase(databasePath)
     let firstAppliedAt: any
     try {
-      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 17').get()
+      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 18').get()
     } finally {
       first.close()
     }
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 17 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 18 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
-      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 17').get()).toEqual(firstAppliedAt)
+      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 18').get()).toEqual(firstAppliedAt)
     } finally {
       second.close()
     }

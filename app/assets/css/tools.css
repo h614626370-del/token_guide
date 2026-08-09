@@ -2146,6 +2146,26 @@
   cursor: pointer;
 }
 
+.admin-source-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0;
+  padding: 13px 15px;
+  border: 1px solid #c5ded4;
+  border-radius: 7px;
+  color: #245c4b;
+  background: #f0f8f5;
+}
+
+.admin-source-status > div { display: grid; min-width: 0; gap: 4px; }
+.admin-source-status strong { font-size: 13px; }
+.admin-source-status span { color: #567067; font-size: 11px; line-height: 1.5; }
+.admin-source-status--empty { border-color: #e3c89f; color: #74521d; background: #fff8eb; }
+.admin-source-status--empty span { color: #806c4d; }
+.admin-source-status button { flex: 0 0 auto; min-height: 36px; cursor: pointer; }
+
 .admin-table-scroll {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -2786,3 +2806,11 @@
     grid-template-columns: 1fr;
   }
 }
+
+.admin-model-scope { max-width: 235px; }
+.admin-model-scope strong,
+.admin-model-scope small { display: block; max-width: 235px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-model-scope strong { color: var(--ink); font-size: 12px; }
+.admin-model-scope strong.is-allowlist { color: var(--success); }
+.admin-model-scope strong.is-missing { color: #9b691d; }
+.admin-model-scope small { margin-top: 4px; color: var(--muted); font-size: 10px; }

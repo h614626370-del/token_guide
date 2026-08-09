@@ -13,7 +13,7 @@ usage() {
   cat <<'EOF'
 用法: bash setup.sh [--model MODEL] [--base-url URL] [--api-key KEY] [--no-launch]
 
-默认模型: gpt-5.6-sol
+默认模型: {{DEFAULT_MODEL}}
 API Key 必须通过 --api-key 或 CODEX_API_KEY 传入。
 EOF
 }

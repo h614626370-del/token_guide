@@ -5,6 +5,7 @@ import { apiError } from './api'
 import { getGuideConfig } from './config'
 import { requireUserSession } from './session'
 import { getTrustedClientIp } from './client-ip'
+import { usePricingService } from './pricing'
 import { SseDecoder } from '#shared/utils/sse'
 
 const credentialSchema = z.discriminatedUnion('type', [
@@ -67,30 +68,81 @@ interface Sub2Key {
   } | null
 }
 
+export interface GroupModelListSource {
+  model_policy?: GroupModelPolicy | null
+}
+
+export interface GroupModelPolicy {
+  mode: 'allowlist' | 'unrestricted' | 'unknown'
+  models: string[]
+}
+
 export async function listMaskedPlaygroundKeys(event: H3Event) {
   const { accessToken } = await requireUserSession(event)
   const payload = await fetchSub2Json(event, '/keys?page=1&page_size=100', accessToken, 2 * 1024 * 1024)
+  const source = await usePricingService().listSource()
   return normalizeKeyList(payload)
     .filter(item => item.status === 'active' && item.key)
-    .map(item => ({
-      id: item.id,
-      name: item.name || `Key ${item.id}`,
-      status: item.status,
-      masked_key: maskKey(item.key),
-      group_id: item.group_id ?? null,
-      group: item.group
-        ? {
-            id: item.group.id ?? null,
-            name: item.group.name || '',
-            platform: item.group.platform || '',
-          }
-        : null,
-    }))
+    .map((item) => {
+      const groupId = item.group_id ?? item.group?.id ?? null
+      const platform = normalizePlatform(item.group?.platform)
+      return {
+        id: item.id,
+        name: item.name || `Key ${item.id}`,
+        status: item.status,
+        masked_key: maskKey(item.key),
+        group_id: groupId,
+        group: item.group
+          ? {
+              id: item.group.id ?? groupId,
+              name: item.group.name || '',
+              platform,
+              model_policy: resolveGroupModelPolicy(source?.groups, groupId, platform),
+            }
+          : null,
+      }
+    })
+}
+
+export function selectModelForGroup(
+  configuredModel: string,
+  group?: GroupModelListSource | null,
+  options: { hasGroupOverride?: boolean } = {},
+) {
+  const fallback = String(configuredModel || '').trim()
+  const policy = group?.model_policy
+  if (policy?.mode !== 'allowlist') {
+    const policyMode = policy?.mode || 'unknown'
+    return {
+      model: fallback,
+      source: options.hasGroupOverride ? 'installer_group' as const : 'installer_default' as const,
+      allowed_models: [],
+      policy_mode: policyMode as 'unrestricted' | 'unknown',
+    }
+  }
+
+  const models = normalizeGroupModelNames(policy.models)
+  if (!models.length) {
+    return {
+      model: fallback,
+      source: options.hasGroupOverride ? 'installer_group' as const : 'installer_default' as const,
+      allowed_models: [],
+      policy_mode: 'unknown' as const,
+    }
+  }
+  const configured = models.find(item => item.toLowerCase() === fallback.toLowerCase())
+  return {
+    model: configured || models[0],
+    source: 'group_allowlist' as const,
+    allowed_models: models,
+    policy_mode: 'allowlist' as const,
+  }
 }
 
 export async function resolvePlaygroundCredential(
   event: H3Event,
   credential: z.infer<typeof credentialSchema>,
+  expectedGroupId?: number | null,
 ) {
   const { accessToken } = await requireUserSession(event)
   if (credential.type === 'custom') return credential.value
@@ -99,6 +151,9 @@ export async function resolvePlaygroundCredential(
   const item = unwrapSub2(payload) as Sub2Key | null
   if (!item || Number(item.id) !== credential.id || item.status !== 'active' || !item.key) {
     apiError(404, 'PLAYGROUND_KEY_NOT_FOUND', 'The selected API key is unavailable.')
+  }
+  if (expectedGroupId != null && String(item.group_id ?? '') !== String(expectedGroupId)) {
+    apiError(409, 'PLAYGROUND_KEY_GROUP_CHANGED', 'The selected API key group changed. Refresh the key list and try again.')
   }
   return item.key
 }
@@ -363,6 +418,40 @@ function extractMessage(payload: any, fallback: string) {
   if (typeof payload?.message === 'string') return payload.message
   if (typeof payload?.error === 'string') return payload.error
   return fallback
+}
+
+function resolveGroupModelPolicy(groups: unknown, groupId: number | null, platform: string): GroupModelPolicy {
+  if (groupId == null || !platform || !Array.isArray(groups)) return { mode: 'unknown', models: [] }
+  const group = groups.find((item) => {
+    if (!item || typeof item !== 'object') return false
+    const candidate = item as { source_id?: unknown, provider?: unknown }
+    return String(candidate.source_id ?? '') === String(groupId)
+      && normalizePlatform(candidate.provider) === platform
+  }) as { model_list_enabled?: unknown, model_names?: unknown } | undefined
+
+  if (!group) return { mode: 'unknown', models: [] }
+  const models = normalizeGroupModelNames(group.model_names)
+  return group.model_list_enabled && models.length
+    ? { mode: 'allowlist', models }
+    : { mode: 'unrestricted', models: [] }
+}
+
+function normalizeGroupModelNames(value: unknown) {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const output: string[] = []
+  for (const item of value) {
+    const model = String(item || '').trim()
+    const key = model.toLowerCase()
+    if (!model || seen.has(key)) continue
+    seen.add(key)
+    output.push(model)
+  }
+  return output
+}
+
+function normalizePlatform(value: unknown) {
+  return String(value || '').trim().toLowerCase()
 }
 
 function isApiError(error: unknown) {

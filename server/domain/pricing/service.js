@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { createPricingRepository } from './repository.js'
 import { createSub2apiClient } from './sub2api-client.js'
 import { providers } from './schema.js'
@@ -73,20 +74,26 @@ export function createPricingService({ db, config, logger }) {
       if (!refresh && isFresh(cache.source, runtime.config.pricingCacheTtlMs)) {
         return cache.source.value
       }
-      if (refresh) cache.reference = null
+      if (!refresh) {
+        const snapshot = repo.getPricingSourceSnapshot()
+        if (snapshot && sourceSnapshotMatchesRuntime(snapshot, runtime)) {
+          const result = normalizeSourceSnapshot(snapshot, runtime)
+          cache.source = createCacheItem(result)
+          return result
+        }
 
-      const warnings = []
-      const result = {
-        source: sourceState(runtime.config, runtime.sub2api, { includePrivate: true }),
-        groups: [],
-        subscription_plans: [],
-        models_by_provider: {},
-        model_first_seen_by_provider: {},
-        model_group_ids_by_provider: {},
-        model_group_scope_by_provider: {},
-        warnings,
-        fetched_at: new Date().toISOString(),
+        const result = createSourceResult(runtime)
+        result.warnings.push(snapshot
+          ? '来源配置已变化，请在后台重新刷新来源。'
+          : '来源尚未手动刷新，请在后台点击“刷新来源”。')
+        cache.source = createCacheItem(result)
+        return result
       }
+
+      cache.reference = null
+      const warnings = []
+      const result = createSourceResult(runtime, warnings)
+      let groupsRefreshed = false
 
       if (!runtime.sub2api.configured) {
         warnings.push('sub2api admin source is not configured.')
@@ -95,7 +102,10 @@ export function createPricingService({ db, config, logger }) {
       }
 
       try {
-        result.groups = sanitizeGroups(await runtime.sub2api.listGroups())
+        const groups = await runtime.sub2api.listGroups()
+        if (!Array.isArray(groups)) throw new TypeError('sub2api groups response is not an array.')
+        result.groups = sanitizeGroups(groups)
+        groupsRefreshed = true
       } catch (error) {
         logger?.warn({ err: error }, 'failed to fetch sub2api groups')
         warnings.push('failed to fetch groups from sub2api.')
@@ -135,7 +145,35 @@ export function createPricingService({ db, config, logger }) {
         }),
       )
 
+      mergeGroupModelNames(result.groups, result.models_by_provider)
+      result.model_pricing = await fetchModelPricingSnapshot(
+        runtime.sub2api,
+        pricingSnapshotModels(repo.listVisibleModelSettings(), result.groups),
+        warnings,
+      )
+
+      if (!groupsRefreshed) {
+        const snapshot = repo.getPricingSourceSnapshot()
+        if (snapshot && sourceSnapshotMatchesRuntime(snapshot, runtime)) {
+          const previous = normalizeSourceSnapshot(snapshot, runtime)
+          previous.warnings = [...new Set([
+            ...previous.warnings,
+            ...warnings,
+            '分组刷新失败，继续使用上一次成功快照。',
+          ])]
+          cache.source = createCacheItem(previous)
+          return previous
+        }
+        cache.source = createCacheItem(result)
+        return result
+      }
+
+      result.snapshot_available = true
       cache.source = createCacheItem(result)
+      repo.savePricingSourceSnapshot({
+        ...result,
+        source_signature: sourceSignature(runtime),
+      })
       return result
     },
 
@@ -162,7 +200,7 @@ export function createPricingService({ db, config, logger }) {
 
       const models = await Promise.all(
         modelSettings.map(async (setting) => {
-          const pricing = await getPricingForModel(runtime.sub2api, setting, warnings)
+          const pricing = source.model_pricing?.[modelPricingKey(setting)] || { found: false }
           const scoped = source.model_group_scope_by_provider?.[setting.provider] === true
           const groupIds = scoped
             ? source.model_group_ids_by_provider?.[setting.provider]?.[setting.model_name] || []
@@ -175,7 +213,8 @@ export function createPricingService({ db, config, logger }) {
         source: {
           ...sourceState(runtime.config, runtime.sub2api),
           status: pricingStatus(runtime.sub2api, warnings),
-          fetched_at: new Date().toISOString(),
+          fetched_at: source.fetched_at || new Date().toISOString(),
+          snapshot_available: Boolean(source.snapshot_available),
           cache_ttl_seconds: Math.round(runtime.config.pricingCacheTtlMs / 1000),
           warnings,
         },
@@ -260,6 +299,101 @@ function sourceState(config, sub2api, { includePrivate = false } = {}) {
   return state
 }
 
+async function fetchModelPricingSnapshot(sub2api, settings, warnings) {
+  const output = {}
+  const queue = [...settings]
+  const workers = Array.from({ length: Math.min(8, queue.length) }, async () => {
+    while (queue.length) {
+      const setting = queue.shift()
+      if (!setting) return
+      output[modelPricingKey(setting)] = await getPricingForModel(sub2api, setting, warnings)
+    }
+  })
+  await Promise.all(workers)
+  return output
+}
+
+function pricingSnapshotModels(settings, groups) {
+  const values = new Map()
+  for (const setting of settings || []) addPricingSnapshotModel(values, setting.provider, setting.model_name)
+  for (const group of groups || []) {
+    if (!group.model_list_enabled) continue
+    for (const modelName of group.model_names || []) addPricingSnapshotModel(values, group.provider, modelName)
+  }
+  return [...values.values()]
+}
+
+function addPricingSnapshotModel(values, providerValue, modelValue) {
+  const provider = normalizeProvider(providerValue)
+  const modelName = String(modelValue || '').trim()
+  if (!provider || !modelName) return
+  values.set(`${provider}:${modelName.toLowerCase()}`, { provider, model_name: modelName })
+}
+
+function modelPricingKey(setting) {
+  return `${normalizeProvider(setting.provider)}:${String(setting.model_name || '').trim().toLowerCase()}`
+}
+
+function createSourceResult(runtime, warnings = []) {
+  return {
+    source: sourceState(runtime.config, runtime.sub2api, { includePrivate: true }),
+    groups: [],
+    subscription_plans: [],
+    models_by_provider: {},
+    model_first_seen_by_provider: {},
+    model_group_ids_by_provider: {},
+    model_group_scope_by_provider: {},
+    model_pricing: {},
+    warnings,
+    fetched_at: new Date().toISOString(),
+    snapshot_available: false,
+  }
+}
+
+function sourceSignature(runtime) {
+  const source = [
+    String(runtime.config.sub2apiApiBase || '').trim().replace(/\/+$/, '').toLowerCase(),
+    String(runtime.config.sub2apiAdminApiKey || ''),
+    [...activePlatforms(runtime.config)].sort().join(','),
+  ].join('\n')
+  return createHash('sha256').update(source).digest('hex')
+}
+
+function sourceSnapshotMatchesRuntime(snapshot, runtime) {
+  return typeof snapshot?.source_signature === 'string'
+    && snapshot.source_signature === sourceSignature(runtime)
+}
+
+function normalizeSourceSnapshot(snapshot, runtime) {
+  const result = createSourceResult(runtime)
+  result.snapshot_available = true
+  result.groups = Array.isArray(snapshot.groups) ? snapshot.groups : []
+  result.subscription_plans = Array.isArray(snapshot.subscription_plans) ? snapshot.subscription_plans : []
+  result.models_by_provider = normalizeProviderMap(snapshot.models_by_provider, sanitizeModelNames)
+  result.model_first_seen_by_provider = normalizeProviderMap(snapshot.model_first_seen_by_provider)
+  result.model_group_ids_by_provider = normalizeProviderMap(snapshot.model_group_ids_by_provider)
+  result.model_group_scope_by_provider = normalizeProviderMap(snapshot.model_group_scope_by_provider)
+  result.model_pricing = snapshot.model_pricing && typeof snapshot.model_pricing === 'object'
+    ? snapshot.model_pricing
+    : {}
+  result.warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings : []
+  result.fetched_at = snapshot.fetched_at || result.fetched_at
+  return result
+}
+
+function normalizeProviderMap(value, normalizeValue = item => item) {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(Object.entries(value).map(([provider, item]) => [provider, normalizeValue(item)]))
+}
+
+function mergeGroupModelNames(groups, modelsByProvider) {
+  for (const group of groups) {
+    if (!group.model_list_enabled || !group.model_names.length) continue
+    const current = modelsByProvider[group.provider] || []
+    modelsByProvider[group.provider] = sanitizeModelNames([...current, ...group.model_names])
+  }
+}
+
 function pricingStatus(sub2api, warnings) {
   if (!sub2api.configured) return 'unconfigured'
   return warnings.length ? 'partial' : 'live'
@@ -328,6 +462,8 @@ function sanitizeGroups(value) {
         provider_short: providerMeta[provider].short,
         source_id: String(group.id),
         source_name: String(group.name || ''),
+        model_list_enabled: Boolean(group.models_list_config?.enabled),
+        model_names: normalizeModelNamesInOrder(group.models_list_config?.models),
         description: group.description || '',
         subscription_type: group.subscription_type || 'standard',
         is_exclusive: Boolean(group.is_exclusive),
@@ -357,6 +493,20 @@ function sanitizeGroups(value) {
 function sanitizeModelNames(value) {
   if (!Array.isArray(value)) return []
   return Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean))).sort()
+}
+
+function normalizeModelNamesInOrder(value) {
+  if (!Array.isArray(value)) return []
+  const seen = new Set()
+  const output = []
+  for (const item of value) {
+    const model = String(item || '').trim()
+    const key = model.toLowerCase()
+    if (!model || seen.has(key)) continue
+    seen.add(key)
+    output.push(model)
+  }
+  return output
 }
 
 function buildModelGroupAccess(pricingModels, accountAccess) {
@@ -498,6 +648,8 @@ function mergeGroup(group, setting, config) {
     name: group.source_name,
     display_name: groupDisplayName(group, setting),
     description: group.description,
+    model_list_enabled: Boolean(group.model_list_enabled),
+    model_names: Array.isArray(group.model_names) ? [...group.model_names] : [],
     subscription_type: group.subscription_type,
     is_exclusive: group.is_exclusive,
     is_visible: Boolean(isVisible),

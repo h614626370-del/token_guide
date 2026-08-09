@@ -8,6 +8,10 @@ export interface PlaygroundKey {
     id: number | null
     name: string
     platform: string
+    model_policy?: {
+      mode: 'allowlist' | 'unrestricted' | 'unknown'
+      models: string[]
+    } | null
   } | null
 }
 

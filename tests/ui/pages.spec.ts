@@ -13,6 +13,7 @@ const routes = [
   ['admin', '/admin'],
   ['admin-settings', '/admin/settings'],
   ['admin-installers', '/admin/installers'],
+  ['admin-pricing', '/admin/pricing'],
   ['admin-homepage', '/admin/homepage'],
   ['admin-promotions', '/admin/promotions'],
 ] as const
@@ -406,6 +407,146 @@ test('administrator can manage classified installer scripts', async ({ page }, t
   await page.goto('/install', { waitUntil: 'domcontentloaded' })
   await expect(page.getByRole('tab', { name: 'Codex CLI' })).toBeVisible()
   await expect(page.getByRole('tab', { name: 'Claude Code' })).toHaveCount(0)
+})
+
+test('administrator can inspect group model scopes from the source snapshot', async ({ page }, testInfo) => {
+  const login = await page.request.post('/api/session/admin', { data: { token: 'playwright-admin-token' } })
+  expect(login.ok()).toBe(true)
+
+  await page.route('**/api/admin/pricing/config', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        models: [],
+        groups: [],
+        settings: {
+          sub2api_base_url: 'https://kkflow.org',
+          sub2api_admin_api_key_configured: true,
+          sub2api_admin_api_key_masked: 'admin...key',
+          pricing_platforms: ['openai'],
+          provider_display_order: ['openai'],
+          usd_to_cny: 6.8102,
+        },
+        source: { configured: true, platforms: ['openai'], sub2api_api_base: 'https://kkflow.org/api/v1' },
+      },
+    },
+  }))
+  await page.route('**/api/admin/pricing/source?refresh=false', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        source: { configured: true, platforms: ['openai'], sub2api_api_base: 'https://kkflow.org/api/v1' },
+        groups: [{
+          provider: 'openai',
+          provider_label: 'OpenAI',
+          source_id: '11',
+          source_name: 'DeepSeek Flash',
+          model_list_enabled: true,
+          model_names: ['deepseek-v4-flash'],
+          description: '',
+          is_exclusive: false,
+          rate_multiplier: 1,
+          sort_order: 10,
+        }],
+        models_by_provider: { openai: ['deepseek-v4-flash'] },
+        warnings: [],
+        fetched_at: '2026-08-10T00:00:00.000Z',
+        snapshot_available: true,
+      },
+    },
+  }))
+
+  await page.goto('/admin/pricing', { waitUntil: 'networkidle' })
+  await expect(page.getByText('模型来源快照已就绪')).toBeVisible()
+  await page.getByRole('button', { name: '分组 1' }).click()
+  await expect(page.getByText('1 个白名单模型')).toBeVisible()
+  await expect(page.getByText('deepseek-v4-flash')).toBeVisible()
+  const tableLayout = await page.locator('.admin-table-scroll').evaluate(element => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }))
+  expect(tableLayout.scrollWidth).toBeGreaterThanOrEqual(tableLayout.clientWidth)
+  await page.screenshot({
+    path: join('artifacts', 'ui', `${testInfo.project.name}-admin-pricing-authenticated.png`),
+    fullPage: true,
+  })
+})
+
+test('installer uses only the selected key group model allowlist', async ({ page }, testInfo) => {
+  const command = "export CODEX_MODEL='deepseek-v4-flash'; bash setup.sh"
+  await page.route('**/api/install/config', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        settings: {
+          provider_id: 'custom',
+          base_url: 'https://llapi.org/v1',
+          codex_default_model: 'gpt-5.6-sol',
+          claude_default_model: '',
+          codex_enabled: true,
+          claude_enabled: false,
+        },
+        scripts: [],
+      },
+    },
+  }))
+  await page.route('**/api/session', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        authenticated: true,
+        admin: false,
+        user: { id: '1', username: 'Tester', email: 'tester@example.com', role: 'user' },
+        token_expires_at: null,
+      },
+    },
+  }))
+  await page.route('**/api/install/keys?tool=codex', route => route.fulfill({
+    json: {
+      ok: true,
+      data: [{
+        id: 7,
+        name: 'DeepSeek Key',
+        masked_key: 'sk-test...key',
+        group_id: 11,
+        group: {
+          id: 11,
+          name: 'DeepSeek Flash',
+          platform: 'openai',
+          model_policy: { mode: 'allowlist', models: ['deepseek-v4-flash'] },
+        },
+      }],
+    },
+  }))
+  await page.route('**/api/install/command', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        remote: [{ label: 'Linux Terminal', command }],
+        local: [{ label: 'Linux Terminal', command: './setup.sh' }],
+        download_url: '/setup.sh',
+        filename: 'setup.sh',
+        checksum: 'ABC',
+        install_model: 'deepseek-v4-flash',
+        model_source: 'group_allowlist',
+        allowed_models: ['deepseek-v4-flash'],
+        model_policy_mode: 'allowlist',
+      },
+    },
+  }))
+
+  await page.goto('/install', { waitUntil: 'networkidle' })
+  await page.getByRole('tab', { name: 'Linux' }).click()
+  await expect(page.getByText('DeepSeek Flash')).toBeVisible()
+  await expect(page.getByText('deepseek-v4-flash', { exact: true })).toBeVisible()
+  await expect(page.getByText('当前分组白名单')).toBeVisible()
+  await expect(page.getByLabel('Linux Terminal命令').first()).toHaveValue(command)
+  await expect(page.getByText('gpt-5.6-sol', { exact: true })).toHaveCount(0)
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({
+    path: join('artifacts', 'ui', `${testInfo.project.name}-install-group-allowlist.png`),
+    fullPage: true,
+  })
 })
 
 test('install command copy falls back on an insecure origin', async ({ page }) => {

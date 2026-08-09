@@ -9,6 +9,7 @@ export interface PricingSource {
   status: 'live' | 'partial' | 'unconfigured'
   fetched_at: string
   warnings: string[]
+  snapshot_available?: boolean
 }
 
 export interface PricingModel {
@@ -43,6 +44,8 @@ export interface PricingGroup {
   name: string
   display_name: string
   description?: string
+  model_list_enabled?: boolean
+  model_names?: string[]
   is_exclusive: boolean
   rate_multiplier: number
   recharge_multiplier: number

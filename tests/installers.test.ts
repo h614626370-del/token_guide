@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openDatabase } from '../server/db/index.js'
 import { createInstallerRepository, renderInstallerScript } from '../server/domain/installers/repository'
+import { selectModelForGroup } from '../server/utils/playground'
 
 const directories: string[] = []
 
@@ -116,6 +117,26 @@ describe('installer configuration', () => {
     } finally {
       db.close()
     }
+  })
+
+  it('prefers a group allowlist over installer model settings', () => {
+    expect(selectModelForGroup('gpt-5.6-sol', {
+      model_policy: { mode: 'allowlist', models: ['deepseek-v4-flash'] },
+    }, { hasGroupOverride: true })).toEqual({
+      model: 'deepseek-v4-flash',
+      source: 'group_allowlist',
+      allowed_models: ['deepseek-v4-flash'],
+      policy_mode: 'allowlist',
+    })
+
+    expect(selectModelForGroup('deepseek-v4-flash', {
+      model_policy: { mode: 'unrestricted', models: [] },
+    }, { hasGroupOverride: true })).toEqual({
+      model: 'deepseek-v4-flash',
+      source: 'installer_group',
+      allowed_models: [],
+      policy_mode: 'unrestricted',
+    })
   })
 
   it('requires the tool-specific template markers', () => {

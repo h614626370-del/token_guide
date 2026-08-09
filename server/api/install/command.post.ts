@@ -4,7 +4,7 @@ import { installerCommandSchema } from '../../domain/installers/schema'
 import { apiError, apiOk } from '../../utils/api'
 import { useGuideDatabase } from '../../utils/database'
 import { CODEX_PROVIDER_ID, getInstallerBaseUrl } from '../../utils/installer-config'
-import { listMaskedPlaygroundKeys, resolvePlaygroundCredential } from '../../utils/playground'
+import { listMaskedPlaygroundKeys, resolvePlaygroundCredential, selectModelForGroup } from '../../utils/playground'
 import { getPublicRequestOrigin } from '../../utils/request-url'
 import { readLimitedJson } from '../../utils/request-body'
 
@@ -25,16 +25,21 @@ export default defineEventHandler(async (event) => {
   const selected = keys.find(item => item.id === parsed.data.key_id && String(item.group?.platform || '').toLowerCase() === protocol)
   if (!selected) apiError(404, 'INSTALLER_KEY_NOT_FOUND', 'The selected API key is unavailable for this tool.')
 
-  const apiKey = await resolvePlaygroundCredential(event, { type: 'saved', id: parsed.data.key_id })
   const baseUrl = getInstallerBaseUrl(event)
   const repository = createInstallerRepository(useGuideDatabase())
   const groupId = selected.group_id ?? selected.group?.id
-  const model = repository.modelForGroup(parsed.data.tool, groupId)
+  const configuredModel = repository.modelForGroup(parsed.data.tool, groupId)
+  const hasGroupOverride = repository.settings().group_models.some(item => item.tool === parsed.data.tool && item.group_id === String(groupId ?? ''))
+  const modelSelection = selectModelForGroup(configuredModel, selected.group, {
+    hasGroupOverride,
+  })
+  const model = modelSelection.model
   const script = repository.publicScript(parsed.data.tool, parsed.data.platform, {
     base_url: baseUrl,
     provider_id: CODEX_PROVIDER_ID,
   })
   if (!script) apiError(404, 'INSTALLER_SCRIPT_NOT_FOUND', 'Installer script was not found.')
+  const apiKey = await resolvePlaygroundCredential(event, { type: 'saved', id: parsed.data.key_id }, selected.group_id)
 
   const origin = getPublicRequestOrigin(event)
   const scriptUrl = parsed.data.tool === 'codex'
@@ -64,6 +69,9 @@ export default defineEventHandler(async (event) => {
       filename: script.definition.filename,
       checksum: script.checksum,
       model,
+      model_source: modelSelection.source,
+      model_policy_mode: modelSelection.policy_mode,
+      allowed_models: modelSelection.allowed_models,
     })
   }
 
@@ -80,5 +88,8 @@ export default defineEventHandler(async (event) => {
     filename: filename.slice(1, -1),
     checksum: script.checksum,
     model,
+    model_source: modelSelection.source,
+    model_policy_mode: modelSelection.policy_mode,
+    allowed_models: modelSelection.allowed_models,
   })
 })

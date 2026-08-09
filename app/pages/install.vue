@@ -40,6 +40,16 @@ const selectedGroupModel = computed(() => {
   const groupId = String(selected?.group_id ?? selected?.group?.id ?? '')
   return config.value?.settings.group_models?.find(item => item.tool === tool.value && item.group_id === groupId)?.model || ''
 })
+const selectedKey = computed(() => keys.value.find(item => item.id === selectedKeyId.value) || null)
+const modelPolicyMode = computed(() => commands.value?.model_policy_mode || selectedKey.value?.group?.model_policy?.mode || 'unknown')
+const allowedModels = computed(() => commands.value?.allowed_models || selectedKey.value?.group?.model_policy?.models || [])
+const modelPolicyTitle = computed(() => modelPolicyMode.value === 'allowlist' ? '当前分组白名单' : modelPolicyMode.value === 'unrestricted' ? '当前分组未限制模型' : '模型范围尚未确认')
+const modelPolicyDescription = computed(() => {
+  if (modelPolicyMode.value === 'allowlist') return `安装器将在 ${allowedModels.value.length} 个白名单模型中使用 ${defaultModel.value || allowedModels.value[0]}。`
+  if (modelPolicyMode.value === 'unrestricted') return `安装器使用后台分组配置或回退模型 ${defaultModel.value || '由客户端决定'}。`
+  if (commands.value?.model_source === 'installer_group') return `来源快照尚未确认，当前使用后台分组配置 ${defaultModel.value || '由客户端决定'}。`
+  return '请管理员在后台价格配置中刷新来源，再刷新本页 Key 列表。'
+})
 
 onMounted(async () => {
   await loadConfig()
@@ -158,10 +168,15 @@ function clearCommands() {
           <p>仅显示 {{ protocolName }} 协议分组中的有效 Key。</p>
           <dl v-if="config">
             <div><dt>工具</dt><dd>{{ toolName }}</dd></div>
+            <div><dt>当前分组</dt><dd>{{ selectedKey?.group?.name || '未选择' }}</dd></div>
             <div><dt>Provider</dt><dd>{{ config.settings.provider_id }}</dd></div>
             <div><dt>Base URL</dt><dd>{{ config.settings.base_url }}</dd></div>
             <div><dt>默认模型</dt><dd>{{ defaultModel || '由客户端决定' }}</dd></div>
           </dl>
+          <div v-if="selectedKey" :class="['install-model-policy', `install-model-policy--${modelPolicyMode}`]">
+            <strong>{{ modelPolicyTitle }}</strong>
+            <p>{{ modelPolicyDescription }}</p>
+          </div>
         </aside>
 
         <main class="install-methods">

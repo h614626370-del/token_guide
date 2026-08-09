@@ -47,6 +47,11 @@ function groupsForModel(model: PricingModel) {
   return props.reference.groups
     .filter(group => group.provider === model.provider)
     .filter(group => model.group_ids == null || model.group_ids.includes(group.source_id))
+    .filter((group) => {
+      if (!group.model_list_enabled || !group.model_names?.length) return true
+      const modelName = model.model_name.trim().toLowerCase()
+      return group.model_names.some(name => String(name).trim().toLowerCase() === modelName)
+    })
     .filter(group => !modelSupportsImage(model) || groupSupportsImage(group))
     .sort((a, b) => a.sort_order - b.sort_order || a.display_name.localeCompare(b.display_name, 'zh-CN', { numeric: true }))
 }

@@ -496,4 +496,18 @@ export const migrations = [
       db.exec('DELETE FROM pricing_model_discoveries;')
     },
   },
+  {
+    id: 18,
+    name: 'create_pricing_source_snapshots',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pricing_source_snapshots (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          payload_json TEXT NOT NULL,
+          fetched_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `)
+    },
+  },
 ]

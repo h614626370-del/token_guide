@@ -160,6 +160,7 @@ function setGroupModel(groupId: string, model: string) {
 }
 
 function modelsForGroup(group: SourceGroup) {
+  if (group.model_list_enabled && group.model_names.length) return [...group.model_names]
   const mapping = pricingSource.value?.model_group_ids_by_provider?.openai || {}
   return Object.entries(mapping)
     .filter(([, groupIds]) => groupIds.includes(group.source_id))
@@ -203,6 +204,10 @@ function lineDiff(before: string, after: string) {
       <section class="admin-section installer-settings">
         <header><h2><Settings2 :size="18" />安装器设置</h2><span>控制前台工具入口与公共参数</span></header>
         <form class="admin-settings-grid" @submit.prevent="saveSettings">
+          <div class="installer-model-policy">
+            <strong>模型选择规则</strong>
+            <span>分组开启模型白名单时，安装器只会使用白名单模型；下面的分组模型和默认模型用于未启用白名单的分组。</span>
+          </div>
           <fieldset class="installer-visibility-settings">
             <legend>前台显示</legend>
             <label :class="['installer-visibility-toggle', { active: settings.codex_enabled }]">
@@ -222,11 +227,11 @@ function lineDiff(before: string, after: string) {
           </fieldset>
           <label class="form-field"><span>PROVIDER_ID</span><input v-model.trim="settings.provider_id" maxlength="80" required></label>
           <label class="form-field"><span>BASE_URL</span><input v-model.trim="settings.base_url" type="url" maxlength="500" required></label>
-          <label class="form-field"><span>Codex 默认模型</span><input v-model.trim="settings.codex_default_model" maxlength="120"></label>
-          <label class="form-field"><span>Claude 默认模型</span><input v-model.trim="settings.claude_default_model" maxlength="120" placeholder="留空则由 Claude Code 决定"></label>
+          <label class="form-field"><span>Codex 回退模型</span><input v-model.trim="settings.codex_default_model" maxlength="120"></label>
+          <label class="form-field"><span>Claude 回退模型</span><input v-model.trim="settings.claude_default_model" maxlength="120" placeholder="留空则由 Claude Code 决定"></label>
           <fieldset class="installer-group-models">
             <legend>Codex 分组模型</legend>
-            <p>选择 API Key 后按所属 OpenAI 协议分组安装；未指定的分组使用 Codex 默认模型。</p>
+            <p>白名单分组会自动限定可选项；未指定的分组使用 Codex 回退模型。</p>
             <div v-if="openaiGroups.length" class="installer-group-model-list">
               <label v-for="group in openaiGroups" :key="group.source_id">
                 <span><strong>{{ group.source_name }}</strong><small>分组 ID {{ group.source_id }}</small></span>

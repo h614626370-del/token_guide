@@ -91,6 +91,158 @@ describe('pricing repository', () => {
 })
 
 describe('pricing service', () => {
+  it('uses each group model allowlist and persists the manually refreshed source', async () => {
+    const db = createDatabase()
+    db.prepare('UPDATE pricing_model_settings SET is_visible = 0').run()
+
+    const fetchMock = vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      let data: any
+      if (requestUrl.pathname.endsWith('/admin/groups/all')) {
+        data = [{
+          id: 7,
+          name: 'DeepSeek Flash',
+          platform: 'openai',
+          models_list_config: { enabled: true, models: ['deepseek-v4-flash'] },
+        }]
+      } else if (requestUrl.pathname.endsWith('/admin/payment/plans')) {
+        data = []
+      } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
+        data = { models: ['gpt-5.6-sol'] }
+      } else if (requestUrl.pathname.endsWith('/admin/channels/model-pricing')) {
+        data = {
+          found: requestUrl.searchParams.get('model') === 'deepseek-v4-flash',
+          input_price: 0.000001,
+          output_price: 0.000002,
+        }
+      } else {
+        return new Response('not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const config = {
+      sub2apiApiBase: 'https://upstream.example/api/v1',
+      sub2apiAdminApiKey: 'admin-key',
+      pricingPlatforms: ['openai'],
+      providerDisplayOrder: ['openai'],
+      pricingCacheTtlMs: 60_000,
+      pricingFetchTimeoutMs: 5_000,
+      usdToCny: 7,
+    }
+    const service = createPricingService({ db, config, logger: null })
+    const source = await service.listSource({ refresh: true })
+
+    expect(source.snapshot_available).toBe(true)
+    expect(source.groups[0]).toMatchObject({
+      model_list_enabled: true,
+      model_names: ['deepseek-v4-flash'],
+    })
+    expect(source.models_by_provider.openai).toEqual(['deepseek-v4-flash', 'gpt-5.6-sol'])
+    expect(source.model_pricing['openai:deepseek-v4-flash']).toMatchObject({ found: true })
+
+    const callsAfterRefresh = fetchMock.mock.calls.length
+    const restartedService = createPricingService({ db, config, logger: null })
+    const snapshot = await restartedService.listSource()
+    expect(snapshot.snapshot_available).toBe(true)
+    expect(snapshot.groups[0].model_names).toEqual(['deepseek-v4-flash'])
+    expect(fetchMock).toHaveBeenCalledTimes(callsAfterRefresh)
+    db.close()
+  })
+
+  it('keeps the last successful group snapshot when a manual refresh fails', async () => {
+    const db = createDatabase()
+    const repo = createPricingRepository(db)
+    const config = {
+      sub2apiApiBase: 'https://upstream.example/api/v1',
+      sub2apiAdminApiKey: 'admin-key',
+      pricingPlatforms: ['openai'],
+      providerDisplayOrder: ['openai'],
+      pricingCacheTtlMs: 60_000,
+      pricingFetchTimeoutMs: 5_000,
+      usdToCny: 7,
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const pathname = new URL(String(input)).pathname
+      const data = pathname.endsWith('/admin/groups/all')
+        ? [{ id: 11, name: 'DeepSeek Flash', platform: 'openai', models_list_config: { enabled: true, models: ['deepseek-v4-flash'] } }]
+        : pathname.endsWith('/admin/channels/pricing/sync-models')
+          ? { models: ['deepseek-v4-flash'] }
+          : pathname.endsWith('/admin/channels/model-pricing')
+            ? { found: true, input_price: 0.000001, output_price: 0.000002 }
+            : []
+      return new Response(JSON.stringify({ code: 0, data }), { status: 200 })
+    }))
+    await createPricingService({ db, config, logger: null }).listSource({ refresh: true })
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('unavailable', { status: 503 })))
+    const source = await createPricingService({ db, config, logger: null }).listSource({ refresh: true })
+
+    expect(source).toMatchObject({
+      snapshot_available: true,
+      groups: [{ source_id: '11', model_names: ['deepseek-v4-flash'] }],
+    })
+    expect(source.warnings).toContain('分组刷新失败，继续使用上一次成功快照。')
+    expect(repo.getPricingSourceSnapshot().groups[0].model_names).toEqual(['deepseek-v4-flash'])
+
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const pathname = new URL(String(input)).pathname
+      const data = pathname.endsWith('/admin/groups/all') ? {} : []
+      return new Response(JSON.stringify({ code: 0, data }), { status: 200 })
+    }))
+    const malformed = await createPricingService({ db, config, logger: null }).listSource({ refresh: true })
+    expect(malformed).toMatchObject({
+      snapshot_available: true,
+      groups: [{ source_id: '11', model_names: ['deepseek-v4-flash'] }],
+    })
+    expect(malformed.warnings).toContain('分组刷新失败，继续使用上一次成功快照。')
+    db.close()
+  })
+
+  it('invalidates a snapshot when the configured sub2api source changes', async () => {
+    const db = createDatabase()
+    const sourceConfig = {
+      sub2apiApiBase: 'https://source-a.example/api/v1',
+      sub2apiAdminApiKey: 'admin-key-a',
+      pricingPlatforms: ['openai'],
+      providerDisplayOrder: ['openai'],
+      pricingCacheTtlMs: 60_000,
+      pricingFetchTimeoutMs: 5_000,
+      usdToCny: 7,
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const pathname = new URL(String(input)).pathname
+      const data = pathname.endsWith('/admin/groups/all')
+        ? [{ id: 11, name: 'DeepSeek Flash', platform: 'openai', models_list_config: { enabled: true, models: ['deepseek-v4-flash'] } }]
+        : pathname.endsWith('/admin/channels/pricing/sync-models')
+          ? { models: ['deepseek-v4-flash'] }
+          : pathname.endsWith('/admin/channels/model-pricing')
+            ? { found: true }
+            : []
+      return new Response(JSON.stringify({ code: 0, data }), { status: 200 })
+    }))
+    await createPricingService({ db, config: sourceConfig, logger: null }).listSource({ refresh: true })
+
+    const changed = await createPricingService({
+      db,
+      config: {
+        ...sourceConfig,
+        sub2apiApiBase: 'https://source-b.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key-b',
+      },
+      logger: null,
+    }).listSource()
+
+    expect(changed.snapshot_available).toBe(false)
+    expect(changed.groups).toEqual([])
+    expect(changed.warnings).toContain('来源配置已变化，请在后台重新刷新来源。')
+    db.close()
+  })
+
   it('combines upstream rate and recharge references into the effective rate', async () => {
     const db = createDatabase()
     db.prepare('UPDATE pricing_model_settings SET is_visible = 0').run()

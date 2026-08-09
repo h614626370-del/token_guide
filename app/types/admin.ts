@@ -44,6 +44,8 @@ export interface SourceGroup {
   provider_label: string
   source_id: string
   source_name: string
+  model_list_enabled: boolean
+  model_names: string[]
   description: string
   is_exclusive: boolean
   rate_multiplier: number
@@ -60,6 +62,7 @@ export interface AdminPricingSource {
   model_group_scope_by_provider?: Record<string, boolean>
   warnings: string[]
   fetched_at: string
+  snapshot_available: boolean
 }
 
 export interface ModelDraft extends ModelSetting {
@@ -80,6 +83,8 @@ export interface GroupDraft extends Omit<GroupSetting, 'display_name' | 'note' |
   rate_multiplier: number
   recharge_pay_cny: number | null
   recharge_credit_usd: number | null
+  model_list_enabled: boolean
+  model_names: string[]
 }
 
 export interface AdminEmailSettings {

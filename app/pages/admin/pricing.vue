@@ -46,9 +46,9 @@ const settings = reactive({
 })
 
 const filteredModels = computed(() => models.value.filter((item) => matches(item.provider, [item.model_name, item.display_name, item.note])))
-const filteredGroups = computed(() => groups.value.filter((item) => matches(item.provider, [item.source_name || '', item.display_name, item.note, item.source_id])))
+const filteredGroups = computed(() => groups.value.filter((item) => matches(item.provider, [item.source_name || '', item.display_name, item.note, item.source_id, ...item.model_names])))
 const sourceSummary = computed(() => {
-  if (!source.value) return '尚未读取来源数据'
+  if (!source.value?.snapshot_available) return '来源尚未手动刷新'
   const count = Object.values(source.value.models_by_provider).reduce((sum, items) => sum + items.length, 0)
   return `${count} 个模型，${source.value.groups.length} 个分组`
 })
@@ -145,6 +145,8 @@ function rebuildDrafts() {
       source_available: Boolean(upstream),
       provider_label: upstream?.provider_label || providerLabel(provider),
       rate_multiplier: Number(upstream?.rate_multiplier || 1),
+      model_list_enabled: Boolean(upstream?.model_list_enabled && upstream.model_names.length),
+      model_names: upstream?.model_list_enabled ? [...upstream.model_names] : [],
     }
   }).sort((a, b) => providerRank(a.provider) - providerRank(b.provider) || a.sort_order - b.sort_order || String(a.source_name).localeCompare(String(b.source_name), 'zh-CN', { numeric: true }))
 }
@@ -300,6 +302,13 @@ function modelVersion(value: string) {
   return [...withoutDates.matchAll(/\d+/g)].map(match => Number(match[0]))
 }
 
+function modelScopeLabel(item: GroupDraft) {
+  if (!source.value?.snapshot_available) return '来源未刷新'
+  if (!item.source_available) return '来源中不存在'
+  if (!item.model_list_enabled) return '平台模型目录'
+  return `${item.model_names.length} 个白名单模型`
+}
+
 function empty(value: string) {
   const text = String(value || '').trim()
   return text || null
@@ -327,6 +336,14 @@ function integer(value: unknown, fallback: number) {
           <button class="secondary-command" type="button" :disabled="loading" @click="loadAll(true)"><RefreshCw :size="16" :class="{ spinning: loading }" />刷新来源</button>
         </div>
       </header>
+
+      <div :class="['admin-source-status', { 'admin-source-status--empty': !source?.snapshot_available }]">
+        <div>
+          <strong>{{ source?.snapshot_available ? '模型来源快照已就绪' : '模型来源尚未刷新' }}</strong>
+          <span>{{ source?.snapshot_available ? sourceSummary : '自动安装会按这里同步的分组白名单选择模型；首次使用前请刷新来源。' }}</span>
+        </div>
+        <button class="secondary-command" type="button" :disabled="loading" @click="loadAll(true)"><RefreshCw :size="16" :class="{ spinning: loading }" />{{ source?.snapshot_available ? '重新刷新' : '立即刷新' }}</button>
+      </div>
 
       <div class="admin-tabs" role="tablist">
         <button type="button" :class="{ active: activeTab === 'source' }" @click="activeTab = 'source'">数据源</button>
@@ -386,11 +403,15 @@ function integer(value: unknown, fallback: number) {
 
         <div v-else class="admin-table-scroll">
           <table class="admin-edit-table admin-group-table">
-            <thead><tr><th>展示</th><th>分组</th><th>展示名称</th><th>支付 CNY</th><th>到账 USD</th><th>排序</th><th>备注</th></tr></thead>
+            <thead><tr><th>展示</th><th>分组</th><th>模型范围</th><th>展示名称</th><th>支付 CNY</th><th>到账 USD</th><th>排序</th><th>备注</th></tr></thead>
             <tbody>
               <tr v-for="item in filteredGroups" :key="item.key">
                 <td><input v-model="item.is_visible" type="checkbox" :aria-label="`${item.source_name} 是否展示`"></td>
                 <td><strong>{{ item.source_name }}</strong><small>{{ item.provider_label }} · 扣额度 {{ item.rate_multiplier }}x</small></td>
+                <td class="admin-model-scope">
+                  <strong :class="{ 'is-allowlist': item.model_list_enabled, 'is-missing': !item.source_available }">{{ modelScopeLabel(item) }}</strong>
+                  <small :title="item.model_names.join('、')">{{ item.model_names.length ? item.model_names.join('、') : '未启用分组白名单' }}</small>
+                </td>
                 <td><input v-model="item.display_name" :placeholder="item.source_name || item.source_id"></td>
                 <td><input v-model.number="item.recharge_pay_cny" type="number" min="0.0001" step="0.01"></td>
                 <td><input v-model.number="item.recharge_credit_usd" type="number" min="0.0001" step="0.01"></td>
