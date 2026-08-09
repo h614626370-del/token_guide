@@ -238,6 +238,10 @@ describe('Nuxt application routes', () => {
   })
 
   it('serves the active static homepage and protects preview selection', async () => {
+    const homepageWithoutSlash = await fetch('/site-home?ref=direct', { redirect: 'manual' })
+    expect(homepageWithoutSlash.status).toBe(308)
+    expect(homepageWithoutSlash.headers.get('location')).toBe('/site-home/?ref=direct')
+
     const favicon = await fetch('/favicon.ico', { redirect: 'manual' })
     expect(favicon.status).toBe(302)
     expect(favicon.headers.get('location')).toBe('/logo-80.png')

@@ -1,10 +1,15 @@
-import { defineEventHandler, deleteCookie, getCookie, getQuery, getRequestHeader, setCookie, setHeader } from 'h3'
+import { defineEventHandler, deleteCookie, getCookie, getQuery, getRequestHeader, getRequestURL, sendRedirect, setCookie, setHeader } from 'h3'
 import { readHomepageFile } from '../../domain/homepage/service'
 import { recordHomepageVisit } from '../../domain/promotion/service'
 import { apiError } from '../../utils/api'
 import { requireAdminSession } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {
+  const requestUrl = getRequestURL(event)
+  if (requestUrl.pathname === '/site-home') {
+    return sendRedirect(event, `/site-home/${requestUrl.search}`, 308)
+  }
+
   const query = getQuery(event)
   const preview = query.preview === '1' || query.preview === 'true'
   const requestedDefaultId = typeof query.default === 'string' ? query.default : ''

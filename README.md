@@ -79,7 +79,7 @@ NUXT_IP_HASH_SALT
 ## 发布镜像
 
 ```powershell
-npm run release -- -Version v2.2.5
+npm run release -- -Version v2.2.6
 ```
 
 ## 注意
