@@ -3,33 +3,33 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>灵链云 - 一站式 AI API 聚合接入</title>
+    <title>灵链云 Token 中转站 - Claude、GPT、Gemini API 中转</title>
     <meta name="robots" content="index,follow" />
     <meta
       name="description"
-      content="灵链云提供一站式 AI API 聚合接入，通过一个 Base URL 和一个 API Key 调用 Claude、GPT、Gemini 等主流模型，并统一管理用量、余额与团队成本。"
+      content="灵链云是面向开发者和团队的 Token 中转站，提供 Claude API、GPT API、Gemini API 等主流模型中转服务。使用统一 Base URL 和 API Key，集中查看 Token 用量、请求记录与费用。"
     />
     <meta
       name="keywords"
-      content="灵链云,AI API,AI API网关,大模型接口,Claude API,GPT API,Gemini API,API Key,Token统计,AI中转,模型聚合"
+      content="灵链云,Token中转站,AI中转站,API中转站,大模型API中转,Claude API中转,GPT API中转,ChatGPT API中转,Gemini API中转,OpenAI API中转,AI API网关,API Key,Token计费"
     />
     <link rel="canonical" href="https://llapi.org/" />
     <meta name="theme-color" content="#edf5fb" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:site_name" content="灵链云" />
-    <meta property="og:title" content="灵链云 - 一站式 AI API 聚合接入" />
+    <meta property="og:title" content="灵链云 Token 中转站 - Claude、GPT、Gemini API 中转" />
     <meta
       property="og:description"
-      content="把多家模型收进一套接口。统一 Base URL、API Key、Token 用量、余额与团队成本。"
+      content="一个 Base URL 和 API Key，中转 Claude、GPT、Gemini 等主流模型 API，并集中管理 Token 用量、请求记录和费用。"
     />
     <meta property="og:url" content="https://llapi.org/" />
     <meta property="og:image" content="https://llapi.org/api-public/assets/logo.svg" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="灵链云 - 一站式 AI API 聚合接入" />
+    <meta name="twitter:title" content="灵链云 Token 中转站 - Claude、GPT、Gemini API 中转" />
     <meta
       name="twitter:description"
-      content="用一套 API 接入 Claude、GPT、Gemini、图片、语音与向量能力。"
+      content="灵链云提供 Claude、GPT、Gemini 等主流模型 API 中转，用一套接口管理调用与 Token 消耗。"
     />
     <meta name="twitter:image" content="https://llapi.org/api-public/assets/logo.svg" />
     <link rel="icon" type="image/png" sizes="80x80" href="./api-public/assets/logo.svg" />
@@ -38,16 +38,34 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "灵链云",
-        "url": "https://llapi.org/",
-        "description": "灵链云提供统一的大模型 API 聚合接入服务。",
-        "inLanguage": "zh-CN",
-        "publisher": {
-          "@type": "Organization",
-          "name": "灵链云",
-          "url": "https://llapi.org/"
-        }
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://llapi.org/#website",
+            "name": "灵链云",
+            "alternateName": "灵链云 Token 中转站",
+            "url": "https://llapi.org/",
+            "description": "灵链云是面向开发者和团队的 Token 中转站，提供 Claude API、GPT API、Gemini API 等主流模型中转服务。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://llapi.org/#organization" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://llapi.org/#organization",
+            "name": "灵链云",
+            "url": "https://llapi.org/",
+            "logo": "https://llapi.org/api-public/assets/logo.svg"
+          },
+          {
+            "@type": "Service",
+            "@id": "https://llapi.org/#service",
+            "name": "灵链云 Token 中转服务",
+            "serviceType": "AI API 中转服务",
+            "url": "https://llapi.org/",
+            "description": "通过统一 Base URL 和 API Key 接入 Claude、GPT、Gemini 等主流模型 API。",
+            "provider": { "@id": "https://llapi.org/#organization" }
+          }
+        ]
       }
     </script>
     <link rel="stylesheet" href="./api-public/css/home.css" />
@@ -169,13 +187,13 @@
           <div class="shell hero-layout">
             <div class="hero-copy">
               <div class="hero-badges">
-                <span class="soft-pill is-accent">多模型接入 · 标准 API · 快速上线</span>
-                <span class="soft-pill">Claude · GPT · Gemini · 聚合接入</span>
+                <span class="soft-pill is-accent">AI API 中转 · OpenAI 兼容 · 快速接入</span>
+                <span class="soft-pill">Claude API · GPT API · Gemini API</span>
               </div>
-              <h1>灵链云</h1>
-              <p class="hero-tagline">把模型接入，变成一行配置。</p>
+              <h1><span>灵链云</span><span class="hero-title-subject">Token 中转站</span></h1>
+              <p class="hero-tagline">一个 API Key，中转 Claude、GPT、Gemini 等主流模型。</p>
               <p class="hero-lead">
-                面向开发者与团队的一站式 AI 模型入口。一个 Base URL、一枚 API Key，就能在 Claude、GPT、Gemini 等主流能力之间自由选择；调用记录、Token 消耗和团队预算也都归到同一处。
+                面向开发者与团队的 AI API 中转服务。把 Base URL 换成灵链云，即可沿用熟悉的调用方式接入多家模型；请求记录、Token 消耗和团队预算也都归到同一处。
               </p>
               <div class="hero-command">
                 <span>只需替换</span>
@@ -197,7 +215,7 @@
                 <p class="micro-label">Capability overview</p>
                 <span>LINGLIAN API</span>
               </div>
-              <h2>一种接法，覆盖多种 AI 能力。</h2>
+              <h2>一个 Token 中转入口，覆盖多种 AI 能力。</h2>
               <div class="overview-grid">
                 <article class="overview-mini">
                   <span class="mini-index">01</span>
@@ -235,17 +253,17 @@
           <div class="section-head">
             <div>
               <p class="section-kicker">Product overview</p>
-              <h2>复杂的模型生态，<br />交给一套简单网关。</h2>
+              <h2>常用模型 API，<br />统一从一个中转站接入。</h2>
             </div>
             <p class="section-desc">
-              你不必再为每家供应商分别维护密钥、账单和适配代码。灵链云把接入、路由、计费与可观测性放进同一个工作流，让团队把精力留给产品本身。
+              你不必再为每家模型供应商分别维护密钥、账单和适配代码。灵链云通过统一网关处理中转、路由、计费和请求记录，现有应用只需调整接入配置。
             </p>
           </div>
 
           <div class="bento">
             <article class="bento-card bento-large">
               <span class="card-icon"><img src="./api-public/icons/boxes.svg" alt="" aria-hidden="true" /></span>
-              <h3>多模型路由，一次接好</h3>
+              <h3>Claude、GPT、Gemini API 一次接好</h3>
               <p>请求进入网关后，由统一入口处理密钥、分组、额度、用量统计与模型通道。需要换模型时，改配置，不重写业务。</p>
               <div class="route-visual" aria-label="API 请求路由示意">
                 <div class="route-caption"><span>Live request</span><code>req_8f2c · 842ms</code></div>
@@ -423,14 +441,18 @@
           <div class="section-head">
             <div>
               <p class="section-kicker">Common questions</p>
-              <h2>开始之前，先把常见问题说清楚。</h2>
+              <h2>关于 Token 中转站的常见问题</h2>
             </div>
             <p class="section-desc">下面的信息来自现有接入方式与控制台能力，不增加额外前提。</p>
           </div>
 
           <div class="faq-list">
             <article class="faq-item is-open">
-              <button class="faq-button" type="button" aria-expanded="true"><span>迁移现有应用需要改很多代码吗？</span><span class="faq-plus">+</span></button>
+              <button class="faq-button" type="button" aria-expanded="true"><span>什么是 Token 中转站？</span><span class="faq-plus">+</span></button>
+              <div class="faq-answer"><div><p>Token 中转站通过一个统一的 API 地址转发模型请求。开发者使用一枚 API Key，即可接入 Claude、GPT、Gemini 等模型，并在同一处查看 Token 用量、请求记录和费用。</p></div></div>
+            </article>
+            <article class="faq-item">
+              <button class="faq-button" type="button" aria-expanded="false"><span>现有应用接入 API 中转站需要改很多代码吗？</span><span class="faq-plus">+</span></button>
               <div class="faq-answer"><div><p>通常不需要。OpenAI 兼容客户端和常见 SDK 只要替换 Base URL、API Key 和模型名即可接入。</p></div></div>
             </article>
             <article class="faq-item">
@@ -453,7 +475,7 @@
         <div class="shell final-box">
           <div class="final-copy">
             <p class="section-kicker">Ready when you are</p>
-            <h2>下一次模型调用，从统一入口开始。</h2>
+            <h2>下一次模型调用，从 Token 中转入口开始。</h2>
             <p>创建 API Key，把 Base URL 设置为 https://llapi.org/v1。你现有的应用、脚本与开发工具，就可以开始接入灵链云。</p>
           </div>
           <div class="final-actions">
@@ -465,8 +487,8 @@
 
       <section class="section-white">
         <article class="shell seo-copy">
-          <h2>灵链云 AI API 聚合接口网关</h2>
-          <p>灵链云为 AI 应用开发者、团队和自动化工具提供统一的大模型 API 接入服务。通过一个 API Key 即可使用 Claude、GPT、Gemini、Embedding、Image 和 Audio 等模型与接口能力，并通过统一的 Base URL、Token 用量统计、余额管理、API Key 管理和请求明细控制 AI 调用成本。适用于 AI 编程助手、知识库问答、内容生成、数据分析、图片生成、语音处理、企业内部工具和多模型测试等场景。</p>
+          <h2>灵链云 Token 中转站与 AI API 中转服务</h2>
+          <p>灵链云是面向 AI 应用开发者、团队和自动化工具的 Token 中转站。通过一个 Base URL 和一枚 API Key，可以接入 Claude API、GPT API、Gemini API，以及 Embedding、Image 和 Audio 等接口能力。控制台集中记录 Token 用量、请求状态、余额与费用，便于按应用或成员管理 API Key。适用于 AI 编程助手、知识库问答、内容生成、数据分析、图片生成、语音处理、企业内部工具和多模型测试。</p>
         </article>
       </section>
     </main>

@@ -12,11 +12,12 @@ window.LLAPI_HOME_CONFIG = {
   loginUrl: "/login",
   registerUrl: "/register",
   dashboardUrl: "/dashboard",
-  pageTitle: "{{brandName}} - 一站式 AI API 聚合接入",
-  seoDescription: "{{brandName}}提供一站式 AI API 聚合接入，通过一个 Base URL 和一个 API Key 调用 Claude、GPT、Gemini 等主流模型，并统一管理用量、余额与团队成本。",
-  seoKeywords: "{{brandName}},AI API,AI API网关,大模型接口,Claude API,GPT API,Gemini API,API Key,Token统计,AI中转,模型聚合",
-  ogDescription: "把多家模型收进一套接口。统一 Base URL、API Key、Token 用量、余额与团队成本。",
-  twitterDescription: "用一套 API 接入 Claude、GPT、Gemini、图片、语音与向量能力。",
+  pageTitle: "{{brandName}} Token 中转站 - Claude、GPT、Gemini API 中转",
+  seoHeading: "{{brandName}} Token 中转站与 AI API 中转服务",
+  seoDescription: "{{brandName}}是面向开发者和团队的 Token 中转站，提供 Claude API、GPT API、Gemini API 等主流模型中转服务。使用统一 Base URL 和 API Key，集中查看 Token 用量、请求记录与费用。",
+  seoKeywords: "{{brandName}},Token中转站,AI中转站,API中转站,大模型API中转,Claude API中转,GPT API中转,ChatGPT API中转,Gemini API中转,OpenAI API中转,AI API网关,API Key,Token计费",
+  ogDescription: "一个 Base URL 和 API Key，中转 Claude、GPT、Gemini 等主流模型 API，并集中管理 Token 用量、请求记录和费用。",
+  twitterDescription: "{{brandName}}提供 Claude、GPT、Gemini 等主流模型 API 中转，用一套接口管理调用与 Token 消耗。",
   copyrightYear: 2026,
   notices: [
     {

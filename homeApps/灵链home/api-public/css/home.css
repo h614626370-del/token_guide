@@ -647,6 +647,16 @@
         letter-spacing: 0;
       }
 
+      .hero h1 > span {
+        display: block;
+      }
+
+      .hero h1 .hero-title-subject {
+        margin-top: 0.08em;
+        font-size: 0.66em;
+        white-space: nowrap;
+      }
+
       .hero-tagline {
         margin: 22px 0 0;
         color: var(--ink);

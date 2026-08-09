@@ -51,11 +51,12 @@
         loginUrl: "/login",
         registerUrl: "/register",
         dashboardUrl: "/dashboard",
-        pageTitle: "灵链云 - 一站式 AI API 聚合接入",
-        seoDescription: "灵链云提供一站式 AI API 聚合接入，通过一个 Base URL 和一个 API Key 调用 Claude、GPT、Gemini 等主流模型，并统一管理用量、余额与团队成本。",
-        seoKeywords: "灵链云,AI API,AI API网关,大模型接口,Claude API,GPT API,Gemini API,API Key,Token统计,AI中转,模型聚合",
-        ogDescription: "把多家模型收进一套接口。统一 Base URL、API Key、Token 用量、余额与团队成本。",
-        twitterDescription: "用一套 API 接入 Claude、GPT、Gemini、图片、语音与向量能力。",
+        pageTitle: "灵链云 Token 中转站 - Claude、GPT、Gemini API 中转",
+        seoHeading: "灵链云 Token 中转站与 AI API 中转服务",
+        seoDescription: "灵链云是面向开发者和团队的 Token 中转站，提供 Claude API、GPT API、Gemini API 等主流模型中转服务。使用统一 Base URL 和 API Key，集中查看 Token 用量、请求记录与费用。",
+        seoKeywords: "灵链云,Token中转站,AI中转站,API中转站,大模型API中转,Claude API中转,GPT API中转,ChatGPT API中转,Gemini API中转,OpenAI API中转,AI API网关,API Key,Token计费",
+        ogDescription: "一个 Base URL 和 API Key，中转 Claude、GPT、Gemini 等主流模型 API，并集中管理 Token 用量、请求记录和费用。",
+        twitterDescription: "灵链云提供 Claude、GPT、Gemini 等主流模型 API 中转，用一套接口管理调用与 Token 消耗。",
         copyrightYear: 2026,
         notices: []
       });
@@ -252,7 +253,7 @@
         navStatusTexts.forEach((element) => {
           element.textContent = siteConfig.statusText;
         });
-        document.querySelector('.seo-copy h2').textContent = `${siteConfig.brandApiName} 聚合接口网关`;
+        document.querySelector('.seo-copy h2').textContent = siteConfig.seoHeading;
         document.querySelector('.footer-copyright').textContent = `© ${siteConfig.copyrightYear} ${siteConfig.brandName}. All Rights Reserved.`;
 
         setMetaContent('meta[name="description"]', siteConfig.seoDescription);
@@ -272,19 +273,52 @@
 
         const structuredData = document.querySelector('script[type="application/ld+json"]');
         if (structuredData) {
-          structuredData.textContent = JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebSite",
-            name: siteConfig.brandName,
-            url: `${siteConfig.siteUrl}/`,
-            description: siteConfig.seoDescription,
-            inLanguage: "zh-CN",
-            publisher: {
-              "@type": "Organization",
-              name: siteConfig.brandName,
-              url: `${siteConfig.siteUrl}/`
+          const websiteUrl = `${siteConfig.siteUrl}/`;
+          const organizationId = `${siteConfig.siteUrl}/#organization`;
+          const faqEntities = Array.from(document.querySelectorAll(".faq-item")).map((item) => ({
+            "@type": "Question",
+            name: item.querySelector(".faq-button span")?.textContent?.trim() || "",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.querySelector(".faq-answer p")?.textContent?.trim() || ""
             }
-          });
+          })).filter((item) => item.name && item.acceptedAnswer.text);
+          const graph = [
+            {
+              "@type": "WebSite",
+              "@id": `${siteConfig.siteUrl}/#website`,
+              name: siteConfig.brandName,
+              alternateName: `${siteConfig.brandName} Token 中转站`,
+              url: websiteUrl,
+              description: siteConfig.seoDescription,
+              inLanguage: "zh-CN",
+              publisher: { "@id": organizationId }
+            },
+            {
+              "@type": "Organization",
+              "@id": organizationId,
+              name: siteConfig.brandName,
+              url: websiteUrl,
+              logo: socialImageUrl
+            },
+            {
+              "@type": "Service",
+              "@id": `${siteConfig.siteUrl}/#service`,
+              name: `${siteConfig.brandName} Token 中转服务`,
+              serviceType: "AI API 中转服务",
+              url: websiteUrl,
+              description: siteConfig.seoDescription,
+              provider: { "@id": organizationId }
+            }
+          ];
+          if (faqEntities.length) {
+            graph.push({
+              "@type": "FAQPage",
+              "@id": `${siteConfig.siteUrl}/#faq`,
+              mainEntity: faqEntities
+            });
+          }
+          structuredData.textContent = JSON.stringify({ "@context": "https://schema.org", "@graph": graph });
         }
       }
 
