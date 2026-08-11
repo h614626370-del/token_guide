@@ -5,6 +5,7 @@ import { apiError } from './api'
 import { getGuideConfig } from './config'
 import { requireUserSession } from './session'
 import { getTrustedClientIp } from './client-ip'
+import { SseDecoder } from '#shared/utils/sse'
 
 const credentialSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('saved'), id: z.coerce.number().int().positive() }).strict(),
@@ -33,6 +34,7 @@ export const textPlaygroundSchema = z.object({
     reasoning: z.object({ effort: z.enum(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']) }).strict().optional(),
     text: z.object({ verbosity: z.enum(['low', 'medium', 'high']) }).strict().optional(),
     service_tier: z.enum(['auto', 'default', 'flex', 'priority']).optional(),
+    stream: z.literal(true).optional(),
   }).strict(),
 }).strict()
 
@@ -128,9 +130,9 @@ export async function callPlaygroundUpstream(
     })
     const payload = await readLimitedResponse(response, maxResponseBytes)
     if (!response.ok) {
-      apiError(response.status, 'UPSTREAM_REQUEST_FAILED', extractMessage(payload, `Upstream HTTP ${response.status}`), {
+      apiError(response.status, 'UPSTREAM_REQUEST_FAILED', redactSecretText(extractMessage(payload, `Upstream HTTP ${response.status}`), [apiKey]), {
         upstream_status: response.status,
-        upstream: redactSecrets(payload),
+        upstream: redactSecrets(payload, 0, [apiKey]),
       })
     }
     return {
@@ -145,6 +147,120 @@ export async function callPlaygroundUpstream(
     apiError(502, 'UPSTREAM_UNAVAILABLE', 'The model service is temporarily unavailable.')
   } finally {
     clearTimeout(timeout)
+  }
+}
+
+export class PlaygroundStreamError extends Error {
+  constructor(public readonly code: string, message: string) {
+    super(message)
+    this.name = 'PlaygroundStreamError'
+  }
+}
+
+export async function openPlaygroundUpstreamStream(
+  event: H3Event,
+  apiKey: string,
+  body: Record<string, unknown>,
+  timeoutMs: number,
+) {
+  const config = getGuideConfig(event)
+  const controller = new AbortController()
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+  const startedAt = Date.now()
+
+  try {
+    const response = await fetch(`${config.sub2apiOrigin}/v1/responses`, {
+      method: 'POST',
+      headers: {
+        accept: 'text/event-stream',
+        authorization: `Bearer ${apiKey}`,
+        'content-type': 'application/json',
+        ...forwardedRequestHeaders(event),
+      },
+      body: JSON.stringify({ ...body, stream: true }),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const payload = await readLimitedResponse(response, 8 * 1024 * 1024)
+      apiError(
+        response.status,
+        'UPSTREAM_REQUEST_FAILED',
+        redactSecretText(extractMessage(payload, `Upstream HTTP ${response.status}`), [apiKey]),
+        {
+          upstream_status: response.status,
+          upstream: redactSecrets(payload, 0, [apiKey]),
+        },
+      )
+    }
+
+    let closed = false
+    return {
+      response,
+      signal: controller.signal,
+      startedAt,
+      timedOut: () => timedOut,
+      close() {
+        if (closed) return
+        closed = true
+        clearTimeout(timeout)
+        if (!controller.signal.aborted) controller.abort()
+      },
+    }
+  } catch (error) {
+    clearTimeout(timeout)
+    if (isApiError(error)) throw error
+    if (timedOut) apiError(504, 'UPSTREAM_TIMEOUT', 'The model request timed out.')
+    apiError(502, 'UPSTREAM_UNAVAILABLE', 'The model service is temporarily unavailable.')
+  }
+}
+
+export async function relayPlaygroundUpstreamEvents(
+  response: Response,
+  apiKey: string,
+  maxResponseBytes: number,
+  emit: (event: string, data: string) => Promise<void>,
+) {
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.toLowerCase().includes('text/event-stream')) {
+    const payload = await readLimitedResponse(response, maxResponseBytes)
+    await emit('response.completed', redactSecretText(JSON.stringify(payload), [apiKey]))
+    return
+  }
+
+  if (!response.body) {
+    throw new PlaygroundStreamError('UPSTREAM_INVALID_RESPONSE', 'The model service returned an empty stream.')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new SseDecoder()
+  let receivedBytes = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      receivedBytes += value.byteLength
+      if (receivedBytes > maxResponseBytes) {
+        await reader.cancel()
+        throw new PlaygroundStreamError('UPSTREAM_RESPONSE_TOO_LARGE', 'The model response is too large.')
+      }
+      for (const message of decoder.push(value)) {
+        if (message.data === '[DONE]') continue
+        await emit(sanitizeEventName(message.event), redactSecretText(message.data, [apiKey]))
+      }
+    }
+
+    for (const message of decoder.finish()) {
+      if (message.data === '[DONE]') continue
+      await emit(sanitizeEventName(message.event), redactSecretText(message.data, [apiKey]))
+    }
+  } finally {
+    reader.releaseLock()
   }
 }
 
@@ -194,10 +310,25 @@ async function readLimitedResponse(response: Response, maxBytes: number) {
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
     apiError(502, 'UPSTREAM_RESPONSE_TOO_LARGE', 'The model response is too large.')
   }
-  const buffer = Buffer.from(await response.arrayBuffer())
-  if (buffer.byteLength > maxBytes) {
-    apiError(502, 'UPSTREAM_RESPONSE_TOO_LARGE', 'The model response is too large.')
+  if (!response.body) return null
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      totalBytes += value.byteLength
+      if (totalBytes > maxBytes) {
+        await reader.cancel()
+        apiError(502, 'UPSTREAM_RESPONSE_TOO_LARGE', 'The model response is too large.')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
   }
+  const buffer = Buffer.concat(chunks.map(chunk => Buffer.from(chunk)), totalBytes)
   if (!buffer.byteLength) return null
   const text = buffer.toString('utf8')
   try {
@@ -238,16 +369,28 @@ function isApiError(error: unknown) {
   return Boolean(error && typeof error === 'object' && 'statusCode' in error)
 }
 
-function redactSecrets(value: unknown, depth = 0): unknown {
-  if (depth > 8 || value === null || value === undefined) return value
-  if (Array.isArray(value)) return value.slice(0, 100).map(item => redactSecrets(item, depth + 1))
+function redactSecrets(value: unknown, depth = 0, secrets: string[] = []): unknown {
+  if (depth > 8) return '[truncated]'
+  if (value === null || value === undefined) return value
+  if (typeof value === 'string') return redactSecretText(value, secrets)
+  if (Array.isArray(value)) return value.slice(0, 100).map(item => redactSecrets(item, depth + 1, secrets))
   if (typeof value !== 'object') return value
 
   const output: Record<string, unknown> = {}
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
     output[key] = /authorization|api[-_]?key|access[-_]?token|secret/i.test(key)
       ? '[redacted]'
-      : redactSecrets(item, depth + 1)
+      : redactSecrets(item, depth + 1, secrets)
   }
   return output
+}
+
+function redactSecretText(value: string, secrets: string[]) {
+  return secrets
+    .filter(secret => secret.length >= 8)
+    .reduce((text, secret) => text.split(secret).join('[redacted]'), value)
+}
+
+function sanitizeEventName(value: string) {
+  return value.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 128) || 'message'
 }

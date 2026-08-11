@@ -409,6 +409,15 @@
   cursor: pointer;
 }
 
+.panel-submit--stop {
+  border-color: #9f3e3b;
+  background: #9f3e3b;
+}
+
+.panel-submit--stop:hover:not(:disabled) {
+  background: #85322f;
+}
+
 .panel-submit:disabled,
 .icon-button:disabled,
 .tool-tabs button:disabled,
@@ -427,6 +436,10 @@
   font-size: 13px;
   line-height: 1.55;
   box-shadow: inset 3px 0 #c68a24;
+}
+
+.playground-notice {
+  margin: 20px 0 0;
 }
 
 .tool-alert--error {

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { fetch, setup, url } from '@nuxt/test-utils/e2e'
+import { SseDecoder } from '../shared/utils/sse'
 
 const adminToken = 'integration-admin-token'
 const sessionPassword = 'integration-session-password-at-least-32-characters'
@@ -93,6 +94,28 @@ const upstream = createServer(async (request, response) => {
     return
   }
   if (requestUrl.pathname === '/v1/responses' && authorization === `Bearer ${savedApiKey}`) {
+    if (requestBody?.model === 'upstream-error') {
+      response.statusCode = 401
+      response.end(JSON.stringify({ error: { message: `Incorrect API key provided: ${savedApiKey}` } }))
+      return
+    }
+    if (requestBody?.stream === true) {
+      response.setHeader('content-type', 'text/event-stream')
+      response.flushHeaders()
+      response.write(`event: response.output_text.delta\ndata: ${JSON.stringify({ type: 'response.output_text.delta', delta: 'Proxy ' })}\n\n`)
+      await new Promise(resolve => setTimeout(resolve, 10))
+      response.write(`event: response.output_text.delta\ndata: ${JSON.stringify({ type: 'response.output_text.delta', delta: 'response' })}\n\n`)
+      response.end(`event: response.completed\ndata: ${JSON.stringify({
+        type: 'response.completed',
+        response: {
+          id: 'resp_test',
+          object: 'response',
+          model: requestBody?.model,
+          output_text: 'Proxy response',
+        },
+      })}\n\n`)
+      return
+    }
     response.end(JSON.stringify({
       id: 'resp_test',
       object: 'response',
@@ -150,6 +173,13 @@ function cookieFrom(response: Response) {
 
 async function json(response: Response) {
   return response.json() as Promise<any>
+}
+
+async function sseEvents(response: Response) {
+  const decoder = new SseDecoder()
+  const events = decoder.push(new TextEncoder().encode(await response.text()))
+  events.push(...decoder.finish())
+  return events
 }
 
 async function memberCookie() {
@@ -521,15 +551,31 @@ describe('authentication and same-origin API protection', () => {
       }),
     })
     expect(textResponse.status).toBe(200)
-    expect(await json(textResponse)).toMatchObject({
-      ok: true,
-      data: { id: 'resp_test', model: 'gpt-test', output_text: 'Proxy response' },
+    expect(textResponse.headers.get('content-type')).toContain('text/event-stream')
+    const textEvents = await sseEvents(textResponse)
+    expect(textEvents.filter(item => item.event === 'response.output_text.delta').map(item => JSON.parse(item.data).delta).join('')).toBe('Proxy response')
+    expect(JSON.parse(textEvents.find(item => item.event === 'response.completed')!.data)).toMatchObject({
+      response: { id: 'resp_test', model: 'gpt-test', output_text: 'Proxy response' },
     })
+    expect(JSON.parse(textEvents.find(item => item.event === 'guide.done')!.data).duration_ms).toBeGreaterThanOrEqual(0)
     expect(upstreamRequests).toContainEqual(expect.objectContaining({
       path: '/v1/responses',
       authorization: `Bearer ${savedApiKey}`,
-      body: { model: 'gpt-test', input: 'Hello from the integration test.' },
+      body: { model: 'gpt-test', input: 'Hello from the integration test.', stream: true },
     }))
+
+    const upstreamError = await fetch('/api/playground/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        credential: { type: 'saved', id: 7 },
+        request: { model: 'upstream-error', input: 'Do not expose the credential.' },
+      }),
+    })
+    expect(upstreamError.status).toBe(401)
+    const upstreamErrorText = await upstreamError.text()
+    expect(upstreamErrorText).not.toContain(savedApiKey)
+    expect(upstreamErrorText).toContain('[redacted]')
 
     const imageResponse = await fetch('/api/playground/images', {
       method: 'POST',

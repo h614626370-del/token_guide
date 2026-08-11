@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { Check, Copy, RotateCcw, Send } from 'lucide-vue-next'
-import type { ApiSuccess } from '~/types/api'
-import { apiErrorMessage } from '~/types/api'
+import { Check, Copy, RotateCcw, Send, Square } from 'lucide-vue-next'
 import type { PlaygroundCredential } from '~/types/playground'
+import { SseDecoder } from '#shared/utils/sse'
 
 const props = defineProps<{
   credential: PlaygroundCredential | null
@@ -21,6 +20,7 @@ const errorMessage = ref('')
 const durationMs = ref<number | null>(null)
 const copied = ref(false)
 const debugMode = ref<'request' | 'response'>('request')
+const requestController = shallowRef<AbortController | null>(null)
 
 const requestPayload = computed(() => {
   const request: Record<string, unknown> = {
@@ -32,6 +32,7 @@ const requestPayload = computed(() => {
     temperature: Number(temperature.value),
     top_p: 1,
     max_output_tokens: Number(maxOutputTokens.value),
+    stream: true,
   }
   if (reasoningEffort.value !== 'auto') request.reasoning = { effort: reasoningEffort.value }
   return request
@@ -46,26 +47,124 @@ const canSend = computed(() => Boolean(
 
 async function sendRequest() {
   if (!canSend.value || !props.credential) return
+  const controller = new AbortController()
+  const startedAt = performance.now()
+  requestController.value = controller
   sending.value = true
   output.value = ''
   rawResponse.value = ''
   errorMessage.value = ''
   durationMs.value = null
   try {
-    const response = await $fetch<ApiSuccess<any>>('/api/playground/responses', {
+    const response = await fetch('/api/playground/responses', {
       method: 'POST',
-      body: { credential: props.credential, request: requestPayload.value },
+      headers: {
+        accept: 'text/event-stream',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ credential: props.credential, request: requestPayload.value }),
+      signal: controller.signal,
     })
-    rawResponse.value = JSON.stringify(response.data, null, 2)
-    output.value = extractText(response.data) || rawResponse.value
-    durationMs.value = Number(response.meta?.duration_ms || 0)
-    debugMode.value = 'response'
+    if (!response.ok) throw new Error(await responseErrorMessage(response))
+    await consumeResponseStream(response)
   } catch (cause) {
-    errorMessage.value = apiErrorMessage(cause, '文本请求失败')
+    if (controller.signal.aborted) {
+      errorMessage.value = output.value ? '已停止生成。' : '请求已取消。'
+    } else {
+      errorMessage.value = cause instanceof Error ? cause.message : '文本请求失败'
+    }
   } finally {
+    if (durationMs.value === null) durationMs.value = Math.round(performance.now() - startedAt)
+    if (requestController.value === controller) requestController.value = null
     sending.value = false
   }
 }
+
+async function consumeResponseStream(response: Response) {
+  if (!response.body) throw new Error('浏览器未收到可读取的流式响应。')
+  const reader = response.body.getReader()
+  const decoder = new SseDecoder()
+  let terminalError = ''
+
+  const consume = (events: ReturnType<SseDecoder['push']>) => {
+    for (const event of events) {
+      terminalError ||= applyStreamEvent(event.event, event.data)
+    }
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      consume(decoder.push(value))
+    }
+    consume(decoder.finish())
+  } finally {
+    reader.releaseLock()
+  }
+
+  if (terminalError) throw new Error(terminalError)
+  if (!rawResponse.value && output.value) {
+    rawResponse.value = JSON.stringify({ output_text: output.value }, null, 2)
+    debugMode.value = 'response'
+  }
+  if (!output.value) throw new Error('流式响应中没有可显示的文本。')
+}
+
+function applyStreamEvent(eventName: string, data: string) {
+  let payload: any
+  try {
+    payload = JSON.parse(data)
+  } catch {
+    return eventName === 'guide.error' ? data : ''
+  }
+
+  const type = typeof payload?.type === 'string' ? payload.type : eventName
+  if (type === 'response.output_text.delta' && typeof payload?.delta === 'string') {
+    output.value += payload.delta
+    return ''
+  }
+  if (type === 'response.output_text.done' && !output.value && typeof payload?.text === 'string') {
+    output.value = payload.text
+    return ''
+  }
+  if (type === 'response.completed') {
+    const completed = payload?.response ?? payload
+    rawResponse.value = JSON.stringify(completed, null, 2)
+    if (!output.value) output.value = extractText(completed) || rawResponse.value
+    debugMode.value = 'response'
+    return ''
+  }
+  if (type === 'guide.done') {
+    durationMs.value = Number(payload?.duration_ms || 0)
+    return ''
+  }
+  if (type === 'guide.error' || type === 'error' || type === 'response.failed') {
+    return streamErrorMessage(payload)
+  }
+  return ''
+}
+
+function streamErrorMessage(payload: any) {
+  return payload?.error?.message
+    || payload?.response?.error?.message
+    || payload?.message
+    || '模型流式响应失败。'
+}
+
+async function responseErrorMessage(response: Response) {
+  const payload = await response.json().catch(() => null) as any
+  return payload?.statusMessage
+    || payload?.message
+    || payload?.data?.message
+    || `文本请求失败（HTTP ${response.status}）`
+}
+
+function cancelRequest() {
+  requestController.value?.abort()
+}
+
+onBeforeUnmount(cancelRequest)
 
 function extractText(value: any) {
   if (typeof value?.output_text === 'string') return value.output_text
@@ -100,7 +199,7 @@ function reset() {
           <span>Responses</span>
           <h2>文本请求</h2>
         </div>
-        <button class="icon-button" type="button" title="清空结果" @click="reset">
+        <button class="icon-button" type="button" title="清空结果" :disabled="sending" @click="reset">
           <RotateCcw :size="17" />
         </button>
       </div>
@@ -110,7 +209,7 @@ function reset() {
         <input v-model.trim="model" list="text-models" required>
         <datalist id="text-models">
           <option value="gpt-5.5" />
-          <option value="gpt-5.4" />
+          <option value="gpt-5.6-sol" />
         </datalist>
       </label>
 
@@ -148,9 +247,13 @@ function reset() {
         </div>
       </details>
 
-      <button class="primary-command panel-submit" type="submit" :disabled="!canSend">
+      <button v-if="sending" class="primary-command panel-submit panel-submit--stop" type="button" @click="cancelRequest">
+        <Square :size="16" />
+        停止生成
+      </button>
+      <button v-else class="primary-command panel-submit" type="submit" :disabled="!canSend">
         <Send :size="17" />
-        {{ sending ? '请求中...' : '发送请求' }}
+        发送请求
       </button>
     </form>
 

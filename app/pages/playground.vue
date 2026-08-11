@@ -59,6 +59,10 @@ async function loadKeys() {
         </template>
       </ToolPageHeading>
 
+      <div class="tool-alert playground-notice" role="note">
+        试用工作台主要用于确认模型和 API Key 能否正常调用。功能比较基础，对话不会保存，不建议用于正式工作。
+      </div>
+
       <SessionGate v-if="sessionLoading || !session?.authenticated" :loading="sessionLoading" :message="sessionError" />
 
       <template v-else>

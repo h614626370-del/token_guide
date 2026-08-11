@@ -351,6 +351,50 @@ test('install command copy falls back on an insecure origin', async ({ page }) =
   await expect(copyButton).toHaveText('已复制')
   expect(await page.evaluate(() => (window as typeof window & { __copiedCommand?: string }).__copiedCommand)).toBe(command)
 })
+
+test('playground renders streamed text responses', async ({ page }) => {
+  let submittedBody: any = null
+  await page.route('**/api/session', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        authenticated: true,
+        admin: false,
+        user: { id: '1', username: 'Tester', email: 'tester@example.com', role: 'user' },
+        token_expires_at: null,
+      },
+    },
+  }))
+  await page.route('**/api/playground/keys', route => route.fulfill({
+    json: { ok: true, data: [{ id: 7, name: 'Test Key', masked_key: 'sk-test...key', status: 'active', group_id: null, group: null }] },
+  }))
+  await page.route('**/api/playground/responses', async (route) => {
+    submittedBody = route.request().postDataJSON()
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await route.fulfill({
+      contentType: 'text/event-stream',
+      body: [
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"流式"}\n\n',
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"返回成功"}\n\n',
+        'event: response.completed\ndata: {"type":"response.completed","response":{"id":"resp_ui","output_text":"流式返回成功"}}\n\n',
+        'event: guide.done\ndata: {"duration_ms":108}\n\n',
+      ].join(''),
+    })
+  })
+
+  await page.goto('/playground', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('note')).toHaveText('试用工作台主要用于确认模型和 API Key 能否正常调用。功能比较基础，对话不会保存，不建议用于正式工作。')
+  const textModels = page.locator('#text-models option')
+  await expect(textModels).toHaveCount(2)
+  await expect(textModels.nth(0)).toHaveAttribute('value', 'gpt-5.5')
+  await expect(textModels.nth(1)).toHaveAttribute('value', 'gpt-5.6-sol')
+  await page.getByRole('button', { name: '发送请求' }).click()
+  await expect(page.getByRole('button', { name: '停止生成' })).toBeVisible()
+  await expect(page.locator('.response-output')).toHaveText('流式返回成功')
+  await expect(page.locator('.result-duration')).toHaveText('108 ms')
+  expect(submittedBody.request.stream).toBe(true)
+})
+
 test('embedded mode removes the site chrome', async ({ page }) => {
   const response = await page.goto('/playground?embedded=1', { waitUntil: 'domcontentloaded' })
   expect(response?.status()).toBe(200)
