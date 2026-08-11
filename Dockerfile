@@ -28,7 +28,7 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 
-ARG APP_VERSION=2.2.8
+ARG APP_VERSION=2.2.9
 
 LABEL org.opencontainers.image.version=$APP_VERSION
 
