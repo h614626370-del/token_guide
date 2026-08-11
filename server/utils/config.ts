@@ -56,7 +56,7 @@ export function getGuideConfig(event?: H3Event) {
     rateMax: Number(runtime.rateMax || 5),
     trustedProxyIps,
     usdToCny: Number(runtime.usdToCny || 6.8102),
-    appVersion: String(runtime.appVersion || process.env.NUXT_APP_VERSION || '2.2.9'),
+    appVersion: String(runtime.appVersion || process.env.NUXT_APP_VERSION || '2.2.10'),
     homepageDefaultsPath: path.resolve(process.cwd(), 'homeApps'),
     homepageDefaultId: 'ziyou',
     updateImageRepository: String(runtime.updateImageRepository || '614626370/sub2api-guide'),
