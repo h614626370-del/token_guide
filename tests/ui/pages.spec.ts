@@ -342,9 +342,18 @@ test('install command copy falls back on an insecure origin', async ({ page }) =
   }))
   await page.route('**/api/session', route => route.fulfill({ json: { ok: true, data: { authenticated: true, admin: false, user: { id: '1', username: 'Tester', email: 'tester@example.com', role: 'user' }, token_expires_at: null } } }))
   await page.route('**/api/install/keys?tool=codex', route => route.fulfill({ json: { ok: true, data: [{ id: 7, name: 'Codex', masked_key: 'sk-test...key', group: { platform: 'openai' } }] } }))
-  await page.route('**/api/install/command', route => route.fulfill({ json: { ok: true, data: { remote: [{ label: 'Linux Terminal', command }], local: [{ label: 'Linux Terminal', command: './setup.sh' }], download_url: '/setup.sh', filename: 'setup.sh', checksum: 'ABC' } } }))
+  await page.route('**/api/install/models?tool=codex&key_id=7', route => route.fulfill({ json: { ok: true, data: ['gpt-5.5', 'gpt-5.6-sol'] } }))
+  let submittedInstallerBody: any = null
+  await page.route('**/api/install/command', async (route) => {
+    submittedInstallerBody = route.request().postDataJSON()
+    await route.fulfill({ json: { ok: true, data: { remote: [{ label: 'Linux Terminal', command }], local: [{ label: 'Linux Terminal', command: './setup.sh' }], download_url: '/setup.sh', filename: 'setup.sh', checksum: 'ABC' } } })
+  })
 
   await page.goto('/install', { waitUntil: 'networkidle' })
+  const modelSelect = page.getByLabel('默认模型')
+  await expect(modelSelect).toHaveValue('gpt-5.6-sol')
+  await modelSelect.selectOption('gpt-5.5')
+  await expect.poll(() => submittedInstallerBody?.model).toBe('gpt-5.5')
   await page.getByRole('tab', { name: 'Linux' }).click()
   const copyButton = page.locator('.install-command button').first()
   await copyButton.click()

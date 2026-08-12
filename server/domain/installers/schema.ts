@@ -35,6 +35,12 @@ export const installerCommandSchema = z.object({
   tool: installerToolSchema,
   platform: installerPlatformSchema,
   key_id: z.coerce.number().int().positive(),
+  model: z.string().trim().min(1).max(120),
 }).strict()
+
+export const installerModelsQuerySchema = z.object({
+  tool: installerToolSchema,
+  key_id: z.coerce.number().int().positive(),
+})
 
 export type InstallerSettingsInput = z.infer<typeof installerSettingsSchema>

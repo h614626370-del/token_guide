@@ -103,6 +103,45 @@ export async function resolvePlaygroundCredential(
   return item.key
 }
 
+export async function listModelsForApiKey(event: H3Event, apiKey: string) {
+  const config = getGuideConfig(event)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), config.pricingFetchTimeoutMs)
+
+  try {
+    const response = await fetch(`${config.sub2apiOrigin}/v1/models`, {
+      headers: {
+        accept: 'application/json',
+        authorization: `Bearer ${apiKey}`,
+        ...forwardedRequestHeaders(event),
+      },
+      signal: controller.signal,
+    })
+    const payload = await readLimitedResponse(response, 2 * 1024 * 1024)
+    if (!response.ok) {
+      apiError(response.status === 401 ? 401 : 502, 'INSTALLER_MODELS_REQUEST_FAILED', 'Unable to read models for the selected API key.')
+    }
+
+    const items = Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.models)
+        ? payload.models
+        : Array.isArray(payload)
+          ? payload
+          : []
+    const models: string[] = items
+      .map((item: unknown) => typeof item === 'string' ? item : String((item as { id?: unknown })?.id || ''))
+      .map((item: string) => item.trim())
+      .filter((item: string) => item.length > 0 && item.length <= 120)
+    return [...new Set<string>(models)].sort((left, right) => left.localeCompare(right, 'en'))
+  } catch (error) {
+    if (isApiError(error)) throw error
+    apiError(502, 'INSTALLER_MODELS_UNAVAILABLE', 'The model list is temporarily unavailable.')
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function callPlaygroundUpstream(
   event: H3Event,
   path: '/v1/responses' | '/v1/images/generations',

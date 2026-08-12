@@ -8,7 +8,8 @@ param(
 $ErrorActionPreference = "Stop"
 $NodeVersion = "v22.16.0"
 $BaseUrl = "{{BASE_URL}}"
-$Model = "{{DEFAULT_MODEL}}"
+$Model = $env:ANTHROPIC_MODEL
+if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "{{DEFAULT_MODEL}}" }
 $ApiKey = $env:CLAUDE_API_KEY
 
 $utf8Encoding = New-Object System.Text.UTF8Encoding($false)

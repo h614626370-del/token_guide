@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 
 param(
-    [string]$Model = "{{DEFAULT_MODEL}}",
+    [string]$Model = $env:CODEX_MODEL,
     [string]$BaseUrl = $env:CODEX_BASE_URL,
     [string]$ApiKey = $env:CODEX_API_KEY,
     [switch]$NoLaunch,
@@ -11,6 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 $NodeVersion = "v22.16.0"
 $ProviderId = "custom"
+if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "{{DEFAULT_MODEL}}" }
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) { $BaseUrl = "{{BASE_URL}}" }
 $BaseUrl = $BaseUrl.TrimEnd("/")
 

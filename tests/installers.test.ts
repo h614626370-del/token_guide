@@ -75,7 +75,8 @@ describe('installer configuration', () => {
       const claude = repository.publicScript('claude', 'linux')
       expect(codex?.content).toContain('$ProviderId = "custom"')
       expect(codex?.content).toContain('$BaseUrl = "https://relay.example.com"')
-      expect(codex?.content).toContain('[string]$Model = "gpt-test"')
+      expect(codex?.content).toContain('[string]$Model = $env:CODEX_MODEL')
+      expect(codex?.content).toContain('if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "gpt-test" }')
       expect(codex?.content).toContain('requires_openai_auth = true')
       expect(codex?.content).toContain('$authData["OPENAI_API_KEY"] = $ApiKey')
       expect(codex?.content).not.toContain('http_headers = { Authorization')
@@ -83,7 +84,7 @@ describe('installer configuration', () => {
       expect(codexShell?.content).toContain('auth.OPENAI_API_KEY = apiKey;')
       expect(codexShell?.content).not.toContain('http_headers = { Authorization')
       expect(claude?.content).toContain('BASE_URL="https://relay.example.com"')
-      expect(claude?.content).toContain('MODEL="claude-test"')
+      expect(claude?.content).toContain('MODEL="${ANTHROPIC_MODEL:-claude-test}"')
       expect(codexShell?.content).not.toContain('\r')
     } finally {
       db.close()

@@ -77,6 +77,9 @@
 .install-key-panel dl div { display: grid; min-width: 0; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--soft-line); }
 .install-key-panel dt { color: var(--muted); font-size: 11px; }
 .install-key-panel dd { overflow: hidden; margin: 0; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.install-key-panel .install-model-row { align-items: center; }
+.install-key-panel .install-model-row dd { overflow: visible; }
+.install-key-panel .install-model-row select { height: 36px; font-size: 12px; font-weight: 700; }
 
 .install-methods > header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid var(--line); background: #f8f9f9; }
 .install-methods > header p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
