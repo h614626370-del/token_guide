@@ -34,7 +34,7 @@ npm test
 npm run test:ui
 npm run build
 npm run preview
-npm run release -- -Version v2.2.11
+gh workflow run release.yml -f version=v2.2.11 -f publish_latest=true
 ```
 
 本机部署准备：
@@ -46,7 +46,17 @@ docker compose up -d
 
 ## Docker 构建与发布
 
-- Windows 侧只负责准备源码和启动发布脚本，最终 Linux 镜像由 WSL 中的 Docker 构建。
+- 正式发布首选 GitHub Actions 云端流程，不要求本机进入 WSL 或安装 Linux 构建环境。
+- `.github/workflows/ci.yml` 在 `main` 推送和 PR 时执行类型检查、单元测试、Nuxt 生产构建和 Playwright 桌面/移动端 UI 回归。
+- `.github/workflows/docker-build.yml` 在 Ubuntu Runner 验证 `linux/amd64` 镜像可构建，但不推送镜像；必须保留 GitHub Actions BuildKit 缓存。
+- `.github/workflows/release.yml` 只复用同一提交已经成功的 `CI` 结果，不得再次运行整套测试；CI 未成功时发布必须等待或失败。
+- Release 在 Ubuntu Runner 构建并推送 `614626370/sub2api-guide:<version>`；稳定版可同时更新 `latest`，预发布版本不得覆盖 `latest`。
+- Release 成功后创建或更新同版本 GitHub Release，并生成对应 Git 标签。
+- GitHub `production` Environment 必须配置 `DOCKERHUB_USERNAME` 和 `DOCKERHUB_TOKEN` 两个 Environment secrets。Token 使用 Docker Hub Read & Write Access Token，不使用账号密码。
+- 密钥只配置在 GitHub Environment secrets，绝不写入仓库文件、命令参数、日志或对话回复。`DOCKERHUB_REPOSITORY` 如需覆盖，应配置为 Environment variable；未配置时使用默认镜像仓库。
+- 发布新版本前必须使用未发布的新版本号，不得复用已有 Git 标签或覆盖同版本镜像。同步更新 `package.json`、`package-lock.json`、`nuxt.config.ts`、`server/utils/config.ts`、`Dockerfile`、`.env.example` 和相关文档中的应用版本。
+- 推荐发布顺序：本机完成必要检查，提交并推送 `main`，等待该提交的 `CI` 成功，再执行 `gh workflow run release.yml -f version=vX.Y.Z -f publish_latest=true`，最后确认 Actions、GitHub Release、远端标签和 Docker Hub 的版本/`latest` 摘要一致。
+- 本机 `npm run release -- -Version vX.Y.Z` 仅作为云端不可用时的备用方案。默认通过 WSL Docker 构建，也可使用 `-NativeDocker` 调用 Docker Desktop 的 Linux 引擎。
 - `npm ci` 和 `npm run build` 必须保留在 Docker 的 Linux 构建阶段，不要复制 Windows 生成的 `node_modules` 或 `.output` 制作生产镜像。
 - Dockerfile 必须保留 BuildKit npm 缓存挂载；依赖文件未变化时应复用安装层，依赖变化时优先复用 npm 下载缓存。
 - `package.json` 和 `package-lock.json` 必须先于业务源码复制，以免普通源码改动导致依赖层失效。
