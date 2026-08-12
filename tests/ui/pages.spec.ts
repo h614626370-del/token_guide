@@ -217,6 +217,12 @@ test('pricing shows official prices once and scopes plans to supported models', 
             recharge_pay_cny: 20, recharge_credit_usd: 100, effective_rate: 0.2,
             sort_order: 2, note: '',
           },
+          {
+            provider: 'openai', source_id: '30', name: '空白名单套餐', display_name: '空白名单套餐',
+            model_list_enabled: true, model_names: [], is_exclusive: false, rate_multiplier: 1,
+            recharge_multiplier: 1, recharge_pay_cny: 1, recharge_credit_usd: 1,
+            effective_rate: 1, sort_order: 3, note: '',
+          },
         ],
       },
     }),
@@ -235,6 +241,7 @@ test('pricing shows official prices once and scopes plans to supported models', 
   await expect(gpt.locator('.pricing-model__official')).toContainText('输出$30')
   await expect(gpt).toContainText('高速VIP通道')
   await expect(gpt).not.toContainText('deepseek-v4-flash 官方1折')
+  await expect(page.getByText('空白名单套餐', { exact: true })).toHaveCount(0)
   await deepseek.locator('.pricing-model__summary').click()
   await expect(deepseek).toContainText('deepseek-v4-flash 官方1折')
   await expect(page.locator('.pricing-table tbody td > small').filter({ hasText: '官方价' })).toHaveCount(0)
@@ -472,6 +479,20 @@ test('administrator can inspect group model scopes from the source snapshot', as
   })
 })
 
+test('protected admin page loads immediately after logging in without a reload', async ({ page }) => {
+  await page.goto('/admin/pricing', { waitUntil: 'domcontentloaded' })
+  await expect(page.getByRole('heading', { level: 1, name: '管理员登录' })).toBeVisible()
+
+  await page.getByLabel('管理员 Token').fill('playwright-admin-token')
+  const configResponse = page.waitForResponse(response => response.url().includes('/api/admin/pricing/config') && response.status() === 200)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await configResponse
+
+  await expect(page.getByRole('heading', { level: 1, name: '价格配置' })).toBeVisible()
+  await expect(page.getByText('Administrator login is required')).toHaveCount(0)
+  await expect(page.getByText('模型来源尚未刷新')).toBeVisible()
+})
+
 test('installer uses only the selected key group model allowlist', async ({ page }, testInfo) => {
   const command = "export CODEX_MODEL='deepseek-v4-flash'; bash setup.sh"
   await page.route('**/api/install/config', route => route.fulfill({
@@ -527,7 +548,7 @@ test('installer uses only the selected key group model allowlist', async ({ page
         download_url: '/setup.sh',
         filename: 'setup.sh',
         checksum: 'ABC',
-        install_model: 'deepseek-v4-flash',
+        model: 'deepseek-v4-flash',
         model_source: 'group_allowlist',
         allowed_models: ['deepseek-v4-flash'],
         model_policy_mode: 'allowlist',
@@ -537,7 +558,7 @@ test('installer uses only the selected key group model allowlist', async ({ page
 
   await page.goto('/install', { waitUntil: 'networkidle' })
   await page.getByRole('tab', { name: 'Linux' }).click()
-  await expect(page.getByText('DeepSeek Flash')).toBeVisible()
+  await expect(page.locator('.install-key-panel').getByText('DeepSeek Flash', { exact: true })).toBeVisible()
   await expect(page.getByText('deepseek-v4-flash', { exact: true })).toBeVisible()
   await expect(page.getByText('当前分组白名单')).toBeVisible()
   await expect(page.getByLabel('Linux Terminal命令').first()).toHaveValue(command)
@@ -547,6 +568,51 @@ test('installer uses only the selected key group model allowlist', async ({ page
     path: join('artifacts', 'ui', `${testInfo.project.name}-install-group-allowlist.png`),
     fullPage: true,
   })
+})
+
+test('installer explains and blocks a group with an empty model allowlist', async ({ page }) => {
+  await page.route('**/api/install/config', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        settings: {
+          provider_id: 'custom',
+          base_url: 'https://llapi.org/v1',
+          codex_default_model: 'gpt-5.6-sol',
+          claude_default_model: '',
+          codex_enabled: true,
+          claude_enabled: false,
+          group_models: [],
+        },
+        scripts: [],
+      },
+    },
+  }))
+  await page.route('**/api/session', route => route.fulfill({
+    json: { ok: true, data: { authenticated: true, admin: false, user: { id: '1', username: 'Tester', email: 'tester@example.com', role: 'user' }, token_expires_at: null } },
+  }))
+  await page.route('**/api/install/keys?tool=codex', route => route.fulfill({
+    json: {
+      ok: true,
+      data: [{
+        id: 9,
+        name: 'Empty Key',
+        masked_key: 'sk-test...empty',
+        group_id: 30,
+        group: { id: 30, name: 'Empty allowlist', platform: 'openai', model_policy: { mode: 'empty', models: [] } },
+      }],
+    },
+  }))
+  await page.route('**/api/install/command', route => route.fulfill({
+    status: 409,
+    json: { statusMessage: '当前分组启用了模型白名单，但尚未配置任何模型。' },
+  }))
+
+  await page.goto('/install', { waitUntil: 'networkidle' })
+  await expect(page.getByText('当前分组没有可用模型')).toBeVisible()
+  await expect(page.getByText('当前分组启用了模型白名单，但尚未配置任何模型。请联系管理员补齐后刷新本页。')).toBeVisible()
+  await expect(page.getByText('当前分组启用了模型白名单，但尚未配置任何模型。', { exact: true })).toBeVisible()
+  await expect(page.locator('.install-command')).toHaveCount(0)
 })
 
 test('install command copy falls back on an insecure origin', async ({ page }) => {

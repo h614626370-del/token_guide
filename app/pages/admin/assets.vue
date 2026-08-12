@@ -17,17 +17,22 @@ interface AssetItem {
 const loading = ref(false)
 const uploading = ref(false)
 const deleting = ref('')
+const admin = useAdminSessionState()
+const loaded = ref(false)
 const assets = ref<AssetItem[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 
-onMounted(() => { void loadAssets() })
+watch(() => admin.session.value?.admin, (authenticated) => {
+  if (authenticated && !loaded.value) void loadAssets()
+}, { immediate: true })
 
 async function loadAssets() {
   loading.value = true
   try {
     const response = await $fetch<ApiSuccess<AssetItem[]>>('/api/admin/assets')
     assets.value = response.data
+    loaded.value = true
   } catch (cause) {
     notice.type = 'error'
     notice.message = apiErrorMessage(cause, '图片列表读取失败')

@@ -48,7 +48,7 @@ export interface InstallerCommands {
   checksum: string
   model: string
   model_source: 'group_allowlist' | 'installer_group' | 'installer_default'
-  model_policy_mode: 'allowlist' | 'unrestricted' | 'unknown'
+  model_policy_mode: 'allowlist' | 'empty' | 'unrestricted' | 'unknown'
   allowed_models: string[]
 }
 

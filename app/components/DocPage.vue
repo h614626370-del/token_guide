@@ -45,16 +45,7 @@ useSeoMeta({
 
 <template>
   <article class="page-shell doc-content">
-    <MDC
-      v-if="databasePage"
-      :value="databaseBody"
-      :data="{
-        projectName: site.project_name,
-        siteTitle: site.site_title,
-        mainSiteUrl: site.main_site_url,
-        apiBaseUrl: site.api_base_url,
-      }"
-    />
+    <MDC v-if="databasePage" :value="databaseBody" />
     <ContentRenderer
       v-else-if="renderedPage"
       :value="renderedPage"

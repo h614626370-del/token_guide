@@ -83,6 +83,7 @@ describe('installer configuration', () => {
       expect(codex?.content).toContain('$BaseUrl = "https://relay.example.com"')
       expect(codex?.content).toContain('[string]$Model = $env:CODEX_MODEL')
       expect(codex?.content).toContain('if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "gpt-test" }')
+      expect(codex?.content.match(/IsNullOrWhiteSpace\(\$Model\)/g)).toHaveLength(1)
       expect(codex?.content).toContain('requires_openai_auth = true')
       expect(codex?.content).toContain('$authData["OPENAI_API_KEY"] = $ApiKey')
       expect(codex?.content).not.toContain('http_headers = { Authorization')
@@ -136,6 +137,15 @@ describe('installer configuration', () => {
       source: 'installer_group',
       allowed_models: [],
       policy_mode: 'unrestricted',
+    })
+
+    expect(selectModelForGroup('gpt-5.6-sol', {
+      model_policy: { mode: 'empty', models: [] },
+    })).toEqual({
+      model: '',
+      source: 'group_allowlist',
+      allowed_models: [],
+      policy_mode: 'empty',
     })
   })
 

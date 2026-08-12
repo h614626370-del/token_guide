@@ -73,7 +73,7 @@ export interface GroupModelListSource {
 }
 
 export interface GroupModelPolicy {
-  mode: 'allowlist' | 'unrestricted' | 'unknown'
+  mode: 'allowlist' | 'empty' | 'unrestricted' | 'unknown'
   models: string[]
 }
 
@@ -111,6 +111,14 @@ export function selectModelForGroup(
 ) {
   const fallback = String(configuredModel || '').trim()
   const policy = group?.model_policy
+  if (policy?.mode === 'empty') {
+    return {
+      model: '',
+      source: 'group_allowlist' as const,
+      allowed_models: [],
+      policy_mode: 'empty' as const,
+    }
+  }
   if (policy?.mode !== 'allowlist') {
     const policyMode = policy?.mode || 'unknown'
     return {
@@ -124,10 +132,10 @@ export function selectModelForGroup(
   const models = normalizeGroupModelNames(policy.models)
   if (!models.length) {
     return {
-      model: fallback,
-      source: options.hasGroupOverride ? 'installer_group' as const : 'installer_default' as const,
+      model: '',
+      source: 'group_allowlist' as const,
       allowed_models: [],
-      policy_mode: 'unknown' as const,
+      policy_mode: 'empty' as const,
     }
   }
   const configured = models.find(item => item.toLowerCase() === fallback.toLowerCase())
@@ -431,9 +439,8 @@ function resolveGroupModelPolicy(groups: unknown, groupId: number | null, platfo
 
   if (!group) return { mode: 'unknown', models: [] }
   const models = normalizeGroupModelNames(group.model_names)
-  return group.model_list_enabled && models.length
-    ? { mode: 'allowlist', models }
-    : { mode: 'unrestricted', models: [] }
+  if (!group.model_list_enabled) return { mode: 'unrestricted', models: [] }
+  return models.length ? { mode: 'allowlist', models } : { mode: 'empty', models: [] }
 }
 
 function normalizeGroupModelNames(value: unknown) {

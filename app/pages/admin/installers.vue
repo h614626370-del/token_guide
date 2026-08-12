@@ -160,7 +160,7 @@ function setGroupModel(groupId: string, model: string) {
 }
 
 function modelsForGroup(group: SourceGroup) {
-  if (group.model_list_enabled && group.model_names.length) return [...group.model_names]
+  if (group.model_list_enabled) return [...group.model_names]
   const mapping = pricingSource.value?.model_group_ids_by_provider?.openai || {}
   return Object.entries(mapping)
     .filter(([, groupIds]) => groupIds.includes(group.source_id))
@@ -235,8 +235,8 @@ function lineDiff(before: string, after: string) {
             <div v-if="openaiGroups.length" class="installer-group-model-list">
               <label v-for="group in openaiGroups" :key="group.source_id">
                 <span><strong>{{ group.source_name }}</strong><small>分组 ID {{ group.source_id }}</small></span>
-                <select :value="groupModel(group.source_id)" :aria-label="`${group.source_name} 自动安装模型`" @change="setGroupModel(group.source_id, ($event.target as HTMLSelectElement).value)">
-                  <option value="">跟随默认：{{ settings.codex_default_model || '由客户端决定' }}</option>
+                <select :value="groupModel(group.source_id)" :aria-label="`${group.source_name} 自动安装模型`" :disabled="group.model_list_enabled && !group.model_names.length" @change="setGroupModel(group.source_id, ($event.target as HTMLSelectElement).value)">
+                  <option value="">{{ group.model_list_enabled ? (group.model_names.length ? '由白名单自动选择' : '白名单为空，无法安装') : `跟随默认：${settings.codex_default_model || '由客户端决定'}` }}</option>
                   <option v-for="model in modelsForGroup(group)" :key="model" :value="model">{{ model }}</option>
                   <option v-if="groupModel(group.source_id) && !modelsForGroup(group).includes(groupModel(group.source_id))" :value="groupModel(group.source_id)">{{ groupModel(group.source_id) }}（已保存）</option>
                 </select>

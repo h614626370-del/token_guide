@@ -2,6 +2,14 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-08-03',
   devtools: { enabled: false },
   modules: ['@nuxt/content', '@nuxtjs/mdc'],
+  components: [{ path: '~/components', global: true }],
+  mdc: {
+    components: {
+      map: {
+        'support-group-qr': 'SupportGroupQr',
+      },
+    },
+  },
   css: ['~/assets/css/main.css', '~/assets/css/tools.css', '~/assets/css/install.css'],
   runtimeConfig: {
     sessionPassword: '',

@@ -33,6 +33,9 @@ export default defineEventHandler(async (event) => {
   const modelSelection = selectModelForGroup(configuredModel, selected.group, {
     hasGroupOverride,
   })
+  if (modelSelection.policy_mode === 'empty') {
+    apiError(409, 'INSTALLER_GROUP_MODEL_LIST_EMPTY', 'The selected API key group has an empty model allowlist. Ask an administrator to configure at least one model.')
+  }
   const model = modelSelection.model
   const script = repository.publicScript(parsed.data.tool, parsed.data.platform, {
     base_url: baseUrl,

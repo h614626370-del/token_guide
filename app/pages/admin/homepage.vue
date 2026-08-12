@@ -73,7 +73,9 @@ interface HomepageState {
 }
 
 const state = ref<HomepageState | null>(null)
+const admin = useAdminSessionState()
 const loading = ref(false)
+const loaded = ref(false)
 const working = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const directoryInput = ref<HTMLInputElement | null>(null)
@@ -82,13 +84,16 @@ const dragging = ref(false)
 const lastUpload = ref<HomepageUploadResult | null>(null)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 
-onMounted(() => { void load() })
+watch(() => admin.session.value?.admin, (authenticated) => {
+  if (authenticated && !loaded.value) void load()
+}, { immediate: true })
 
 async function load() {
   loading.value = true
   try {
     const response = await $fetch<ApiSuccess<HomepageState>>('/api/admin/homepage')
     state.value = response.data
+    loaded.value = true
   } catch (cause) {
     showError(cause, '首页配置读取失败。')
   } finally {

@@ -13,7 +13,6 @@ $NodeVersion = "v22.16.0"
 $ProviderId = "custom"
 if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "{{DEFAULT_MODEL}}" }
 if ([string]::IsNullOrWhiteSpace($BaseUrl)) { $BaseUrl = "{{BASE_URL}}" }
-if ([string]::IsNullOrWhiteSpace($Model)) { $Model = "{{DEFAULT_MODEL}}" }
 $BaseUrl = $BaseUrl.TrimEnd("/")
 
 # Windows PowerShell 5.1 defaults to the active legacy code page.

@@ -9,7 +9,7 @@ export interface PlaygroundKey {
     name: string
     platform: string
     model_policy?: {
-      mode: 'allowlist' | 'unrestricted' | 'unknown'
+      mode: 'allowlist' | 'empty' | 'unrestricted' | 'unknown'
       models: string[]
     } | null
   } | null

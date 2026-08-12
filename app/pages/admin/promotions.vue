@@ -32,9 +32,11 @@ interface PromotionOverview {
 }
 
 const site = useSiteConfigState()
+const admin = useAdminSessionState()
 const overview = ref<PromotionOverview | null>(null)
 const loading = ref(false)
 const saving = ref(false)
+const loaded = ref(false)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 const form = reactive({ code: '', name: '', target_url: site.value.main_site_url, utm_source: '', utm_medium: 'referral', utm_campaign: '', utm_content: '' })
 
@@ -42,11 +44,16 @@ watch(() => site.value.main_site_url, (value) => {
   if (!form.target_url) form.target_url = value
 })
 
-onMounted(() => { void load() })
+watch(() => admin.session.value?.admin, (authenticated) => {
+  if (authenticated && !loaded.value) void load()
+}, { immediate: true })
 
 async function load() {
   loading.value = true
-  try { overview.value = (await $fetch<ApiSuccess<PromotionOverview>>('/api/admin/promotions')).data } catch (cause) { showError(cause, '推广统计读取失败。') } finally { loading.value = false }
+  try {
+    overview.value = (await $fetch<ApiSuccess<PromotionOverview>>('/api/admin/promotions')).data
+    loaded.value = true
+  } catch (cause) { showError(cause, '推广统计读取失败。') } finally { loading.value = false }
 }
 
 async function createSource() {

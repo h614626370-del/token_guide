@@ -471,15 +471,7 @@ function lineDiff(before: string, after: string) {
             </div>
 
             <div v-show="activeTab === 'preview'" class="admin-doc-panel admin-doc-preview doc-content">
-              <MDC
-                :value="previewBody"
-                :data="{
-                  projectName: site.project_name,
-                  siteTitle: site.site_title,
-                  mainSiteUrl: site.main_site_url,
-                  apiBaseUrl: site.api_base_url,
-                }"
-              />
+              <MDC :value="previewBody" />
             </div>
 
             <div v-show="activeTab === 'diff'" class="admin-doc-panel">

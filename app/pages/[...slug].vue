@@ -32,14 +32,6 @@ useSeoMeta({
 
 <template>
   <article class="page-shell doc-content">
-    <MDC
-      :value="renderedBody"
-      :data="{
-        projectName: site.project_name,
-        siteTitle: site.site_title,
-        mainSiteUrl: site.main_site_url,
-        apiBaseUrl: site.api_base_url,
-      }"
-    />
+    <MDC :value="renderedBody" />
   </article>
 </template>

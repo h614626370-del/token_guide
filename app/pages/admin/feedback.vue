@@ -28,6 +28,8 @@ useSeoMeta({ title: '反馈处理', robots: 'noindex, nofollow' })
 
 const loading = ref(false)
 const saving = ref(false)
+const admin = useAdminSessionState()
+const loaded = ref(false)
 const items = ref<FeedbackAdminItem[]>([])
 const selected = ref<FeedbackAdminItem | null>(null)
 const page = ref(1)
@@ -44,7 +46,9 @@ const categories = [
   ['billing', '充值账单'], ['suggestion', '功能建议'], ['other', '其他'],
 ] as const
 
-onMounted(() => { void loadFeedback() })
+watch(() => admin.session.value?.admin, (authenticated) => {
+  if (authenticated && !loaded.value) void loadFeedback()
+}, { immediate: true })
 
 async function loadFeedback() {
   loading.value = true
@@ -62,6 +66,7 @@ async function loadFeedback() {
     total.value = Number(response.meta?.total || 0)
     pages.value = Number(response.meta?.pages || 1)
     page.value = Number(response.meta?.page || page.value)
+    loaded.value = true
     if (selected.value) {
       const next = items.value.find(item => item.public_id === selected.value?.public_id)
       selected.value = next || null

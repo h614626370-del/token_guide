@@ -203,6 +203,68 @@ describe('pricing service', () => {
     db.close()
   })
 
+  it('omits empty allowlist groups and models without a usable public plan', async () => {
+    const db = createDatabase()
+    db.prepare('UPDATE pricing_model_settings SET is_visible = 0').run()
+
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      let data: any
+      if (requestUrl.pathname.endsWith('/admin/groups/all')) {
+        data = [{
+          id: 30,
+          name: 'Empty allowlist',
+          platform: 'openai',
+          models_list_config: { enabled: true, models: [] },
+        }]
+      } else if (requestUrl.pathname.endsWith('/admin/payment/plans')) {
+        data = []
+      } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
+        data = { models: ['gpt-5.6-sol'] }
+      } else if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        data = {
+          items: [{
+            group_ids: [30],
+            schedulable: true,
+            credentials: { model_mapping: { 'gpt-5.6-sol': 'gpt-5.6-sol' } },
+          }],
+          total: 1,
+          page: 1,
+          page_size: 1000,
+          pages: 1,
+        }
+      } else if (requestUrl.pathname.endsWith('/admin/channels/model-pricing')) {
+        data = { found: true, input_price: 0.000001, output_price: 0.000002 }
+      } else {
+        return new Response('not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }))
+
+    const service = createPricingService({
+      db,
+      config: {
+        sub2apiApiBase: 'https://upstream.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key',
+        pricingPlatforms: ['openai'],
+        providerDisplayOrder: ['openai'],
+        pricingCacheTtlMs: 60_000,
+        pricingFetchTimeoutMs: 5_000,
+        usdToCny: 7,
+      },
+      logger: null,
+    })
+    service.upsertModelSetting({ provider: 'openai', model_name: 'gpt-5.6-sol', is_visible: true })
+
+    const reference = await service.getReference({ refresh: true })
+    expect(reference.groups).toEqual([])
+    expect(reference.models).toEqual([])
+    db.close()
+  })
+
   it('invalidates a snapshot when the configured sub2api source changes', async () => {
     const db = createDatabase()
     const sourceConfig = {

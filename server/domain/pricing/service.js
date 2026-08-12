@@ -208,6 +208,7 @@ export function createPricingService({ db, config, logger }) {
           return mergeModel(setting, pricing, groupIds)
         }),
       )
+      const scoped = scopePublicPricing(groups, models)
 
       const result = {
         source: {
@@ -224,8 +225,8 @@ export function createPricingService({ db, config, logger }) {
         display: {
           provider_order: runtime.config.providerDisplayOrder,
         },
-        groups,
-        models: models.sort(createDisplayComparator(runtime.config.providerDisplayOrder)),
+        groups: scoped.groups,
+        models: scoped.models.sort(createDisplayComparator(runtime.config.providerDisplayOrder)),
       }
 
       cache.reference = createCacheItem(result)
@@ -673,6 +674,27 @@ function mergeGroup(group, setting, config) {
     peak_rate_multiplier: group.peak_rate_multiplier,
     sort_order: setting?.sort_order ?? group.sort_order,
     note: setting?.note || '',
+  }
+}
+
+function scopePublicPricing(groups, models) {
+  const usedGroups = new Set()
+  const scopedModels = models.flatMap((model) => {
+    const modelName = String(model.model_name || '').trim().toLowerCase()
+    const allowedGroups = groups.filter((group) => {
+      if (group.provider !== model.provider) return false
+      if (model.group_ids != null && !model.group_ids.includes(group.source_id)) return false
+      if (!group.model_list_enabled) return true
+      return Array.isArray(group.model_names)
+        && group.model_names.some(name => String(name || '').trim().toLowerCase() === modelName)
+    })
+    if (!allowedGroups.length) return []
+    for (const group of allowedGroups) usedGroups.add(`${group.provider}:${group.source_id}`)
+    return [{ ...model, group_ids: allowedGroups.map(group => group.source_id) }]
+  })
+  return {
+    groups: groups.filter(group => usedGroups.has(`${group.provider}:${group.source_id}`)),
+    models: scopedModels,
   }
 }
 

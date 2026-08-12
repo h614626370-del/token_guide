@@ -43,9 +43,16 @@ const selectedGroupModel = computed(() => {
 const selectedKey = computed(() => keys.value.find(item => item.id === selectedKeyId.value) || null)
 const modelPolicyMode = computed(() => commands.value?.model_policy_mode || selectedKey.value?.group?.model_policy?.mode || 'unknown')
 const allowedModels = computed(() => commands.value?.allowed_models || selectedKey.value?.group?.model_policy?.models || [])
-const modelPolicyTitle = computed(() => modelPolicyMode.value === 'allowlist' ? '当前分组白名单' : modelPolicyMode.value === 'unrestricted' ? '当前分组未限制模型' : '模型范围尚未确认')
+const modelPolicyTitle = computed(() => modelPolicyMode.value === 'allowlist'
+  ? '当前分组白名单'
+  : modelPolicyMode.value === 'empty'
+    ? '当前分组没有可用模型'
+    : modelPolicyMode.value === 'unrestricted'
+      ? '当前分组未限制模型'
+      : '模型范围尚未确认')
 const modelPolicyDescription = computed(() => {
   if (modelPolicyMode.value === 'allowlist') return `安装器将在 ${allowedModels.value.length} 个白名单模型中使用 ${defaultModel.value || allowedModels.value[0]}。`
+  if (modelPolicyMode.value === 'empty') return '当前分组启用了模型白名单，但尚未配置任何模型。请联系管理员补齐后刷新本页。'
   if (modelPolicyMode.value === 'unrestricted') return `安装器使用后台分组配置或回退模型 ${defaultModel.value || '由客户端决定'}。`
   if (commands.value?.model_source === 'installer_group') return `来源快照尚未确认，当前使用后台分组配置 ${defaultModel.value || '由客户端决定'}。`
   return '请管理员在后台价格配置中刷新来源，再刷新本页 Key 列表。'

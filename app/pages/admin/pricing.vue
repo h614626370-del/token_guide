@@ -24,9 +24,11 @@ const providers = [
 ] as const
 
 const activeTab = ref<'source' | 'models' | 'groups'>('source')
+const admin = useAdminSessionState()
 const site = useSiteConfigState()
 const loading = ref(false)
 const saving = ref(false)
+const loaded = ref(false)
 const query = ref('')
 const providerFilter = ref('all')
 const config = ref<AdminPricingConfig | null>(null)
@@ -53,7 +55,9 @@ const sourceSummary = computed(() => {
   return `${count} 个模型，${source.value.groups.length} 个分组`
 })
 
-onMounted(() => { void loadAll(false) })
+watch(() => admin.session.value?.admin, (authenticated) => {
+  if (authenticated && !loaded.value) void loadAll(false)
+}, { immediate: true })
 
 async function loadAll(refresh: boolean) {
   loading.value = true
@@ -72,6 +76,7 @@ async function loadAll(refresh: boolean) {
       notice.message = apiErrorMessage(cause, '来源数据读取失败')
     }
     rebuildDrafts()
+    loaded.value = true
   } catch (cause) {
     notice.type = 'error'
     notice.message = apiErrorMessage(cause, '价格配置读取失败')
@@ -145,7 +150,7 @@ function rebuildDrafts() {
       source_available: Boolean(upstream),
       provider_label: upstream?.provider_label || providerLabel(provider),
       rate_multiplier: Number(upstream?.rate_multiplier || 1),
-      model_list_enabled: Boolean(upstream?.model_list_enabled && upstream.model_names.length),
+      model_list_enabled: Boolean(upstream?.model_list_enabled),
       model_names: upstream?.model_list_enabled ? [...upstream.model_names] : [],
     }
   }).sort((a, b) => providerRank(a.provider) - providerRank(b.provider) || a.sort_order - b.sort_order || String(a.source_name).localeCompare(String(b.source_name), 'zh-CN', { numeric: true }))
@@ -306,6 +311,7 @@ function modelScopeLabel(item: GroupDraft) {
   if (!source.value?.snapshot_available) return '来源未刷新'
   if (!item.source_available) return '来源中不存在'
   if (!item.model_list_enabled) return '平台模型目录'
+  if (!item.model_names.length) return '白名单为空'
   return `${item.model_names.length} 个白名单模型`
 }
 
