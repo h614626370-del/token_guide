@@ -113,8 +113,9 @@ function rebuildDrafts() {
       sort_order: Number(item?.sort_order ?? 1000),
       note: item?.note || '',
       source_available: Boolean(source.value?.models_by_provider?.[provider]?.includes(modelName)),
+      first_seen_at: source.value?.model_first_seen_by_provider?.[provider]?.[modelName] || null,
     }
-  }).sort((a, b) => providerRank(a.provider) - providerRank(b.provider) || a.sort_order - b.sort_order || a.model_name.localeCompare(b.model_name, 'en', { numeric: true }))
+  }).sort(compareModelDiscovery)
 
   const groupSettings = new Map((config.value?.groups || []).map(item => [`${item.provider}:${item.source_id}`, item]))
   const sourceGroups = new Map((source.value?.groups || []).map(item => [`${item.provider}:${item.source_id}`, item]))
@@ -125,6 +126,7 @@ function rebuildDrafts() {
     const sourceId = parts.join(':')
     const item = groupSettings.get(key)
     const upstream = sourceGroups.get(key)
+    const displayName = item?.display_name && item.display_name !== item.source_name ? item.display_name : ''
     const pay = item?.recharge_pay_cny ?? upstream?.recharge_reference?.pay_cny ?? null
     const credit = item?.recharge_credit_usd ?? upstream?.recharge_reference?.credit_usd ?? null
     return {
@@ -132,8 +134,8 @@ function rebuildDrafts() {
       id: item?.id,
       provider,
       source_id: sourceId,
-      source_name: item?.source_name || upstream?.source_name || sourceId,
-      display_name: item?.display_name || '',
+      source_name: upstream?.source_name || item?.source_name || sourceId,
+      display_name: displayName,
       is_visible: item?.is_visible == null ? Boolean(upstream && !upstream.is_exclusive) : Boolean(item.is_visible),
       recharge_multiplier: Number(item?.recharge_multiplier || (pay && credit ? credit / pay : 1)),
       recharge_pay_cny: pay,
@@ -276,6 +278,28 @@ function providerRank(value: string) {
   return index < 0 ? 999 : index
 }
 
+function compareModelDiscovery(a: ModelDraft, b: ModelDraft) {
+  return providerRank(a.provider) - providerRank(b.provider)
+    || Number(b.source_available) - Number(a.source_available)
+    || String(b.first_seen_at || '').localeCompare(String(a.first_seen_at || ''))
+    || compareModelVersions(a.model_name, b.model_name)
+}
+
+function compareModelVersions(a: string, b: string) {
+  const left = modelVersion(a)
+  const right = modelVersion(b)
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const difference = (right[index] ?? -1) - (left[index] ?? -1)
+    if (difference) return difference
+  }
+  return a.localeCompare(b, 'en', { numeric: true })
+}
+
+function modelVersion(value: string) {
+  const withoutDates = value.replace(/(?:^|[-_.])(?:20\d{6}|20\d{2}(?:[-_.]\d{1,2}){0,2})(?=$|[-_.])/g, '-')
+  return [...withoutDates.matchAll(/\d+/g)].map(match => Number(match[0]))
+}
+
 function empty(value: string) {
   const text = String(value || '').trim()
   return text || null
@@ -346,7 +370,7 @@ function integer(value: unknown, fallback: number) {
 
         <div v-if="activeTab === 'models'" class="admin-table-scroll">
           <table class="admin-edit-table admin-model-table">
-            <thead><tr><th>展示</th><th>模型</th><th>展示名称</th><th>推荐</th><th>排序</th><th>备注</th></tr></thead>
+            <thead><tr><th>展示</th><th>模型</th><th>展示名称</th><th>推荐</th><th>前台排序</th><th>备注</th></tr></thead>
             <tbody>
               <tr v-for="item in filteredModels" :key="item.key">
                 <td><input v-model="item.is_visible" type="checkbox" :aria-label="`${item.model_name} 是否展示`"></td>

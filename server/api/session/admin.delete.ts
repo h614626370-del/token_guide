@@ -1,9 +1,9 @@
 import { defineEventHandler } from 'h3'
 import { apiOk } from '../../utils/api'
-import { useGuideSession } from '../../utils/session'
+import { useAdminSession } from '../../utils/session'
 
 export default defineEventHandler(async (event) => {
-  const session = await useGuideSession(event)
-  await session.update({ admin: false })
+  const session = await useAdminSession(event)
+  await session.clear()
   return apiOk({ authenticated: false })
 })

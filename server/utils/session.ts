@@ -25,7 +25,10 @@ export interface GuideSessionData {
   accessToken?: string
   tokenExpiresAt?: number
   lastValidatedAt?: number
-  admin?: boolean
+}
+
+export interface AdminSessionData {
+  authenticated?: boolean
 }
 
 function sessionPassword(event: H3Event) {
@@ -38,20 +41,28 @@ function sessionPassword(event: H3Event) {
 }
 
 export function useGuideSession(event: H3Event) {
+  return useSession<GuideSessionData>(event, sessionOptions(event, 'guide_session', 12 * 60 * 60))
+}
+
+export function useAdminSession(event: H3Event) {
+  return useSession<AdminSessionData>(event, sessionOptions(event, 'guide_admin_session', 7 * 24 * 60 * 60))
+}
+
+function sessionOptions(event: H3Event, name: string, maxAge: number) {
   const config = getGuideConfig(event)
   // __Host- + Secure 只能在 HTTPS 下使用；HTTP 反代未配 TLS 时回退普通 Cookie，避免登录态丢失
   const https = requestIsHttps(event)
-  return useSession<GuideSessionData>(event, {
+  return {
     password: sessionPassword(event),
-    name: https && config.isProduction ? '__Host-guide_session' : 'guide_session',
-    maxAge: 12 * 60 * 60,
+    name: https && config.isProduction ? `__Host-${name}` : name,
+    maxAge,
     cookie: {
       httpOnly: true,
       secure: https,
-      sameSite: 'lax',
+      sameSite: 'lax' as const,
       path: '/',
     },
-  })
+  }
 }
 
 export async function requireUserSession(event: H3Event) {
@@ -82,8 +93,8 @@ export async function requireUserSession(event: H3Event) {
 }
 
 export async function requireAdminSession(event: H3Event) {
-  const session = await useGuideSession(event)
-  if (!session.data.admin) {
+  const session = await useAdminSession(event)
+  if (!session.data.authenticated) {
     apiError(401, 'ADMIN_LOGIN_REQUIRED', 'Administrator login is required.')
   }
   return session

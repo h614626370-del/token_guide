@@ -22,6 +22,20 @@ afterEach(() => {
 })
 
 describe('pricing repository', () => {
+  it('records model discovery only once so later refreshes do not make old models new again', () => {
+    const db = createDatabase()
+    const repo = createPricingRepository(db)
+
+    expect(repo.recordModelDiscoveries('openai', ['gpt-old'], '2026-01-01T00:00:00.000Z')).toMatchObject({
+      'gpt-old': '2026-01-01T00:00:00.000Z',
+    })
+    expect(repo.recordModelDiscoveries('openai', ['gpt-old', 'gpt-new'], '2026-02-01T00:00:00.000Z')).toMatchObject({
+      'gpt-old': '2026-01-01T00:00:00.000Z',
+      'gpt-new': '2026-02-01T00:00:00.000Z',
+    })
+    db.close()
+  })
+
   it('rolls back a bulk model update when any row is invalid', () => {
     const db = createDatabase()
     const repo = createPricingRepository(db)
@@ -97,6 +111,14 @@ describe('pricing service', () => {
         data = []
       } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
         data = { models: ['test-model'] }
+      } else if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        data = {
+          items: [{ group_ids: [42], schedulable: true, credentials: {} }],
+          total: 1,
+          page: 1,
+          page_size: 1000,
+          pages: 1,
+        }
       } else if (requestUrl.pathname.endsWith('/admin/channels/model-pricing')) {
         data = {
           found: true,
@@ -156,6 +178,7 @@ describe('pricing service', () => {
     expect(reference.models).toHaveLength(1)
     expect(reference.models[0]).toMatchObject({
       model_name: 'test-model',
+      group_ids: ['42'],
       pricing_found: true,
       prices: {
         input_usd_per_million: 1,
@@ -163,6 +186,283 @@ describe('pricing service', () => {
       },
     })
     expect(fetchMock).toHaveBeenCalled()
+    db.close()
+  })
+
+  it('includes public model names configured on OpenAI-compatible accounts', async () => {
+    const db = createDatabase()
+    const requestedAccountPages: number[] = []
+
+    const fetchMock = vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      let data: any
+      if (requestUrl.pathname.endsWith('/admin/groups/all')) {
+        data = []
+      } else if (requestUrl.pathname.endsWith('/admin/payment/plans')) {
+        data = []
+      } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
+        data = { models: ['gpt-5.6-sol', 'shared-model'] }
+      } else if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        expect(requestUrl.searchParams.get('platform')).toBe('openai')
+        expect(requestUrl.searchParams.get('page_size')).toBe('1000')
+        const page = Number(requestUrl.searchParams.get('page'))
+        requestedAccountPages.push(page)
+        data = page === 1
+          ? {
+              items: [{
+                group_ids: [42],
+                schedulable: true,
+                credentials: {
+                  model_mapping: {
+                    'deepseek-v4-flash': 'deepseek-v4-flash',
+                    'public-alias': 'private-upstream-model',
+                    'shared-model': 'shared-model',
+                    'wildcard-*': 'wildcard-target',
+                  },
+                },
+              }],
+              total: 2,
+              page: 1,
+              page_size: 1,
+              pages: 2,
+            }
+          : {
+              items: [{
+                account_groups: [{ group_id: 43 }],
+                schedulable: true,
+                credentials: { model_mapping: { 'second-page-model': 'upstream-model' } },
+              }],
+              total: 2,
+              page: 2,
+              page_size: 1,
+              pages: 2,
+            }
+      } else {
+        return new Response('not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const service = createPricingService({
+      db,
+      config: {
+        sub2apiApiBase: 'https://upstream.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key',
+        pricingPlatforms: ['openai'],
+        providerDisplayOrder: ['openai'],
+        pricingCacheTtlMs: 60_000,
+        pricingFetchTimeoutMs: 5_000,
+        usdToCny: 7,
+      },
+      logger: null,
+    })
+
+    const source = await service.listSource({ refresh: true })
+    expect(source.models_by_provider.openai).toEqual([
+      'deepseek-v4-flash',
+      'gpt-5.6-sol',
+      'public-alias',
+      'second-page-model',
+      'shared-model',
+    ])
+    expect(source.model_group_ids_by_provider.openai).toEqual({
+      'deepseek-v4-flash': ['42'],
+      'gpt-5.6-sol': [],
+      'public-alias': ['42'],
+      'second-page-model': ['43'],
+      'shared-model': ['42'],
+    })
+    expect(source.model_group_scope_by_provider.openai).toBe(true)
+    expect(requestedAccountPages).toEqual([1, 2])
+    db.close()
+  })
+
+  it('keeps pricing catalog models when the account model source is unavailable', async () => {
+    const db = createDatabase()
+
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        return new Response(JSON.stringify({ code: 503, message: 'accounts unavailable' }), { status: 503 })
+      }
+      const data = requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')
+        ? { models: ['catalog-model'] }
+        : []
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }))
+
+    const service = createPricingService({
+      db,
+      config: {
+        sub2apiApiBase: 'https://upstream.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key',
+        pricingPlatforms: ['openai'],
+        providerDisplayOrder: ['openai'],
+        pricingCacheTtlMs: 60_000,
+        pricingFetchTimeoutMs: 5_000,
+        usdToCny: 7,
+      },
+      logger: null,
+    })
+
+    const source = await service.listSource({ refresh: true })
+    expect(source.models_by_provider.openai).toEqual(['catalog-model'])
+    expect(source.model_group_scope_by_provider.openai).toBe(false)
+    expect(source.warnings).toContain('failed to fetch account model list for openai.')
+    db.close()
+  })
+
+  it('scopes each model to groups with supporting accounts and follows renamed upstream groups', async () => {
+    const db = createDatabase()
+    db.prepare('UPDATE pricing_model_settings SET is_visible = 0').run()
+    const repo = createPricingRepository(db)
+    repo.upsertGroupSetting({
+      provider: 'openai',
+      source_id: '10',
+      source_name: 'DeepSeek Official 10% (old)',
+      display_name: 'DeepSeek Official 10% (old)',
+      is_visible: true,
+    })
+    repo.upsertGroupSetting({
+      provider: 'openai',
+      source_id: '20',
+      source_name: 'GPT Standard',
+      display_name: 'Custom GPT Plan',
+      is_visible: true,
+    })
+
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      let data: any
+      if (requestUrl.pathname.endsWith('/admin/groups/all')) {
+        data = [
+          { id: 10, name: 'DeepSeek Official 10%', platform: 'openai', rate_multiplier: 0.1 },
+          { id: 20, name: 'GPT Standard Renamed', platform: 'openai', rate_multiplier: 1 },
+        ]
+      } else if (requestUrl.pathname.endsWith('/admin/payment/plans')) {
+        data = []
+      } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
+        data = { models: ['gpt-5.6-sol'] }
+      } else if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        data = {
+          items: [
+            {
+              group_ids: [10],
+              schedulable: true,
+              credentials: { model_mapping: { 'deepseek-v4-flash': 'deepseek-v4-flash' } },
+            },
+            {
+              group_ids: [20],
+              schedulable: true,
+              credentials: { model_mapping: { 'gpt-*': 'gpt-upstream' } },
+            },
+          ],
+          total: 2,
+          page: 1,
+          page_size: 1000,
+          pages: 1,
+        }
+      } else if (requestUrl.pathname.endsWith('/admin/channels/model-pricing')) {
+        data = { found: true, input_price: 0.000001, output_price: 0.000002 }
+      } else {
+        return new Response('not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }))
+
+    const service = createPricingService({
+      db,
+      config: {
+        sub2apiApiBase: 'https://upstream.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key',
+        pricingPlatforms: ['openai'],
+        providerDisplayOrder: ['openai'],
+        pricingCacheTtlMs: 60_000,
+        pricingFetchTimeoutMs: 5_000,
+        usdToCny: 7,
+      },
+      logger: null,
+    })
+    service.upsertModelSettings([
+      { provider: 'openai', model_name: 'gpt-5.6-sol', is_visible: true },
+      { provider: 'openai', model_name: 'deepseek-v4-flash', is_visible: true },
+    ])
+
+    const reference = await service.getReference({ refresh: true })
+    expect(reference.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source_id: '10', display_name: 'DeepSeek Official 10%', rate_multiplier: 0.1 }),
+      expect.objectContaining({ source_id: '20', display_name: 'Custom GPT Plan' }),
+    ]))
+    expect(reference.models).toEqual(expect.arrayContaining([
+      expect.objectContaining({ model_name: 'deepseek-v4-flash', group_ids: ['10'] }),
+      expect.objectContaining({ model_name: 'gpt-5.6-sol', group_ids: ['20'] }),
+    ]))
+    db.close()
+  })
+
+  it('does not make a mixed group unrestricted when another account defines model mappings', async () => {
+    const db = createDatabase()
+
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      let data: any
+      if (requestUrl.pathname.endsWith('/admin/groups/all') || requestUrl.pathname.endsWith('/admin/payment/plans')) {
+        data = []
+      } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
+        data = { models: ['gpt-5.6-sol'] }
+      } else if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        data = {
+          items: [
+            { group_ids: [10], schedulable: true, credentials: {} },
+            {
+              group_ids: [10],
+              schedulable: true,
+              credentials: { model_mapping: { 'deepseek-v4-flash': 'deepseek-v4-flash' } },
+            },
+          ],
+          total: 2,
+          page: 1,
+          page_size: 1000,
+          pages: 1,
+        }
+      } else {
+        return new Response('not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }))
+
+    const service = createPricingService({
+      db,
+      config: {
+        sub2apiApiBase: 'https://upstream.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key',
+        pricingPlatforms: ['openai'],
+        providerDisplayOrder: ['openai'],
+        pricingCacheTtlMs: 60_000,
+        pricingFetchTimeoutMs: 5_000,
+        usdToCny: 7,
+      },
+      logger: null,
+    })
+
+    const source = await service.listSource({ refresh: true })
+    expect(source.model_group_ids_by_provider.openai).toMatchObject({
+      'deepseek-v4-flash': ['10'],
+      'gpt-5.6-sol': [],
+    })
     db.close()
   })
 })

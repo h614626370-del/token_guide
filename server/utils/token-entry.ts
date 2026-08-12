@@ -17,7 +17,6 @@ export async function establishGuideSession(
     accessToken: token,
     tokenExpiresAt: jwtExpiresAt(token),
     lastValidatedAt: Date.now(),
-    admin: session.data.admin || false,
   })
   return user
 }

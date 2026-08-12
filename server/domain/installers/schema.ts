@@ -18,6 +18,12 @@ export type InstallerScriptId = typeof installerScriptIds[number]
 export const installerToolSchema = z.enum(installerTools)
 export const installerPlatformSchema = z.enum(installerPlatforms)
 
+export const installerGroupModelSchema = z.object({
+  tool: z.literal('codex'),
+  group_id: z.string().trim().min(1).max(80),
+  model: z.string().trim().min(1).max(120),
+}).strict()
+
 export const installerSettingsSchema = z.object({
   provider_id: z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/),
   base_url: z.string().trim().url().max(500).refine(value => value.startsWith('https://'), 'BASE_URL must use HTTPS.'),
@@ -25,6 +31,7 @@ export const installerSettingsSchema = z.object({
   claude_default_model: z.string().trim().max(120),
   codex_enabled: z.boolean(),
   claude_enabled: z.boolean(),
+  group_models: z.array(installerGroupModelSchema).max(500).default([]),
 }).strict()
 
 export const installerScriptUpdateSchema = z.object({
@@ -35,12 +42,6 @@ export const installerCommandSchema = z.object({
   tool: installerToolSchema,
   platform: installerPlatformSchema,
   key_id: z.coerce.number().int().positive(),
-  model: z.string().trim().min(1).max(120),
 }).strict()
-
-export const installerModelsQuerySchema = z.object({
-  tool: installerToolSchema,
-  key_id: z.coerce.number().int().positive(),
-})
 
 export type InstallerSettingsInput = z.infer<typeof installerSettingsSchema>

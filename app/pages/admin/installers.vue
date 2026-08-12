@@ -3,6 +3,7 @@ import { ExternalLink, Eye, EyeOff, RefreshCw, RotateCcw, Save, Send, Settings2 
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { InstallerPlatform, InstallerScriptDetail, InstallerScriptSummary, InstallerSettings, InstallerTool } from '~/types/install'
+import type { AdminPricingSource, SourceGroup } from '~/types/admin'
 
 definePageMeta({ layout: 'admin' })
 useSeoMeta({ title: '脚本配置', robots: 'noindex, nofollow' })
@@ -20,7 +21,9 @@ const settings = reactive<InstallerSettings>({
   claude_default_model: '',
   codex_enabled: true,
   claude_enabled: true,
+  group_models: [],
 })
+const pricingSource = ref<AdminPricingSource | null>(null)
 const activeTab = ref<'edit' | 'diff' | 'history'>('edit')
 const loading = ref(false)
 const saving = ref(false)
@@ -29,6 +32,9 @@ const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message:
 
 const selectedId = computed(() => `${tool.value}-${platform.value}`)
 const diffLines = computed(() => lineDiff(detail.value?.published_content || detail.value?.default_content || '', content.value))
+const openaiGroups = computed(() => (pricingSource.value?.groups || [])
+  .filter(item => item.provider === 'openai')
+  .sort((a, b) => a.sort_order - b.sort_order || a.source_name.localeCompare(b.source_name, 'zh-CN', { numeric: true })))
 
 watch(() => admin.session.value?.admin, (authenticated) => {
   if (authenticated && !loaded.value) void loadAll()
@@ -42,6 +48,12 @@ async function loadAll() {
     const response = await $fetch<ApiSuccess<{ scripts: InstallerScriptSummary[], settings: InstallerSettings }>>('/api/admin/installers')
     scripts.value = response.data.scripts
     Object.assign(settings, response.data.settings)
+    try {
+      const sourceResponse = await $fetch<ApiSuccess<AdminPricingSource>>('/api/admin/pricing/source')
+      pricingSource.value = sourceResponse.data
+    } catch {
+      pricingSource.value = null
+    }
     await loadSelected()
     loaded.value = true
   } catch (cause) {
@@ -138,6 +150,23 @@ function formatTime(value: string | null | undefined) {
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
+function groupModel(groupId: string) {
+  return settings.group_models.find(item => item.tool === 'codex' && item.group_id === groupId)?.model || ''
+}
+
+function setGroupModel(groupId: string, model: string) {
+  settings.group_models = settings.group_models.filter(item => !(item.tool === 'codex' && item.group_id === groupId))
+  if (model) settings.group_models.push({ tool: 'codex', group_id: groupId, model })
+}
+
+function modelsForGroup(group: SourceGroup) {
+  const mapping = pricingSource.value?.model_group_ids_by_provider?.openai || {}
+  return Object.entries(mapping)
+    .filter(([, groupIds]) => groupIds.includes(group.source_id))
+    .map(([model]) => model)
+    .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
+}
+
 function lineDiff(before: string, after: string) {
   const left = before.split(/\r?\n/)
   const right = after.split(/\r?\n/)
@@ -195,6 +224,21 @@ function lineDiff(before: string, after: string) {
           <label class="form-field"><span>BASE_URL</span><input v-model.trim="settings.base_url" type="url" maxlength="500" required></label>
           <label class="form-field"><span>Codex 默认模型</span><input v-model.trim="settings.codex_default_model" maxlength="120"></label>
           <label class="form-field"><span>Claude 默认模型</span><input v-model.trim="settings.claude_default_model" maxlength="120" placeholder="留空则由 Claude Code 决定"></label>
+          <fieldset class="installer-group-models">
+            <legend>Codex 分组模型</legend>
+            <p>选择 API Key 后按所属 OpenAI 协议分组安装；未指定的分组使用 Codex 默认模型。</p>
+            <div v-if="openaiGroups.length" class="installer-group-model-list">
+              <label v-for="group in openaiGroups" :key="group.source_id">
+                <span><strong>{{ group.source_name }}</strong><small>分组 ID {{ group.source_id }}</small></span>
+                <select :value="groupModel(group.source_id)" :aria-label="`${group.source_name} 自动安装模型`" @change="setGroupModel(group.source_id, ($event.target as HTMLSelectElement).value)">
+                  <option value="">跟随默认：{{ settings.codex_default_model || '由客户端决定' }}</option>
+                  <option v-for="model in modelsForGroup(group)" :key="model" :value="model">{{ model }}</option>
+                  <option v-if="groupModel(group.source_id) && !modelsForGroup(group).includes(groupModel(group.source_id))" :value="groupModel(group.source_id)">{{ groupModel(group.source_id) }}（已保存）</option>
+                </select>
+              </label>
+            </div>
+            <div v-else class="empty-result"><strong>暂无 OpenAI 协议分组</strong></div>
+          </fieldset>
           <button class="primary-command admin-save-command" type="submit" :disabled="saving"><Save :size="16" />{{ saving ? '保存中...' : '保存安装器设置' }}</button>
         </form>
       </section>

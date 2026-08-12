@@ -73,6 +73,7 @@ export function createPricingService({ db, config, logger }) {
       if (!refresh && isFresh(cache.source, runtime.config.pricingCacheTtlMs)) {
         return cache.source.value
       }
+      if (refresh) cache.reference = null
 
       const warnings = []
       const result = {
@@ -80,6 +81,9 @@ export function createPricingService({ db, config, logger }) {
         groups: [],
         subscription_plans: [],
         models_by_provider: {},
+        model_first_seen_by_provider: {},
+        model_group_ids_by_provider: {},
+        model_group_scope_by_provider: {},
         warnings,
         fetched_at: new Date().toISOString(),
       }
@@ -107,13 +111,27 @@ export function createPricingService({ db, config, logger }) {
 
       await Promise.all(
         activePlatforms(runtime.config).map(async (provider) => {
+          let pricingModels = []
+          let accountAccess = []
+          let accountAccessAvailable = true
           try {
-            result.models_by_provider[provider] = sanitizeModelNames(await runtime.sub2api.listModelNames(provider))
+            pricingModels = await runtime.sub2api.listModelNames(provider)
           } catch (error) {
-            logger?.warn({ provider, err: error }, 'failed to fetch sub2api model names')
-            result.models_by_provider[provider] = []
-            warnings.push(`failed to fetch model list for ${provider}.`)
+            logger?.warn({ provider, err: error }, 'failed to fetch sub2api pricing model names')
+            warnings.push(`failed to fetch pricing model list for ${provider}.`)
           }
+          try {
+            accountAccess = await runtime.sub2api.listAccountModelAccess(provider)
+          } catch (error) {
+            accountAccessAvailable = false
+            logger?.warn({ provider, err: error }, 'failed to fetch sub2api account model names')
+            warnings.push(`failed to fetch account model list for ${provider}.`)
+          }
+          const access = buildModelGroupAccess(pricingModels, accountAccess)
+          result.models_by_provider[provider] = access.model_names
+          result.model_first_seen_by_provider[provider] = repo.recordModelDiscoveries(provider, access.model_names)
+          result.model_group_ids_by_provider[provider] = access.model_group_ids
+          result.model_group_scope_by_provider[provider] = accountAccessAvailable
         }),
       )
 
@@ -145,7 +163,11 @@ export function createPricingService({ db, config, logger }) {
       const models = await Promise.all(
         modelSettings.map(async (setting) => {
           const pricing = await getPricingForModel(runtime.sub2api, setting, warnings)
-          return mergeModel(setting, pricing)
+          const scoped = source.model_group_scope_by_provider?.[setting.provider] === true
+          const groupIds = scoped
+            ? source.model_group_ids_by_provider?.[setting.provider]?.[setting.model_name] || []
+            : null
+          return mergeModel(setting, pricing, groupIds)
         }),
       )
 
@@ -337,6 +359,48 @@ function sanitizeModelNames(value) {
   return Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean))).sort()
 }
 
+function buildModelGroupAccess(pricingModels, accountAccess) {
+  const exactAccountModels = accountAccess.flatMap((account) => account.model_patterns.filter((name) => !name.includes('*')))
+  const modelNames = sanitizeModelNames([...pricingModels, ...exactAccountModels])
+  const groupsByModel = new Map(modelNames.map((name) => [name, new Set()]))
+  const patternsByGroup = new Map()
+
+  for (const account of accountAccess) {
+    for (const groupId of account.group_ids) {
+      if (!patternsByGroup.has(groupId)) patternsByGroup.set(groupId, new Set())
+      const patterns = patternsByGroup.get(groupId)
+      for (const pattern of account.model_patterns) patterns.add(pattern)
+    }
+  }
+
+  for (const [groupId, patterns] of patternsByGroup) {
+    for (const modelName of modelNames) {
+      if (patterns.size && ![...patterns].some((pattern) => modelPatternMatches(pattern, modelName))) continue
+      groupsByModel.get(modelName).add(groupId)
+    }
+  }
+
+  return {
+    model_names: modelNames,
+    model_group_ids: Object.fromEntries(
+      [...groupsByModel].map(([modelName, groupIds]) => [modelName, [...groupIds].sort()]),
+    ),
+  }
+}
+
+function modelPatternMatches(pattern, modelName) {
+  if (!pattern.includes('*')) return pattern === modelName
+  if (pattern === '*') return true
+  if (pattern.endsWith('*') && pattern.indexOf('*') === pattern.length - 1) {
+    return modelName.startsWith(pattern.slice(0, -1))
+  }
+  const expression = pattern
+    .split('*')
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('.*')
+  return new RegExp(`^${expression}$`).test(modelName)
+}
+
 function sanitizeSubscriptionPlans(value) {
   if (!Array.isArray(value)) return []
   return value
@@ -432,7 +496,7 @@ function mergeGroup(group, setting, config) {
     provider_short: group.provider_short,
     source_id: group.source_id,
     name: group.source_name,
-    display_name: setting?.display_name || group.source_name,
+    display_name: groupDisplayName(group, setting),
     description: group.description,
     subscription_type: group.subscription_type,
     is_exclusive: group.is_exclusive,
@@ -458,6 +522,13 @@ function mergeGroup(group, setting, config) {
     sort_order: setting?.sort_order ?? group.sort_order,
     note: setting?.note || '',
   }
+}
+
+function groupDisplayName(group, setting) {
+  const override = String(setting?.display_name || '').trim()
+  const savedSourceName = String(setting?.source_name || '').trim()
+  if (override && override !== savedSourceName) return override
+  return group.source_name
 }
 
 function resolveRechargeReference(group, setting, config) {
@@ -514,7 +585,7 @@ function createRechargeReference({ payCny, creditUsd, source, label }) {
   }
 }
 
-function mergeModel(setting, pricing) {
+function mergeModel(setting, pricing, groupIds) {
   const provider = normalizeProvider(setting.provider)
   const prices = normalizePricing(pricing)
   const capabilities = inferModelCapabilities(setting.model_name, prices)
@@ -529,6 +600,7 @@ function mergeModel(setting, pricing) {
     is_featured: Boolean(setting.is_featured),
     sort_order: setting.sort_order,
     note: setting.note || '',
+    group_ids: groupIds,
     pricing_found: Boolean(pricing?.found),
     prices,
   }

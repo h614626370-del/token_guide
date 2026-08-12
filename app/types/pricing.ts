@@ -22,6 +22,7 @@ export interface PricingModel {
   is_featured: boolean
   sort_order: number
   note: string
+  group_ids?: string[] | null
   prices: {
     input_usd_per_million: number | null
     output_usd_per_million: number | null

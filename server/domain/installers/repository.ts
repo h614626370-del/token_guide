@@ -48,6 +48,7 @@ const settingDefaults: InstallerSettingsInput = {
   claude_default_model: '',
   codex_enabled: true,
   claude_enabled: true,
+  group_models: [],
 }
 
 // Windows PowerShell 5.1 needs a BOM to detect downloaded UTF-8 scripts reliably.
@@ -148,6 +149,7 @@ export function createInstallerRepository(db: Database.Database) {
       claude_default_model: saved.claude_default_model ?? settingDefaults.claude_default_model,
       codex_enabled: booleanSetting('codex_enabled'),
       claude_enabled: booleanSetting('claude_enabled'),
+      group_models: parseGroupModels(saved.group_models),
     }
   }
 
@@ -183,7 +185,10 @@ export function createInstallerRepository(db: Database.Database) {
 
   const saveSettings = db.transaction((input: InstallerSettingsInput) => {
     const now = new Date().toISOString()
-    for (const [key, value] of Object.entries(input)) upsertSetting.run(key, String(value), now, now)
+    for (const [key, value] of Object.entries(input)) {
+      const stored = key === 'group_models' ? JSON.stringify(value) : String(value)
+      upsertSetting.run(key, stored, now, now)
+    }
   })
 
   const saveDraft = db.transaction((definition: InstallerDefinition, content: string) => {
@@ -223,6 +228,13 @@ export function createInstallerRepository(db: Database.Database) {
     updateSettings(input: InstallerSettingsInput) {
       saveSettings(input)
       return settings()
+    },
+    modelForGroup(tool: InstallerTool, groupId: string | number | null | undefined) {
+      const current = settings()
+      const normalizedGroupId = String(groupId ?? '').trim()
+      const override = current.group_models.find(item => item.tool === tool && item.group_id === normalizedGroupId)
+      if (override) return override.model
+      return tool === 'codex' ? current.codex_default_model : current.claude_default_model
     },
     get(id: string) {
       const definition = installerDefinition(id)
@@ -266,5 +278,23 @@ export function createInstallerRepository(db: Database.Database) {
       const content = renderInstallerDefinition(template, definition, { ...settings(), ...settingOverrides })
       return { definition, content, checksum: checksum(content) }
     },
+  }
+}
+
+function parseGroupModels(value: string | undefined): InstallerSettingsInput['group_models'] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(item => item
+      && typeof item === 'object'
+      && (item.tool === 'codex' || item.tool === 'claude')
+      && typeof item.group_id === 'string'
+      && item.group_id.trim()
+      && typeof item.model === 'string'
+      && item.model.trim())
+      .map(item => ({ tool: item.tool, group_id: item.group_id.trim(), model: item.model.trim() }))
+  } catch {
+    return []
   }
 }

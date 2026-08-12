@@ -37,6 +37,9 @@ describe('database migrations', () => {
         { id: 12, name: 'create_email_settings' },
         { id: 13, name: 'create_direct_promotion_visits' },
         { id: 14, name: 'create_guide_document_management' },
+        { id: 15, name: 'prioritize_current_pricing_models' },
+        { id: 16, name: 'track_pricing_model_discoveries' },
+        { id: 17, name: 'reset_pricing_model_discovery_baseline' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -65,6 +68,7 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'promotion_events'").get()).toEqual({ name: 'promotion_events' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'promotion_visits'").get()).toEqual({ name: 'promotion_visits' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'email_settings'").get()).toEqual({ name: 'email_settings' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_model_discoveries'").get()).toEqual({ name: 'pricing_model_discoveries' })
     } finally {
       db.close()
     }
@@ -75,16 +79,16 @@ describe('database migrations', () => {
     const first = openDatabase(databasePath)
     let firstAppliedAt: any
     try {
-      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 14').get()
+      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 17').get()
     } finally {
       first.close()
     }
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 14 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 17 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
-      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 14').get()).toEqual(firstAppliedAt)
+      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 17').get()).toEqual(firstAppliedAt)
     } finally {
       second.close()
     }

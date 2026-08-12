@@ -83,6 +83,15 @@ export function createPricingRepository(db) {
     WHERE provider = ? AND model_name = ?
   `)
   const deleteModel = db.prepare('DELETE FROM pricing_model_settings WHERE id = ?')
+  const insertModelDiscovery = db.prepare(`
+    INSERT OR IGNORE INTO pricing_model_discoveries (provider, model_name, first_seen_at)
+    VALUES (?, ?, ?)
+  `)
+  const listModelDiscoveries = db.prepare(`
+    SELECT model_name, first_seen_at
+    FROM pricing_model_discoveries
+    WHERE provider = ?
+  `)
 
   const listGroups = db.prepare(`
     SELECT ${groupColumns}
@@ -179,6 +188,9 @@ export function createPricingRepository(db) {
   }
 
   const saveModels = db.transaction((inputs) => inputs.map(saveModel))
+  const saveModelDiscoveries = db.transaction((provider, modelNames, firstSeenAt) => {
+    for (const modelName of modelNames) insertModelDiscovery.run(provider, modelName, firstSeenAt)
+  })
 
   const saveGroup = (input) => {
     const now = new Date().toISOString()
@@ -227,6 +239,13 @@ export function createPricingRepository(db) {
 
     deleteModelSetting(id) {
       return deleteModel.run(Number(id)).changes > 0
+    },
+
+    recordModelDiscoveries(provider, modelNames, firstSeenAt = new Date().toISOString()) {
+      saveModelDiscoveries(provider, modelNames, firstSeenAt)
+      return Object.fromEntries(
+        listModelDiscoveries.all(provider).map(row => [row.model_name, row.first_seen_at]),
+      )
     },
 
     listGroupSettings() {

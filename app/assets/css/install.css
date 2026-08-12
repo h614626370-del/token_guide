@@ -77,9 +77,6 @@
 .install-key-panel dl div { display: grid; min-width: 0; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--soft-line); }
 .install-key-panel dt { color: var(--muted); font-size: 11px; }
 .install-key-panel dd { overflow: hidden; margin: 0; font-size: 12px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.install-key-panel .install-model-row { align-items: center; }
-.install-key-panel .install-model-row dd { overflow: visible; }
-.install-key-panel .install-model-row select { height: 36px; font-size: 12px; font-weight: 700; }
 
 .install-methods > header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid var(--line); background: #f8f9f9; }
 .install-methods > header p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
@@ -127,6 +124,15 @@
 .installer-visibility-toggle strong { color: var(--ink); font-size: 13px; }
 .installer-visibility-toggle small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .installer-visibility-toggle:focus-within { outline: 2px solid rgba(45, 108, 82, 0.2); outline-offset: 2px; }
+.installer-group-models { display: grid; grid-column: 1 / -1; gap: 10px; margin: 2px 0 0; padding: 16px 0 0; border: 0; border-top: 1px solid var(--soft-line); }
+.installer-group-models legend { padding: 0; color: var(--ink); font-size: 12px; font-weight: 800; }
+.installer-group-models > p { margin: -3px 0 2px; color: var(--muted); font-size: 11px; }
+.installer-group-model-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.installer-group-model-list label { display: grid; min-width: 0; align-items: center; grid-template-columns: minmax(150px, 0.9fr) minmax(180px, 1.1fr); gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: #f8f9f9; }
+.installer-group-model-list label > span { display: grid; min-width: 0; gap: 3px; }
+.installer-group-model-list strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.installer-group-model-list small { color: var(--muted); font-size: 10px; }
+.installer-group-model-list select { width: 100%; min-width: 0; }
 .installer-classification { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .installer-classification .segmented-control { flex: 0 1 480px; }
 .installer-editor .admin-doc-status-grid { margin-top: 18px; }
@@ -151,5 +157,7 @@
   .installer-classification { align-items: stretch; flex-direction: column; }
   .installer-classification .segmented-control { width: 100%; flex-basis: auto; }
   .installer-visibility-settings { grid-template-columns: 1fr; }
+  .installer-group-model-list { grid-template-columns: 1fr; }
+  .installer-group-model-list label { grid-template-columns: 1fr; }
   .installer-code-editor textarea { height: 620px; min-height: 620px; }
 }

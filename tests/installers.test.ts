@@ -69,8 +69,13 @@ describe('installer configuration', () => {
         claude_default_model: 'claude-test',
         codex_enabled: false,
         claude_enabled: true,
+        group_models: [
+          { tool: 'codex', group_id: '27', model: 'deepseek-v4-flash' },
+        ],
       })
       expect(repository.settings()).toMatchObject({ codex_enabled: false, claude_enabled: true })
+      expect(repository.modelForGroup('codex', 27)).toBe('deepseek-v4-flash')
+      expect(repository.modelForGroup('codex', 99)).toBe('gpt-test')
       const codex = repository.publicScript('codex', 'windows')
       const claude = repository.publicScript('claude', 'linux')
       expect(codex?.content).toContain('$ProviderId = "custom"')
@@ -121,6 +126,7 @@ describe('installer configuration', () => {
       claude_default_model: '',
       codex_enabled: true,
       claude_enabled: true,
+      group_models: [],
     })).not.toThrow()
 
     const db = database()

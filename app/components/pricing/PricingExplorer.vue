@@ -32,8 +32,8 @@ const visibleModels = computed(() => {
     })
     .filter(model => groupsForModel(model).length > 0)
     .sort((a, b) => providerRank(a.provider) - providerRank(b.provider)
-      || Number(b.is_featured) - Number(a.is_featured)
       || a.sort_order - b.sort_order
+      || Number(b.is_featured) - Number(a.is_featured)
       || a.display_name.localeCompare(b.display_name, 'zh-CN', { numeric: true }))
 })
 
@@ -46,6 +46,7 @@ watch(visibleModels, (models) => {
 function groupsForModel(model: PricingModel) {
   return props.reference.groups
     .filter(group => group.provider === model.provider)
+    .filter(group => model.group_ids == null || model.group_ids.includes(group.source_id))
     .filter(group => !modelSupportsImage(model) || groupSupportsImage(group))
     .sort((a, b) => a.sort_order - b.sort_order || a.display_name.localeCompare(b.display_name, 'zh-CN', { numeric: true }))
 }
@@ -91,6 +92,13 @@ function formatOfficial(model: PricingModel, key: PriceKey) {
   if (price == null) return '暂无官方价'
   const value = price / (unit.value === 'M' ? 1 : 1000)
   return `$${number(value, unit.value === 'M' ? 4 : 6)}`
+}
+
+function officialLabel(key: PriceKey) {
+  if (key === 'input') return '输入'
+  if (key === 'output') return '输出'
+  if (key === 'cacheRead') return '缓存读取'
+  return '缓存写入'
 }
 
 function discountLabel(group: PricingGroup) {
@@ -188,6 +196,12 @@ function number(value: number, decimals: number) {
             <strong>{{ model.display_name }}</strong>
             <small>{{ model.model_name }} · {{ model.provider_label }}</small>
           </span>
+          <span class="pricing-model__official" aria-label="官方价格">
+            <span v-for="key in (['input', 'output', 'cacheRead'] as const)" :key="key">
+              <small>{{ officialLabel(key) }}</small>
+              <strong>{{ formatOfficial(model, key) }}</strong>
+            </span>
+          </span>
           <span v-if="model.is_featured" class="featured-label"><Star :size="14" /> 推荐</span>
           <span class="plan-count">{{ groupsForModel(model).length }} 个套餐</span>
           <ChevronDown :size="18" :class="{ rotated: expanded.includes(modelKey(model)) }" />
@@ -211,9 +225,9 @@ function number(value: number, decimals: number) {
                     <strong>{{ group.display_name }}</strong>
                     <small>{{ rechargeLabel(group) }} · {{ number(group.rate_multiplier, 3) }}x 扣额度</small>
                   </td>
-                  <td><strong>{{ formatPrice(model, group, 'input') }}</strong><small>{{ formatOfficial(model, 'input') }} 官方价</small></td>
-                  <td><strong>{{ formatPrice(model, group, 'output') }}</strong><small>{{ formatOfficial(model, 'output') }} 官方价</small></td>
-                  <td><strong>{{ formatPrice(model, group, 'cacheRead') }}</strong><small>{{ formatOfficial(model, 'cacheRead') }} 官方价</small></td>
+                  <td><strong>{{ formatPrice(model, group, 'input') }}</strong></td>
+                  <td><strong>{{ formatPrice(model, group, 'output') }}</strong></td>
+                  <td><strong>{{ formatPrice(model, group, 'cacheRead') }}</strong></td>
                   <td><span class="discount-label">{{ discountLabel(group) }}</span><small>{{ group.note || model.note || '以实际账单为准' }}</small></td>
                 </tr>
                 <tr v-if="modelSupportsImage(model)" class="image-price-row">

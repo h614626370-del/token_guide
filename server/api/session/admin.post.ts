@@ -5,7 +5,7 @@ import { apiError, apiOk } from '../../utils/api'
 import { getGuideConfig } from '../../utils/config'
 import { clearAdminLoginRateLimit, enforceAdminLoginRateLimit } from '../../utils/rate-limit'
 import { readLimitedJson } from '../../utils/request-body'
-import { useGuideSession } from '../../utils/session'
+import { useAdminSession } from '../../utils/session'
 
 const loginSchema = z.object({ token: z.string().min(1).max(512) }).strict()
 
@@ -20,8 +20,8 @@ export default defineEventHandler(async (event) => {
   }
   clearAdminLoginRateLimit(event)
 
-  const session = await useGuideSession(event)
-  await session.update({ admin: true })
+  const session = await useAdminSession(event)
+  await session.update({ authenticated: true })
   return apiOk({ authenticated: true })
 })
 

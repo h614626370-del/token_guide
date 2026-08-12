@@ -7,7 +7,7 @@ const props = defineProps<{
   credential: PlaygroundCredential | null
 }>()
 
-const model = ref('gpt-5.5')
+const model = ref('gpt-5.6-sol')
 const systemPrompt = ref('你是一个简洁、准确的中文助手。')
 const prompt = ref('请用清晰的步骤说明，如何验证一个 OpenAI 兼容 API 是否配置正确。')
 const temperature = ref(0.7)
@@ -206,11 +206,10 @@ function reset() {
 
       <label class="form-field">
         <span>模型</span>
-        <input v-model.trim="model" list="text-models" required>
-        <datalist id="text-models">
-          <option value="gpt-5.5" />
-          <option value="gpt-5.6-sol" />
-        </datalist>
+        <select id="text-models" v-model="model" required>
+          <option value="gpt-5.6-sol">gpt-5.6-sol</option>
+          <option value="gpt-5.5">gpt-5.5</option>
+        </select>
       </label>
 
       <label class="form-field form-field--grow">

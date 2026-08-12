@@ -93,20 +93,6 @@ const upstream = createServer(async (request, response) => {
     }))
     return
   }
-  if (requestUrl.pathname === '/v1/models' && authorization === `Bearer ${savedApiKey}`) {
-    response.end(JSON.stringify({
-      object: 'list',
-      data: [{ id: 'gpt-5.5' }, { id: 'gpt-5.6-sol' }],
-    }))
-    return
-  }
-  if (requestUrl.pathname === '/v1/models' && authorization === `Bearer ${savedClaudeApiKey}`) {
-    response.end(JSON.stringify({
-      object: 'list',
-      data: [{ id: 'claude-sonnet-4-6' }],
-    }))
-    return
-  }
   if (requestUrl.pathname === '/v1/responses' && authorization === `Bearer ${savedApiKey}`) {
     if (requestBody?.model === 'upstream-error') {
       response.statusCode = 401
@@ -183,6 +169,15 @@ function cookieFrom(response: Response) {
   const value = response.headers.get('set-cookie')
   expect(value).toBeTruthy()
   return value!.split(';', 1)[0]
+}
+
+function expectCookieLifetime(response: Response, expectedSeconds: number) {
+  const value = response.headers.get('set-cookie') || ''
+  const expires = /(?:^|;\s*)expires=([^;]+)/i.exec(value)?.[1]
+  expect(expires).toBeTruthy()
+  const issuedAt = Date.parse(response.headers.get('date') || '') || Date.now()
+  const lifetimeSeconds = Math.round((Date.parse(expires!) - issuedAt) / 1000)
+  expect(lifetimeSeconds).toBe(expectedSeconds)
 }
 
 async function json(response: Response) {
@@ -460,6 +455,8 @@ describe('authentication and same-origin API protection', () => {
     })
     expect(login.status).toBe(200)
     const setCookie = login.headers.get('set-cookie') || ''
+    expect(setCookie).toContain('guide_admin_session=')
+    expectCookieLifetime(login, 7 * 24 * 60 * 60)
     expect(setCookie.toLowerCase()).toContain('httponly')
     expect(setCookie.toLowerCase()).toContain('secure')
     expect(setCookie.toLowerCase()).toContain('samesite=lax')
@@ -515,6 +512,10 @@ describe('authentication and same-origin API protection', () => {
     expect(embedded.headers.get('location')).toBe('/feedback?embedded=1')
     expect(embedded.headers.get('location')).not.toContain('token')
     expect(embedded.headers.get('referrer-policy')).toBe('no-referrer')
+    const setCookie = embedded.headers.get('set-cookie') || ''
+    expect(setCookie).toContain('guide_session=')
+    expect(setCookie).not.toContain('guide_admin_session=')
+    expectCookieLifetime(embedded, 12 * 60 * 60)
     const memberCookie = cookieFrom(embedded)
 
     const session = await fetch('/api/session', { headers: { cookie: memberCookie } })
@@ -529,6 +530,9 @@ describe('authentication and same-origin API protection', () => {
         },
       },
     })
+
+    const adminResponse = await fetch('/api/admin/pricing/config', { headers: { cookie: memberCookie } })
+    expect(adminResponse.status).toBe(401)
   })
 
   it('never returns a complete saved API key and proxies model requests server-side', async () => {
@@ -984,15 +988,22 @@ describe('authentication and same-origin API protection', () => {
     const claudeKeys = await fetch('/api/install/keys?tool=claude', { headers: { cookie } })
     expect(await json(claudeKeys)).toMatchObject({ ok: true, data: [{ id: 8, masked_key: 'sk-ant-...7890' }] })
 
-    const codexModels = await fetch('/api/install/models?tool=codex&key_id=7', { headers: { cookie } })
-    expect(await json(codexModels)).toMatchObject({ ok: true, data: ['gpt-5.5', 'gpt-5.6-sol'] })
-    const claudeModels = await fetch('/api/install/models?tool=claude&key_id=8', { headers: { cookie } })
-    expect(await json(claudeModels)).toMatchObject({ ok: true, data: ['claude-sonnet-4-6'] })
+    const adminCookie = await administratorCookie()
+    const installerConfig = await json(await fetch('/api/admin/installers', { headers: { cookie: adminCookie } }))
+    const configured = await fetch('/api/admin/installers/settings', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', cookie: adminCookie },
+      body: JSON.stringify({
+        ...installerConfig.data.settings,
+        group_models: [{ tool: 'codex', group_id: '11', model: 'deepseek-v4-flash' }],
+      }),
+    })
+    expect(configured.status).toBe(200)
 
     const generated = await fetch('/api/install/command', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ tool: 'codex', platform: 'windows', key_id: 7, model: 'gpt-5.6-sol' }),
+      body: JSON.stringify({ tool: 'codex', platform: 'windows', key_id: 7 }),
     })
     expect(generated.status).toBe(200)
     const generatedBody = await json(generated)
@@ -1000,19 +1011,20 @@ describe('authentication and same-origin API protection', () => {
       filename: 'setup.ps1',
       download_url: expect.stringMatching(/\/setup\.ps1$/),
       remote: [{ label: 'Windows PowerShell 5.1 / 7+' }],
+      model: 'deepseek-v4-flash',
     })
     const windowsCommand = generatedBody.data.remote[0].command
     expect(windowsCommand).toContain(savedApiKey)
-    expect(windowsCommand).toContain("$env:CODEX_MODEL='gpt-5.6-sol'")
     expect(windowsCommand).toContain(`$env:CODEX_BASE_URL='${upstreamOrigin}'`)
-    expect(windowsCommand).toMatch(/\$installerSource=irm '.*\/setup\.ps1';iex \$installerSource\.TrimStart\(\[char\]0xFEFF\)/)
+    expect(windowsCommand).toMatch(/\$installerSource=irm '.*\/setup\.ps1';& \(\[scriptblock\]::Create\(\$installerSource\.TrimStart\(\[char\]0xFEFF\)\)\) -Model 'deepseek-v4-flash'/)
+    expect(generatedBody.data.local[0].command).toContain(".\\setup.ps1 -Model 'deepseek-v4-flash'")
     expect(windowsCommand).not.toContain('| iex')
     expect(windowsCommand).not.toContain('EncodedCommand')
 
     const generatedClaude = await fetch('/api/install/command', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ tool: 'claude', platform: 'windows', key_id: 8, model: 'claude-sonnet-4-6' }),
+      body: JSON.stringify({ tool: 'claude', platform: 'windows', key_id: 8 }),
     })
     expect(generatedClaude.status).toBe(200)
     const generatedClaudeBody = await json(generatedClaude)
@@ -1023,26 +1035,20 @@ describe('authentication and same-origin API protection', () => {
     const claudeWindowsCommand = generatedClaudeBody.data.remote[0].command
     expect(claudeWindowsCommand).toContain(savedClaudeApiKey)
     expect(claudeWindowsCommand).toContain('$env:CLAUDE_API_KEY=')
-    expect(claudeWindowsCommand).toContain("$env:ANTHROPIC_MODEL='claude-sonnet-4-6'")
     expect(claudeWindowsCommand).toMatch(/\$installerSource=irm '.*\/api\/install\/scripts\/claude\/windows';iex \$installerSource\.TrimStart\(\[char\]0xFEFF\)/)
     expect(claudeWindowsCommand).not.toContain('| iex')
 
     const generatedShell = await fetch('/api/install/command', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ tool: 'codex', platform: 'linux', key_id: 7, model: 'gpt-5.5' }),
+      body: JSON.stringify({ tool: 'codex', platform: 'linux', key_id: 7 }),
     })
     const shellBody = await json(generatedShell)
     expect(shellBody.data.filename).toBe('setup.sh')
+    expect(shellBody.data.model).toBe('deepseek-v4-flash')
     expect(shellBody.data.remote[0].command).toContain(`CODEX_BASE_URL='${upstreamOrigin}'`)
-    expect(shellBody.data.remote[0].command).toContain("CODEX_MODEL='gpt-5.5'")
+    expect(shellBody.data.remote[0].command).toContain("CODEX_MODEL='deepseek-v4-flash'")
+    expect(shellBody.data.local[0].command).toContain("CODEX_MODEL='deepseek-v4-flash'")
     expect(shellBody.data.remote[0].command).toMatch(/curl -fsSL '.*\/setup\.sh' \| bash/)
-
-    const invalidModel = await fetch('/api/install/command', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ tool: 'codex', platform: 'linux', key_id: 7, model: 'not-in-group' }),
-    })
-    expect(invalidModel.status).toBe(400)
   })
 })

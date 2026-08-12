@@ -173,6 +173,78 @@ test('tool pages stay outside the guide sidebar', async ({ page }, testInfo) => 
   await expect(page.locator('.guide-sidebar')).toHaveCount(0)
 })
 
+test('pricing shows official prices once and scopes plans to supported models', async ({ page }, testInfo) => {
+  await page.route('**/api/pricing', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      data: {
+        source: { configured: true, status: 'live', fetched_at: new Date().toISOString(), warnings: [] },
+        exchange: { usd_to_cny: 7 },
+        display: { provider_order: ['openai'] },
+        models: [
+          {
+            provider: 'openai', provider_label: 'OpenAI', provider_short: 'O',
+            model_name: 'gpt-5.6-sol', display_name: 'gpt-5.6-sol', billing_mode: 'token', capabilities: {},
+            is_featured: false, sort_order: 1, note: '', group_ids: ['20'],
+            prices: { input_usd_per_million: 5, output_usd_per_million: 30, cache_read_usd_per_million: 0.5 },
+          },
+          {
+            provider: 'openai', provider_label: 'OpenAI', provider_short: 'O',
+            model_name: 'gpt-5.5', display_name: 'gpt-5.5', billing_mode: 'token', capabilities: {},
+            is_featured: true, sort_order: 10, note: '', group_ids: ['20'],
+            prices: { input_usd_per_million: 4, output_usd_per_million: 24, cache_read_usd_per_million: 0.4 },
+          },
+          {
+            provider: 'openai', provider_label: 'OpenAI', provider_short: 'O',
+            model_name: 'deepseek-v4-flash', display_name: 'deepseek-v4-flash', billing_mode: 'token', capabilities: {},
+            is_featured: false, sort_order: 2, note: '', group_ids: ['10'],
+            prices: { input_usd_per_million: 1, output_usd_per_million: 2, cache_read_usd_per_million: 0.1 },
+          },
+        ],
+        groups: [
+          {
+            provider: 'openai', source_id: '10', name: 'deepseek-v4-flash 官方1折',
+            display_name: 'deepseek-v4-flash 官方1折', is_exclusive: false, rate_multiplier: 0.1,
+            recharge_multiplier: 1, recharge_pay_cny: 1, recharge_credit_usd: 1,
+            effective_rate: 0.1, sort_order: 1, note: '',
+          },
+          {
+            provider: 'openai', source_id: '20', name: '高速VIP通道', display_name: '高速VIP通道',
+            is_exclusive: false, rate_multiplier: 1, recharge_multiplier: 5,
+            recharge_pay_cny: 20, recharge_credit_usd: 100, effective_rate: 0.2,
+            sort_order: 2, note: '',
+          },
+        ],
+      },
+    }),
+  }))
+
+  await page.goto('/playground', { waitUntil: 'networkidle' })
+  if (testInfo.project.name === 'mobile') {
+    await page.getByRole('button', { name: '切换导航' }).click()
+  }
+  await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '模型价格' }).click()
+  await page.waitForLoadState('networkidle')
+  await expect(page.locator('.pricing-model__identity strong').first()).toHaveText('gpt-5.6-sol')
+  const gpt = page.locator('.pricing-model').filter({ hasText: 'gpt-5.6-sol' })
+  const deepseek = page.locator('.pricing-model').filter({ hasText: 'deepseek-v4-flash' })
+  await expect(gpt.locator('.pricing-model__official')).toContainText('输入$5')
+  await expect(gpt.locator('.pricing-model__official')).toContainText('输出$30')
+  await expect(gpt).toContainText('高速VIP通道')
+  await expect(gpt).not.toContainText('deepseek-v4-flash 官方1折')
+  await deepseek.locator('.pricing-model__summary').click()
+  await expect(deepseek).toContainText('deepseek-v4-flash 官方1折')
+  await expect(page.locator('.pricing-table tbody td > small').filter({ hasText: '官方价' })).toHaveCount(0)
+
+  const overflow = await page.evaluate(() => ({
+    body: document.body.scrollWidth,
+    viewport: document.documentElement.clientWidth,
+  }))
+  expect(overflow.body).toBeLessThanOrEqual(overflow.viewport + 1)
+})
+
 test('public interface uses the business-black accent palette', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
   const colors = await page.evaluate(() => ({
@@ -257,6 +329,32 @@ test('administrator can manage classified installer scripts', async ({ page }, t
   await expect(page.getByLabel('PROVIDER_ID')).toHaveValue(original.provider_id)
   await expect(page.getByLabel('BASE_URL')).toHaveValue(original.base_url)
 
+  await page.route('**/api/admin/pricing/source', route => route.fulfill({
+    json: {
+      ok: true,
+      data: {
+        source: { configured: true, platforms: ['openai'], sub2api_api_base: 'https://example.com/api/v1' },
+        groups: [{
+          provider: 'openai', provider_label: 'OpenAI', provider_short: 'O', source_id: '27',
+          source_name: 'deepseek-v4-flash 官方1折', description: '', subscription_type: 'standard',
+          is_exclusive: false, rate_multiplier: 0.1, daily_limit_usd: null, weekly_limit_usd: null,
+          monthly_limit_usd: null, default_validity_days: 30, allow_image_generation: false,
+          image_rate_independent: false, image_rate_multiplier: 1, image_price_1k: null,
+          image_price_2k: null, image_price_4k: null, default_image_prices_usd: {},
+          peak_rate_enabled: false, peak_start: '', peak_end: '', peak_rate_multiplier: 1,
+          status: 'active', sort_order: 1,
+        }],
+        models_by_provider: { openai: ['deepseek-v4-flash'] },
+        model_group_ids_by_provider: { openai: { 'deepseek-v4-flash': ['27'] } },
+        model_group_scope_by_provider: { openai: true },
+        warnings: [], fetched_at: new Date().toISOString(),
+      },
+    },
+  }))
+  await page.getByRole('button', { name: '刷新' }).click()
+  const deepseekGroupModel = page.getByRole('combobox', { name: 'deepseek-v4-flash 官方1折 自动安装模型' })
+  await expect(deepseekGroupModel.locator('option')).toHaveText(['跟随默认：gpt-5.6-sol', 'deepseek-v4-flash'])
+
   const editorMetrics = await page.getByLabel('安装脚本内容').evaluate((element) => {
     const style = getComputedStyle(element)
     return { height: Number.parseFloat(style.height), resize: style.resize, scrollbarWidth: style.scrollbarWidth }
@@ -335,25 +433,19 @@ test('install command copy falls back on an insecure origin', async ({ page }) =
           claude_default_model: '',
           codex_enabled: true,
           claude_enabled: false,
+          group_models: [{ tool: 'codex', group_id: '27', model: 'deepseek-v4-flash' }],
         },
         scripts: [],
       },
     },
   }))
   await page.route('**/api/session', route => route.fulfill({ json: { ok: true, data: { authenticated: true, admin: false, user: { id: '1', username: 'Tester', email: 'tester@example.com', role: 'user' }, token_expires_at: null } } }))
-  await page.route('**/api/install/keys?tool=codex', route => route.fulfill({ json: { ok: true, data: [{ id: 7, name: 'Codex', masked_key: 'sk-test...key', group: { platform: 'openai' } }] } }))
-  await page.route('**/api/install/models?tool=codex&key_id=7', route => route.fulfill({ json: { ok: true, data: ['gpt-5.5', 'gpt-5.6-sol'] } }))
-  let submittedInstallerBody: any = null
-  await page.route('**/api/install/command', async (route) => {
-    submittedInstallerBody = route.request().postDataJSON()
-    await route.fulfill({ json: { ok: true, data: { remote: [{ label: 'Linux Terminal', command }], local: [{ label: 'Linux Terminal', command: './setup.sh' }], download_url: '/setup.sh', filename: 'setup.sh', checksum: 'ABC' } } })
-  })
+  await page.route('**/api/install/keys?tool=codex', route => route.fulfill({ json: { ok: true, data: [{ id: 7, name: 'Codex', masked_key: 'sk-test...key', group_id: 27, group: { id: 27, name: 'DeepSeek 官方1折', platform: 'openai' } }] } }))
+  await page.route('**/api/install/command', route => route.fulfill({ json: { ok: true, data: { remote: [{ label: 'Linux Terminal', command }], local: [{ label: 'Linux Terminal', command: './setup.sh' }], download_url: '/setup.sh', filename: 'setup.sh', checksum: 'ABC', model: 'deepseek-v4-flash' } } }))
 
   await page.goto('/install', { waitUntil: 'networkidle' })
-  const modelSelect = page.getByLabel('默认模型')
-  await expect(modelSelect).toHaveValue('gpt-5.6-sol')
-  await modelSelect.selectOption('gpt-5.5')
-  await expect.poll(() => submittedInstallerBody?.model).toBe('gpt-5.5')
+  await expect(page.locator('.install-key-panel')).toContainText('DeepSeek 官方1折')
+  await expect(page.locator('.install-key-panel')).toContainText('deepseek-v4-flash')
   await page.getByRole('tab', { name: 'Linux' }).click()
   const copyButton = page.locator('.install-command button').first()
   await copyButton.click()
@@ -393,15 +485,18 @@ test('playground renders streamed text responses', async ({ page }) => {
 
   await page.goto('/playground', { waitUntil: 'networkidle' })
   await expect(page.getByRole('note')).toHaveText('试用工作台主要用于确认模型和 API Key 能否正常调用。功能比较基础，对话不会保存，不建议用于正式工作。')
+  const modelSelect = page.getByRole('combobox', { name: '模型' })
   const textModels = page.locator('#text-models option')
   await expect(textModels).toHaveCount(2)
-  await expect(textModels.nth(0)).toHaveAttribute('value', 'gpt-5.5')
-  await expect(textModels.nth(1)).toHaveAttribute('value', 'gpt-5.6-sol')
+  await expect(textModels.nth(0)).toHaveAttribute('value', 'gpt-5.6-sol')
+  await expect(textModels.nth(1)).toHaveAttribute('value', 'gpt-5.5')
+  await expect(modelSelect).toHaveValue('gpt-5.6-sol')
   await page.getByRole('button', { name: '发送请求' }).click()
   await expect(page.getByRole('button', { name: '停止生成' })).toBeVisible()
   await expect(page.locator('.response-output')).toHaveText('流式返回成功')
   await expect(page.locator('.result-duration')).toHaveText('108 ms')
   expect(submittedBody.request.stream).toBe(true)
+  expect(submittedBody.request.model).toBe('gpt-5.6-sol')
 })
 
 test('embedded mode removes the site chrome', async ({ page }) => {

@@ -450,4 +450,50 @@ export const migrations = [
       }
     },
   },
+  {
+    id: 15,
+    name: 'prioritize_current_pricing_models',
+    up(db) {
+      const now = new Date().toISOString()
+      const update = db.prepare(`
+        UPDATE pricing_model_settings
+        SET sort_order = ?, updated_at = ?
+        WHERE provider = 'openai' AND model_name = ? AND sort_order = 1000
+      `)
+      const priorities = [
+        ['gpt-5.6', 4],
+        ['gpt-5.6-sol', 5],
+        ['gpt-5.6-luna', 6],
+        ['gpt-5.6-terra', 7],
+        ['deepseek-v4-flash', 8],
+      ]
+      for (const [modelName, sortOrder] of priorities) {
+        update.run(sortOrder, now, modelName)
+      }
+    },
+  },
+  {
+    id: 16,
+    name: 'track_pricing_model_discoveries',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS pricing_model_discoveries (
+          provider TEXT NOT NULL,
+          model_name TEXT NOT NULL,
+          first_seen_at TEXT NOT NULL,
+          PRIMARY KEY (provider, model_name)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pricing_model_discoveries_provider_seen
+          ON pricing_model_discoveries(provider, first_seen_at DESC, model_name);
+      `)
+    },
+  },
+  {
+    id: 17,
+    name: 'reset_pricing_model_discovery_baseline',
+    up(db) {
+      db.exec('DELETE FROM pricing_model_discoveries;')
+    },
+  },
 ]

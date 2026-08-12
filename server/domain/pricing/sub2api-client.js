@@ -52,6 +52,35 @@ export function createSub2apiClient(config, logger) {
       return Array.isArray(data?.models) ? data.models : []
     },
 
+    async listAccountModelAccess(provider) {
+      const accounts = []
+      let page = 1
+      let pages = 1
+
+      do {
+        const data = await request('/admin/accounts', {
+          platform: provider,
+          status: 'active',
+          page,
+          page_size: 1000,
+        })
+        const items = Array.isArray(data?.items) ? data.items : []
+        for (const account of items) {
+          if (account?.schedulable === false) continue
+          const groupIds = accountGroupIds(account)
+          if (!groupIds.length) continue
+          accounts.push({
+            group_ids: groupIds,
+            model_patterns: modelMappingPatterns(account?.credentials?.model_mapping),
+          })
+        }
+        pages = positiveInteger(data?.pages, 1)
+        page += 1
+      } while (page <= pages)
+
+      return accounts
+    },
+
     async getModelPricing(model) {
       try {
         return await request('/admin/channels/model-pricing', { model })
@@ -61,6 +90,28 @@ export function createSub2apiClient(config, logger) {
       }
     },
   }
+}
+
+function accountGroupIds(account) {
+  const direct = Array.isArray(account?.group_ids) ? account.group_ids : []
+  const bindings = Array.isArray(account?.account_groups)
+    ? account.account_groups.map((binding) => binding?.group_id)
+    : []
+  return Array.from(new Set([...direct, ...bindings]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)))
+}
+
+function modelMappingPatterns(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Array.from(new Set(Object.keys(value)
+    .map((name) => String(name || '').trim())
+    .filter(Boolean)))
+}
+
+function positiveInteger(value, fallback) {
+  const number = Number(value)
+  return Number.isInteger(number) && number > 0 ? number : fallback
 }
 
 function unwrapSub2apiResponse(body) {

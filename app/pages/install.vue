@@ -18,9 +18,6 @@ const config = ref<InstallerConfig | null>(null)
 const keys = ref<PlaygroundKey[]>([])
 const selectedKeyId = ref<number | null>(null)
 const keysLoading = ref(false)
-const models = ref<string[]>([])
-const selectedModel = ref('')
-const modelsLoading = ref(false)
 const commandLoading = ref(false)
 const commands = ref<InstallerCommands | null>(null)
 const error = ref('')
@@ -35,9 +32,14 @@ const enabledToolOptions = computed(() => config.value
 const hasEnabledTools = computed(() => enabledToolOptions.value.length > 0)
 const toolName = computed(() => tool.value === 'codex' ? 'Codex CLI' : 'Claude Code')
 const protocolName = computed(() => tool.value === 'codex' ? 'OpenAI' : 'Anthropic')
-const configuredDefaultModel = computed(() => tool.value === 'codex'
-  ? config.value?.settings.codex_default_model
+const defaultModel = computed(() => tool.value === 'codex'
+  ? commands.value?.model || selectedGroupModel.value || config.value?.settings.codex_default_model
   : config.value?.settings.claude_default_model)
+const selectedGroupModel = computed(() => {
+  const selected = keys.value.find(item => item.id === selectedKeyId.value)
+  const groupId = String(selected?.group_id ?? selected?.group?.id ?? '')
+  return config.value?.settings.group_models?.find(item => item.tool === tool.value && item.group_id === groupId)?.model || ''
+})
 
 onMounted(async () => {
   await loadConfig()
@@ -49,20 +51,13 @@ onBeforeUnmount(clearCommands)
 
 watch(tool, async () => {
   selectedKeyId.value = null
-  clearModels()
   clearCommands()
   if (session.value?.authenticated && hasEnabledTools.value) await loadKeys()
 })
 
-watch(selectedKeyId, async () => {
-  clearModels()
+watch([selectedKeyId, platform], async () => {
   clearCommands()
-  if (selectedKeyId.value) await loadModels()
-})
-
-watch([selectedModel, platform], async () => {
-  clearCommands()
-  if (selectedKeyId.value && selectedModel.value) await loadCommands()
+  if (selectedKeyId.value) await loadCommands()
 })
 
 async function loadConfig() {
@@ -95,13 +90,13 @@ async function loadKeys() {
 }
 
 async function loadCommands() {
-  if (!selectedKeyId.value || !selectedModel.value) return
+  if (!selectedKeyId.value) return
   commandLoading.value = true
   error.value = ''
   try {
     const response = await $fetch<ApiSuccess<InstallerCommands>>('/api/install/command', {
       method: 'POST',
-      body: { tool: tool.value, platform: platform.value, key_id: selectedKeyId.value, model: selectedModel.value },
+      body: { tool: tool.value, platform: platform.value, key_id: selectedKeyId.value },
     })
     commands.value = response.data
   } catch (cause) {
@@ -109,30 +104,6 @@ async function loadCommands() {
   } finally {
     commandLoading.value = false
   }
-}
-
-async function loadModels() {
-  if (!selectedKeyId.value) return
-  modelsLoading.value = true
-  error.value = ''
-  try {
-    const response = await $fetch<ApiSuccess<string[]>>('/api/install/models', {
-      query: { tool: tool.value, key_id: selectedKeyId.value },
-    })
-    models.value = response.data
-    const preferred = configuredDefaultModel.value || ''
-    selectedModel.value = models.value.includes(preferred) ? preferred : (models.value[0] || '')
-  } catch (cause) {
-    clearModels()
-    error.value = apiErrorMessage(cause, '模型列表读取失败')
-  } finally {
-    modelsLoading.value = false
-  }
-}
-
-function clearModels() {
-  models.value = []
-  selectedModel.value = ''
 }
 
 function clearCommands() {
@@ -177,7 +148,7 @@ function clearCommands() {
             <div>
               <select v-model.number="selectedKeyId" :disabled="keysLoading" aria-label="选择 API Key">
                 <option :value="null" disabled>{{ keysLoading ? '正在读取...' : (keys.length ? '请选择 Key' : '暂无可用 Key') }}</option>
-                <option v-for="item in keys" :key="item.id" :value="item.id">{{ item.name }} · {{ item.masked_key }}</option>
+                <option v-for="item in keys" :key="item.id" :value="item.id">{{ item.name }} · {{ item.group?.name || '未分组' }} · {{ item.masked_key }}</option>
               </select>
               <button class="icon-button" type="button" title="刷新 Key 列表" :disabled="keysLoading" @click="loadKeys">
                 <RefreshCw :size="17" :class="{ spinning: keysLoading }" />
@@ -189,15 +160,7 @@ function clearCommands() {
             <div><dt>工具</dt><dd>{{ toolName }}</dd></div>
             <div><dt>Provider</dt><dd>{{ config.settings.provider_id }}</dd></div>
             <div><dt>Base URL</dt><dd>{{ config.settings.base_url }}</dd></div>
-            <div class="install-model-row">
-              <dt><label for="install-model">默认模型</label></dt>
-              <dd>
-                <select id="install-model" v-model="selectedModel" :disabled="modelsLoading || !selectedKeyId">
-                  <option value="" disabled>{{ modelsLoading ? '正在读取...' : (models.length ? '请选择模型' : '暂无可用模型') }}</option>
-                  <option v-for="model in models" :key="model" :value="model">{{ model }}</option>
-                </select>
-              </dd>
-            </div>
+            <div><dt>默认模型</dt><dd>{{ defaultModel || '由客户端决定' }}</dd></div>
           </dl>
         </aside>
 
@@ -212,7 +175,6 @@ function clearCommands() {
           <div v-if="error" class="tool-alert tool-alert--error">{{ error }}</div>
           <div v-if="commandLoading" class="install-loading">正在生成安装命令...</div>
           <div v-else-if="!selectedKeyId" class="empty-result"><strong>选择 API Key 后生成命令</strong></div>
-          <div v-else-if="modelsLoading || !selectedModel" class="empty-result"><strong>{{ modelsLoading ? '正在读取可用模型' : '该 Key 暂无可用模型' }}</strong></div>
 
           <template v-else-if="commands">
             <section class="install-method">

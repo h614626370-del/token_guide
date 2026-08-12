@@ -1,6 +1,12 @@
 export type InstallerTool = 'codex' | 'claude'
 export type InstallerPlatform = 'windows' | 'macos' | 'linux'
 
+export interface InstallerGroupModel {
+  tool: InstallerTool
+  group_id: string
+  model: string
+}
+
 export interface InstallerSettings {
   provider_id: string
   base_url: string
@@ -8,6 +14,7 @@ export interface InstallerSettings {
   claude_default_model: string
   codex_enabled: boolean
   claude_enabled: boolean
+  group_models: InstallerGroupModel[]
 }
 
 export interface InstallerScriptSummary {
@@ -39,6 +46,7 @@ export interface InstallerCommands {
   download_url: string
   filename: string
   checksum: string
+  model: string
 }
 
 export interface InstallerScriptVersion {

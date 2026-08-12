@@ -55,6 +55,9 @@ export interface AdminPricingSource {
   source: { configured: boolean, platforms: string[], sub2api_api_base: string | null }
   groups: SourceGroup[]
   models_by_provider: Record<string, string[]>
+  model_first_seen_by_provider?: Record<string, Record<string, string>>
+  model_group_ids_by_provider?: Record<string, Record<string, string[]>>
+  model_group_scope_by_provider?: Record<string, boolean>
   warnings: string[]
   fetched_at: string
 }
@@ -64,6 +67,7 @@ export interface ModelDraft extends ModelSetting {
   display_name: string
   note: string
   source_available: boolean
+  first_seen_at: string | null
 }
 
 export interface GroupDraft extends Omit<GroupSetting, 'display_name' | 'note' | 'is_visible'> {
