@@ -110,8 +110,9 @@ git push origin main v2.2.11
 gh workflow run release.yml -f version=v2.2.11 -f publish_latest=true
 ```
 
-正式发布必须先通过整套 `CI`。稳定版会推送 `v2.2.11` 和 `latest`；预发布版本
-不会覆盖 `latest`。工作流完成后会创建或更新对应的 GitHub Release。
+正式发布会等待并复用同一提交已经运行的 `CI` 结果，不会重复执行测试。稳定版会
+推送 `v2.2.11` 和 `latest`；预发布版本不会覆盖 `latest`。工作流完成后会创建或
+更新对应的 GitHub Release。
 
 仍可使用原有本机发布流程：
 

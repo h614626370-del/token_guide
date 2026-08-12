@@ -17,6 +17,7 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -24,13 +25,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  quality:
-    name: Quality checks
-    uses: ./.github/workflows/ci.yml
-
   release:
     name: Publish image and GitHub release
-    needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 40
     environment: production
@@ -91,6 +87,37 @@ jobs:
             echo "${tags}"
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
+
+      - name: Require successful CI for this commit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          deadline=$((SECONDS + 1200))
+          while (( SECONDS < deadline )); do
+            response="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&per_page=20")"
+            success_url="$(jq -r '[.workflow_runs[] | select(.conclusion == "success")][0].html_url // empty' <<<"${response}")"
+
+            if [[ -n "${success_url}" ]]; then
+              echo "CI passed for ${GITHUB_SHA}: ${success_url}"
+              exit 0
+            fi
+
+            latest_status="$(jq -r '.workflow_runs[0].status // empty' <<<"${response}")"
+            latest_conclusion="$(jq -r '.workflow_runs[0].conclusion // empty' <<<"${response}")"
+            latest_url="$(jq -r '.workflow_runs[0].html_url // empty' <<<"${response}")"
+
+            if [[ "${latest_status}" == "completed" ]]; then
+              echo "CI did not pass for ${GITHUB_SHA}: ${latest_conclusion} ${latest_url}" >&2
+              exit 1
+            fi
+
+            echo "Waiting for CI on ${GITHUB_SHA} (${latest_status:-not started})..."
+            sleep 15
+          done
+
+          echo "Timed out waiting for CI on ${GITHUB_SHA}." >&2
+          exit 1
 
       - name: Verify Docker Hub credentials
         shell: bash
