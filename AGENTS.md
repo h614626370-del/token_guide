@@ -34,7 +34,7 @@ npm test
 npm run test:ui
 npm run build
 npm run preview
-npm run release -- -Version v2.2.10
+npm run release -- -Version v2.2.11
 ```
 
 本机部署准备：

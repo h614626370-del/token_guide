@@ -116,7 +116,7 @@ gh workflow run release.yml -f version=v2.2.11 -f publish_latest=true
 仍可使用原有本机发布流程：
 
 ```powershell
-npm run release -- -Version v2.2.10
+npm run release -- -Version v2.2.11
 ```
 
 ## 注意
