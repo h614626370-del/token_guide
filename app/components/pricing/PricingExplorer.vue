@@ -101,8 +101,8 @@ function rmbDiscount(group: PricingGroup) {
   return discountValue(rate)
 }
 
-function quotaDiscount(group: PricingGroup) {
-  return discountValue(Number(group.rate_multiplier || 1))
+function quotaMultiplier(group: PricingGroup) {
+  return `${number(Number(group.rate_multiplier || 1), 3)}x`
 }
 
 function rechargeLabel(group: PricingGroup) {
@@ -203,7 +203,7 @@ function number(value: number, decimals: number) {
               <tr>
                 <th>分组</th>
                 <th>人民币折扣</th>
-                <th>额度折扣</th>
+                <th>倍率</th>
                 <th>说明</th>
               </tr>
             </thead>
@@ -211,7 +211,7 @@ function number(value: number, decimals: number) {
               <tr v-for="group in groupsForModel(model)" :key="group.source_id">
                 <td><strong>{{ group.display_name }}</strong><small>{{ rechargeLabel(group) }}</small></td>
                 <td><strong class="discount-value">{{ rmbDiscount(group) }}</strong><small>相对官方人民币原价</small></td>
-                <td><strong class="discount-value">{{ quotaDiscount(group) }}</strong><small>{{ number(group.rate_multiplier, 3) }}x 扣额度</small></td>
+                <td><strong class="discount-value">{{ quotaMultiplier(group) }}</strong></td>
                 <td><span>{{ group.note || model.note || '实际扣费以主站账单为准' }}</span></td>
               </tr>
             </tbody>

@@ -6,7 +6,7 @@ import type { PricingReference } from '~/types/pricing'
 const site = useSiteConfigState()
 useSeoMeta({
   title: '模型价格参考',
-  description: () => `查看${site.value.project_name}模型官方价格、分组人民币与额度折扣，以及图片模型按次价格。`,
+  description: () => `查看${site.value.project_name}模型官方价格、分组人民币折扣与倍率，以及图片模型按次价格。`,
 })
 
 const { data, pending, error, refresh } = await useFetch<ApiSuccess<PricingReference>>('/api/pricing')
