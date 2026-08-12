@@ -115,6 +115,10 @@ function rebuildDrafts() {
       display_name: item?.display_name || '',
       is_visible: Boolean(item?.is_visible),
       is_featured: Boolean(item?.is_featured),
+      is_image_model: item?.is_image_model ?? null,
+      image_price_1k: item?.image_price_1k ?? null,
+      image_price_2k: item?.image_price_2k ?? null,
+      image_price_4k: item?.image_price_4k ?? null,
       sort_order: Number(item?.sort_order ?? 1000),
       note: item?.note || '',
       source_available: Boolean(source.value?.models_by_provider?.[provider]?.includes(modelName)),
@@ -222,6 +226,10 @@ function modelPayload(item: ModelDraft) {
     display_name: empty(item.display_name),
     is_visible: Boolean(item.is_visible),
     is_featured: Boolean(item.is_featured),
+    is_image_model: item.is_image_model,
+    image_price_1k: positive(item.image_price_1k),
+    image_price_2k: positive(item.image_price_2k),
+    image_price_4k: positive(item.image_price_4k),
     sort_order: integer(item.sort_order, 1000),
     note: empty(item.note),
   }
@@ -393,13 +401,23 @@ function integer(value: unknown, fallback: number) {
 
         <div v-if="activeTab === 'models'" class="admin-table-scroll">
           <table class="admin-edit-table admin-model-table">
-            <thead><tr><th>展示</th><th>模型</th><th>展示名称</th><th>推荐</th><th>前台排序</th><th>备注</th></tr></thead>
+            <thead><tr><th>展示</th><th>模型</th><th>展示名称</th><th>推荐</th><th>计费类型</th><th>1K USD / 张</th><th>2K USD / 张</th><th>4K USD / 张</th><th>前台排序</th><th>备注</th></tr></thead>
             <tbody>
               <tr v-for="item in filteredModels" :key="item.key">
                 <td><input v-model="item.is_visible" type="checkbox" :aria-label="`${item.model_name} 是否展示`"></td>
                 <td><strong>{{ item.model_name }}</strong><small>{{ providerLabel(item.provider) }} · {{ item.source_available ? '来源存在' : '仅本地' }}</small></td>
                 <td><input v-model="item.display_name" :placeholder="item.model_name"></td>
                 <td><input v-model="item.is_featured" type="checkbox" :aria-label="`${item.model_name} 是否推荐`"></td>
+                <td>
+                  <select v-model="item.is_image_model" :aria-label="`${item.model_name} 计费类型`">
+                    <option :value="null">自动识别</option>
+                    <option :value="false">Token</option>
+                    <option :value="true">图片 / 次</option>
+                  </select>
+                </td>
+                <td><input v-model.number="item.image_price_1k" type="number" min="0.000001" max="100000" step="0.0001" placeholder="跟随上游" :disabled="item.is_image_model === false" :aria-label="`${item.model_name} 1K 图片价格`"></td>
+                <td><input v-model.number="item.image_price_2k" type="number" min="0.000001" max="100000" step="0.0001" placeholder="跟随上游" :disabled="item.is_image_model === false" :aria-label="`${item.model_name} 2K 图片价格`"></td>
+                <td><input v-model.number="item.image_price_4k" type="number" min="0.000001" max="100000" step="0.0001" placeholder="跟随上游" :disabled="item.is_image_model === false" :aria-label="`${item.model_name} 4K 图片价格`"></td>
                 <td><input v-model.number="item.sort_order" type="number" min="0" max="100000"></td>
                 <td><input v-model="item.note" maxlength="1000"></td>
               </tr>

@@ -5,6 +5,10 @@ const modelColumns = `
   display_name,
   is_visible,
   is_featured,
+  is_image_model,
+  image_price_1k,
+  image_price_2k,
+  image_price_4k,
   sort_order,
   note,
   created_at,
@@ -54,6 +58,10 @@ export function createPricingRepository(db) {
       display_name,
       is_visible,
       is_featured,
+      is_image_model,
+      image_price_1k,
+      image_price_2k,
+      image_price_4k,
       sort_order,
       note,
       created_at,
@@ -64,6 +72,10 @@ export function createPricingRepository(db) {
       @display_name,
       @is_visible,
       @is_featured,
+      @is_image_model,
+      @image_price_1k,
+      @image_price_2k,
+      @image_price_4k,
       @sort_order,
       @note,
       @created_at,
@@ -73,6 +85,10 @@ export function createPricingRepository(db) {
       display_name = excluded.display_name,
       is_visible = excluded.is_visible,
       is_featured = excluded.is_featured,
+      is_image_model = excluded.is_image_model,
+      image_price_1k = excluded.image_price_1k,
+      image_price_2k = excluded.image_price_2k,
+      image_price_4k = excluded.image_price_4k,
       sort_order = excluded.sort_order,
       note = excluded.note,
       updated_at = excluded.updated_at
@@ -185,12 +201,17 @@ export function createPricingRepository(db) {
   const saveModel = (input) => {
     const now = new Date().toISOString()
     const current = getModel.get(input.provider, input.model_name)
+    const has = (key) => Object.prototype.hasOwnProperty.call(input, key)
     const row = {
       provider: input.provider,
       model_name: input.model_name,
       display_name: emptyToNull(input.display_name),
       is_visible: boolToInt(input.is_visible ?? current?.is_visible ?? false),
       is_featured: boolToInt(input.is_featured ?? current?.is_featured ?? false),
+      is_image_model: nullableBoolToInt(has('is_image_model') ? input.is_image_model : current?.is_image_model ?? null),
+      image_price_1k: positiveOrNull(has('image_price_1k') ? input.image_price_1k : current?.image_price_1k),
+      image_price_2k: positiveOrNull(has('image_price_2k') ? input.image_price_2k : current?.image_price_2k),
+      image_price_4k: positiveOrNull(has('image_price_4k') ? input.image_price_4k : current?.image_price_4k),
       sort_order: input.sort_order ?? current?.sort_order ?? 1000,
       note: emptyToNull(input.note),
       created_at: current?.created_at || now,
@@ -358,6 +379,7 @@ function normalizeModel(row) {
     ...row,
     is_visible: Boolean(row.is_visible),
     is_featured: Boolean(row.is_featured),
+    is_image_model: row.is_image_model == null ? null : Boolean(row.is_image_model),
   }
 }
 

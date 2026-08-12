@@ -510,4 +510,19 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 19,
+    name: 'extend_pricing_models_for_image_prices',
+    up(db) {
+      const columns = new Set(db.prepare('PRAGMA table_info(pricing_model_settings)').all().map((row) => row.name))
+      const addColumn = (name, sql) => {
+        if (!columns.has(name)) db.exec(`ALTER TABLE pricing_model_settings ADD COLUMN ${sql};`)
+      }
+
+      addColumn('is_image_model', 'is_image_model INTEGER CHECK (is_image_model IS NULL OR is_image_model IN (0, 1))')
+      addColumn('image_price_1k', 'image_price_1k REAL CHECK (image_price_1k IS NULL OR image_price_1k > 0)')
+      addColumn('image_price_2k', 'image_price_2k REAL CHECK (image_price_2k IS NULL OR image_price_2k > 0)')
+      addColumn('image_price_4k', 'image_price_4k REAL CHECK (image_price_4k IS NULL OR image_price_4k > 0)')
+    },
+  },
 ]

@@ -5,6 +5,10 @@ export interface ModelSetting {
   display_name: string | null
   is_visible: boolean
   is_featured: boolean
+  is_image_model: boolean | null
+  image_price_1k: number | null
+  image_price_2k: number | null
+  image_price_4k: number | null
   sort_order: number
   note: string | null
 }

@@ -2,15 +2,12 @@
 import { ChevronDown, Image as ImageIcon, Search, Star } from 'lucide-vue-next'
 import type { ImagePriceTiers, PricingGroup, PricingModel, PricingReference } from '~/types/pricing'
 
-type PriceMode = 'effective' | 'group' | 'official'
 type PriceKey = 'input' | 'output' | 'cacheRead' | 'cacheWrite'
 
 const props = defineProps<{ reference: PricingReference }>()
 
 const query = ref('')
 const provider = ref('all')
-const priceMode = ref<PriceMode>('effective')
-const unit = ref<'M' | 'K'>('M')
 const expanded = ref<string[]>([])
 
 const providerOrder = computed(() => props.reference.display?.provider_order || [])
@@ -80,24 +77,10 @@ function officialPrice(model: PricingModel, key: PriceKey) {
   return model.prices.cache_write_usd_per_million
 }
 
-function priceMultiplier(group: PricingGroup) {
-  if (priceMode.value === 'official') return props.reference.exchange.usd_to_cny
-  if (priceMode.value === 'group') return group.rate_multiplier * props.reference.exchange.usd_to_cny
-  return group.effective_rate
-}
-
-function formatPrice(model: PricingModel, group: PricingGroup, key: PriceKey) {
-  const price = officialPrice(model, key)
-  if (price == null) return '-'
-  const value = price * priceMultiplier(group) / (unit.value === 'M' ? 1 : 1000)
-  return `¥${number(value, unit.value === 'M' ? 4 : 6)}`
-}
-
 function formatOfficial(model: PricingModel, key: PriceKey) {
   const price = officialPrice(model, key)
   if (price == null) return '暂无官方价'
-  const value = price / (unit.value === 'M' ? 1 : 1000)
-  return `$${number(value, unit.value === 'M' ? 4 : 6)}`
+  return `$${number(price, 4)}`
 }
 
 function officialLabel(key: PriceKey) {
@@ -107,15 +90,19 @@ function officialLabel(key: PriceKey) {
   return '缓存写入'
 }
 
-function discountLabel(group: PricingGroup) {
-  const rate = priceMode.value === 'official'
-    ? 1
-    : priceMode.value === 'group'
-      ? group.rate_multiplier
-      : group.effective_rate / Math.max(props.reference.exchange.usd_to_cny, 0.000001)
-  if (Math.abs(rate - 1) < 0.0005) return '人民币基准'
-  if (rate < 1) return `人民币约 ${number(rate * 10, 2)} 折`
-  return `人民币约 ${number(rate, 2)} 倍`
+function discountValue(rate: number) {
+  if (Math.abs(rate - 1) < 0.0005) return '原价'
+  if (rate < 1) return `${number(rate * 10, 2)} 折`
+  return `${number(rate, 2)} 倍`
+}
+
+function rmbDiscount(group: PricingGroup) {
+  const rate = Number(group.effective_rate || 1) / Math.max(props.reference.exchange.usd_to_cny, 0.000001)
+  return discountValue(rate)
+}
+
+function quotaDiscount(group: PricingGroup) {
+  return discountValue(Number(group.rate_multiplier || 1))
 }
 
 function rechargeLabel(group: PricingGroup) {
@@ -148,12 +135,15 @@ function imageUnitPrice(model: PricingModel, group: PricingGroup, key: keyof Ima
     ?? null
 }
 
+function imageOfficialPrice(model: PricingModel, key: keyof ImagePriceTiers) {
+  const price = model.prices.default_image_prices_usd?.[key]
+  return price == null ? '-' : `$${number(price, 4)}`
+}
+
 function imageRmbPrice(model: PricingModel, group: PricingGroup, key: keyof ImagePriceTiers) {
   const base = imageUnitPrice(model, group, key)
   if (base == null) return '-'
-  if (priceMode.value === 'official') return `¥${number(base * props.reference.exchange.usd_to_cny, 4)}`
   const quotaCost = base * imageRate(group)
-  if (priceMode.value === 'group') return `¥${number(quotaCost * props.reference.exchange.usd_to_cny, 4)}`
   if (group.recharge_pay_cny && group.recharge_credit_usd) {
     return `¥${number(quotaCost * group.recharge_pay_cny / group.recharge_credit_usd, 4)}`
   }
@@ -173,18 +163,6 @@ function number(value: number, decimals: number) {
         <Search :size="17" />
         <input v-model="query" type="search" placeholder="搜索模型或套餐" aria-label="搜索模型或套餐">
       </label>
-      <label class="compact-control">
-        <span>价格口径</span>
-        <select v-model="priceMode">
-          <option value="effective">套餐折算</option>
-          <option value="group">分组倍率</option>
-          <option value="official">官方换算</option>
-        </select>
-      </label>
-      <div class="segmented-control compact-segment" aria-label="价格单位">
-        <button type="button" :class="{ active: unit === 'M' }" @click="unit = 'M'">每百万</button>
-        <button type="button" :class="{ active: unit === 'K' }" @click="unit = 'K'">每千</button>
-      </div>
     </div>
 
     <div class="provider-filter" aria-label="平台筛选">
@@ -202,10 +180,16 @@ function number(value: number, decimals: number) {
             <strong>{{ model.display_name }}</strong>
             <small>{{ model.model_name }} · {{ model.provider_label }}</small>
           </span>
-          <span class="pricing-model__official" aria-label="官方价格">
+          <span v-if="!modelSupportsImage(model)" class="pricing-model__official" aria-label="官方价格，每百万 Token">
             <span v-for="key in (['input', 'output', 'cacheRead'] as const)" :key="key">
               <small>{{ officialLabel(key) }}</small>
               <strong>{{ formatOfficial(model, key) }}</strong>
+            </span>
+          </span>
+          <span v-else class="pricing-model__official pricing-model__official--image" aria-label="官方图片单价">
+            <span v-for="key in (['1k', '2k', '4k'] as const)" :key="key">
+              <small>{{ key.toUpperCase() }} / 张</small>
+              <strong>{{ imageOfficialPrice(model, key) }}</strong>
             </span>
           </span>
           <span v-if="model.is_featured" class="featured-label"><Star :size="14" /> 推荐</span>
@@ -214,40 +198,32 @@ function number(value: number, decimals: number) {
         </button>
 
         <div v-if="expanded.includes(modelKey(model))" class="pricing-table-wrap">
-          <table class="pricing-table">
+          <table v-if="!modelSupportsImage(model)" class="pricing-table pricing-table--discounts">
             <thead>
               <tr>
-                <th>套餐</th>
-                <th>输入 / {{ unit }}</th>
-                <th>输出 / {{ unit }}</th>
-                <th>缓存读取 / {{ unit }}</th>
-                <th>折算参考</th>
+                <th>分组</th>
+                <th>人民币折扣</th>
+                <th>额度折扣</th>
+                <th>说明</th>
               </tr>
             </thead>
             <tbody>
-              <template v-for="group in groupsForModel(model)" :key="group.source_id">
-                <tr>
-                  <td>
-                    <strong>{{ group.display_name }}</strong>
-                    <small>{{ rechargeLabel(group) }} · {{ number(group.rate_multiplier, 3) }}x 扣额度</small>
-                  </td>
-                  <td><strong>{{ formatPrice(model, group, 'input') }}</strong></td>
-                  <td><strong>{{ formatPrice(model, group, 'output') }}</strong></td>
-                  <td><strong>{{ formatPrice(model, group, 'cacheRead') }}</strong></td>
-                  <td><span class="discount-label">{{ discountLabel(group) }}</span><small>{{ group.note || model.note || '以实际账单为准' }}</small></td>
-                </tr>
-                <tr v-if="modelSupportsImage(model)" class="image-price-row">
-                  <td><span><ImageIcon :size="15" /> 分辨率生图</span></td>
-                  <td colspan="4">
-                    <div class="image-price-list">
-                      <span v-for="key in (['1k', '2k', '4k'] as const)" :key="key">
-                        <b>{{ key.toUpperCase() }}</b>
-                        {{ imageRmbPrice(model, group, key) }}/张
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </template>
+              <tr v-for="group in groupsForModel(model)" :key="group.source_id">
+                <td><strong>{{ group.display_name }}</strong><small>{{ rechargeLabel(group) }}</small></td>
+                <td><strong class="discount-value">{{ rmbDiscount(group) }}</strong><small>相对官方人民币原价</small></td>
+                <td><strong class="discount-value">{{ quotaDiscount(group) }}</strong><small>{{ number(group.rate_multiplier, 3) }}x 扣额度</small></td>
+                <td><span>{{ group.note || model.note || '实际扣费以主站账单为准' }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <table v-else class="pricing-table pricing-table--images">
+            <thead><tr><th>分组</th><th>1K / 张</th><th>2K / 张</th><th>4K / 张</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr v-for="group in groupsForModel(model)" :key="group.source_id">
+                <td><strong>{{ group.display_name }}</strong><small>{{ rechargeLabel(group) }}</small></td>
+                <td v-for="key in (['1k', '2k', '4k'] as const)" :key="key"><strong>{{ imageRmbPrice(model, group, key) }}</strong></td>
+                <td><span class="image-billing-label"><ImageIcon :size="15" />按次计费</span><small>{{ group.note || model.note || '实际扣费以主站账单为准' }}</small></td>
+              </tr>
             </tbody>
           </table>
         </div>

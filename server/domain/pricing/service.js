@@ -762,7 +762,19 @@ function createRechargeReference({ payCny, creditUsd, source, label }) {
 function mergeModel(setting, pricing, groupIds) {
   const provider = normalizeProvider(setting.provider)
   const prices = normalizePricing(pricing)
-  const capabilities = inferModelCapabilities(setting.model_name, prices)
+  const configuredImagePrices = {
+    '1k': positiveNumberOrNull(setting.image_price_1k),
+    '2k': positiveNumberOrNull(setting.image_price_2k),
+    '4k': positiveNumberOrNull(setting.image_price_4k),
+  }
+  const hasConfiguredImagePrices = Object.values(configuredImagePrices).some((value) => value != null)
+  const capabilities = inferModelCapabilities(setting.model_name, prices, setting.is_image_model, hasConfiguredImagePrices)
+  if (hasConfiguredImagePrices) {
+    prices.default_image_prices_usd = {
+      ...prices.default_image_prices_usd,
+      ...Object.fromEntries(Object.entries(configuredImagePrices).filter(([, value]) => value != null)),
+    }
+  }
   return {
     provider,
     provider_label: providerMeta[provider]?.label || setting.provider,
@@ -796,9 +808,11 @@ function normalizePricing(pricing) {
   }
 }
 
-function inferModelCapabilities(modelName, prices) {
+function inferModelCapabilities(modelName, prices, imageOverride = null, hasConfiguredImagePrices = false) {
   return {
-    image_generation: supportsImageGeneration(modelName, prices),
+    image_generation: imageOverride == null
+      ? hasConfiguredImagePrices || supportsImageGeneration(modelName, prices)
+      : Boolean(imageOverride),
   }
 }
 

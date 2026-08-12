@@ -203,6 +203,17 @@ test('pricing shows official prices once and scopes plans to supported models', 
             is_featured: false, sort_order: 2, note: '', group_ids: ['10'],
             prices: { input_usd_per_million: 1, output_usd_per_million: 2, cache_read_usd_per_million: 0.1 },
           },
+          {
+            provider: 'openai', provider_label: 'OpenAI', provider_short: 'O',
+            model_name: 'gpt-image-2', display_name: 'gpt-image-2', billing_mode: 'image', capabilities: { image_generation: true },
+            is_featured: false, sort_order: 3, note: '', group_ids: ['40'],
+            prices: {
+              input_usd_per_million: 5,
+              output_usd_per_million: 10,
+              cache_read_usd_per_million: 1.25,
+              default_image_prices_usd: { '1k': 0.134, '2k': 0.201, '4k': 0.268 },
+            },
+          },
         ],
         groups: [
           {
@@ -223,6 +234,13 @@ test('pricing shows official prices once and scopes plans to supported models', 
             recharge_multiplier: 1, recharge_pay_cny: 1, recharge_credit_usd: 1,
             effective_rate: 1, sort_order: 3, note: '',
           },
+          {
+            provider: 'openai', source_id: '40', name: '图片模型套餐', display_name: '图片模型套餐',
+            is_exclusive: false, rate_multiplier: 0.5, recharge_multiplier: 5,
+            recharge_pay_cny: 20, recharge_credit_usd: 100, effective_rate: 0.1,
+            allow_image_generation: true, image_rate_independent: false, image_rate_multiplier: 1,
+            image_prices_usd: {}, has_image_prices: false, sort_order: 4, note: '',
+          },
         ],
       },
     }),
@@ -239,12 +257,28 @@ test('pricing shows official prices once and scopes plans to supported models', 
   const deepseek = page.locator('.pricing-model').filter({ hasText: 'deepseek-v4-flash' })
   await expect(gpt.locator('.pricing-model__official')).toContainText('输入$5')
   await expect(gpt.locator('.pricing-model__official')).toContainText('输出$30')
+  await expect(gpt).toContainText('人民币折扣')
+  await expect(gpt).toContainText('额度折扣')
+  await expect(gpt).toContainText('0.29 折')
+  await expect(gpt).toContainText('原价')
+  await expect(gpt).not.toContainText('输入 / M')
   await expect(gpt).toContainText('高速VIP通道')
   await expect(gpt).not.toContainText('deepseek-v4-flash 官方1折')
   await expect(page.getByText('空白名单套餐', { exact: true })).toHaveCount(0)
   await deepseek.locator('.pricing-model__summary').click()
   await expect(deepseek).toContainText('deepseek-v4-flash 官方1折')
   await expect(page.locator('.pricing-table tbody td > small').filter({ hasText: '官方价' })).toHaveCount(0)
+
+  const imageModel = page.locator('.pricing-model').filter({ hasText: 'gpt-image-2' })
+  await imageModel.locator('.pricing-model__summary').click()
+  await expect(imageModel.locator('.pricing-model__official')).toContainText('1K / 张$0.134')
+  await expect(imageModel).toContainText('图片模型套餐')
+  await expect(imageModel).toContainText('¥0.0134')
+  await expect(imageModel).toContainText('¥0.0201')
+  await expect(imageModel).toContainText('¥0.0268')
+  await expect(imageModel).toContainText('按次计费')
+  await expect(imageModel).not.toContainText('输入$5')
+  await expect(imageModel).not.toContainText('输出$10')
 
   const overflow = await page.evaluate(() => ({
     body: document.body.scrollWidth,
@@ -438,6 +472,16 @@ test('administrator can inspect group model scopes from the source snapshot', as
       },
     },
   }))
+  let savedModels: any[] = []
+  await page.route('**/api/admin/pricing/models/bulk', async (route) => {
+    savedModels = (await route.request().postDataJSON()).items
+    await route.fulfill({
+      json: {
+        ok: true,
+        data: savedModels.map((item, index) => ({ ...item, id: index + 1 })),
+      },
+    })
+  })
   await page.route('**/api/admin/pricing/source?refresh=false', route => route.fulfill({
     json: {
       ok: true,
@@ -465,6 +509,20 @@ test('administrator can inspect group model scopes from the source snapshot', as
 
   await page.goto('/admin/pricing', { waitUntil: 'networkidle' })
   await expect(page.getByText('模型来源快照已就绪')).toBeVisible()
+  await page.getByRole('button', { name: '模型 1' }).click()
+  await page.getByLabel('deepseek-v4-flash 计费类型').selectOption({ label: '图片 / 次' })
+  await page.getByLabel('deepseek-v4-flash 1K 图片价格').fill('0.12')
+  await page.getByLabel('deepseek-v4-flash 2K 图片价格').fill('0.18')
+  await page.getByLabel('deepseek-v4-flash 4K 图片价格').fill('0.24')
+  await page.getByRole('button', { name: '保存全部' }).click()
+  await expect(page.getByText('已保存 1 个模型。')).toBeVisible()
+  expect(savedModels[0]).toMatchObject({
+    model_name: 'deepseek-v4-flash',
+    is_image_model: true,
+    image_price_1k: 0.12,
+    image_price_2k: 0.18,
+    image_price_4k: 0.24,
+  })
   await page.getByRole('button', { name: '分组 1' }).click()
   await expect(page.getByText('1 个白名单模型')).toBeVisible()
   await expect(page.getByText('deepseek-v4-flash')).toBeVisible()

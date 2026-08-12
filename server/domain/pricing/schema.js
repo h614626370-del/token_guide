@@ -12,6 +12,10 @@ export const upsertModelSettingSchema = z.object({
   display_name: optionalText,
   is_visible: z.boolean().optional(),
   is_featured: z.boolean().optional(),
+  is_image_model: z.boolean().optional().nullable(),
+  image_price_1k: z.coerce.number().positive().max(100000).optional().nullable(),
+  image_price_2k: z.coerce.number().positive().max(100000).optional().nullable(),
+  image_price_4k: z.coerce.number().positive().max(100000).optional().nullable(),
   sort_order: z.coerce.number().int().min(0).max(100000).optional(),
   note: z.string().trim().max(1000).optional().nullable(),
 })

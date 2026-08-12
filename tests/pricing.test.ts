@@ -49,6 +49,41 @@ describe('pricing repository', () => {
     db.close()
   })
 
+  it('stores and clears image billing overrides for a model', () => {
+    const db = createDatabase()
+    const repo = createPricingRepository(db)
+
+    expect(repo.upsertModelSetting({
+      provider: 'openai',
+      model_name: 'custom-image-model',
+      is_visible: true,
+      is_image_model: true,
+      image_price_1k: 0.12,
+      image_price_2k: 0.18,
+      image_price_4k: 0.24,
+    })).toMatchObject({
+      is_image_model: true,
+      image_price_1k: 0.12,
+      image_price_2k: 0.18,
+      image_price_4k: 0.24,
+    })
+
+    expect(repo.upsertModelSetting({
+      provider: 'openai',
+      model_name: 'custom-image-model',
+      is_image_model: null,
+      image_price_1k: null,
+      image_price_2k: null,
+      image_price_4k: null,
+    })).toMatchObject({
+      is_image_model: null,
+      image_price_1k: null,
+      image_price_2k: null,
+      image_price_4k: null,
+    })
+    db.close()
+  })
+
   it('derives the recharge multiplier from the CNY payment and USD credit pair', () => {
     const db = createDatabase()
     const repo = createPricingRepository(db)
@@ -91,6 +126,86 @@ describe('pricing repository', () => {
 })
 
 describe('pricing service', () => {
+  it('uses configured per-image prices instead of token prices for an image model', async () => {
+    const db = createDatabase()
+    db.prepare('UPDATE pricing_model_settings SET is_visible = 0').run()
+
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      let data: any
+      if (requestUrl.pathname.endsWith('/admin/groups/all')) {
+        data = [{
+          id: 9,
+          name: 'Image Standard',
+          platform: 'openai',
+          rate_multiplier: 0.5,
+          allow_image_generation: true,
+        }]
+      } else if (requestUrl.pathname.endsWith('/admin/payment/plans')) {
+        data = []
+      } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
+        data = { models: ['custom-image-model'] }
+      } else if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        data = {
+          items: [{
+            group_ids: [9],
+            schedulable: true,
+            credentials: { model_mapping: { 'custom-image-model': 'upstream-image-model' } },
+          }],
+          total: 1,
+          page: 1,
+          page_size: 1000,
+          pages: 1,
+        }
+      } else if (requestUrl.pathname.endsWith('/admin/channels/model-pricing')) {
+        data = { found: true, input_price: 0.000005, output_price: 0.00001 }
+      } else {
+        return new Response('not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }))
+
+    const service = createPricingService({
+      db,
+      config: {
+        sub2apiApiBase: 'https://upstream.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key',
+        pricingPlatforms: ['openai'],
+        providerDisplayOrder: ['openai'],
+        pricingCacheTtlMs: 60_000,
+        pricingFetchTimeoutMs: 5_000,
+        usdToCny: 7,
+      },
+      logger: null,
+    })
+    service.upsertModelSetting({
+      provider: 'openai',
+      model_name: 'custom-image-model',
+      is_visible: true,
+      is_image_model: true,
+      image_price_1k: 0.12,
+      image_price_2k: 0.18,
+      image_price_4k: 0.24,
+    })
+
+    const reference = await service.getReference({ refresh: true })
+    expect(reference.models).toHaveLength(1)
+    expect(reference.models[0]).toMatchObject({
+      model_name: 'custom-image-model',
+      billing_mode: 'image',
+      capabilities: { image_generation: true },
+      prices: {
+        input_usd_per_million: 5,
+        output_usd_per_million: 10,
+        default_image_prices_usd: { '1k': 0.12, '2k': 0.18, '4k': 0.24 },
+      },
+    })
+    db.close()
+  })
+
   it('uses each group model allowlist and persists the manually refreshed source', async () => {
     const db = createDatabase()
     db.prepare('UPDATE pricing_model_settings SET is_visible = 0').run()
