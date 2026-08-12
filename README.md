@@ -80,7 +80,7 @@ NUXT_IP_HASH_SALT
 
 推送到 `main` 后，GitHub Actions 会自动执行：
 
-- `CI`：类型检查、单元测试和 Nuxt 生产构建
+- `CI`：类型检查、单元测试、Nuxt 生产构建和桌面/移动端 UI 回归
 - `Docker Build`：在 Linux Runner 中验证 `linux/amd64` 镜像，并复用构建缓存
 
 以上流程不会推送镜像。正式发布前，在 GitHub 仓库或 `production` Environment
@@ -110,8 +110,8 @@ git push origin main v2.2.11
 gh workflow run release.yml -f version=v2.2.11 -f publish_latest=true
 ```
 
-稳定版会推送 `v2.2.11` 和 `latest`；预发布版本不会覆盖 `latest`。工作流完成后
-会创建或更新对应的 GitHub Release。
+正式发布必须先通过整套 `CI`。稳定版会推送 `v2.2.11` 和 `latest`；预发布版本
+不会覆盖 `latest`。工作流完成后会创建或更新对应的 GitHub Release。
 
 仍可使用原有本机发布流程：
 
