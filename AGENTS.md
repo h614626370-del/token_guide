@@ -34,7 +34,7 @@ npm test
 npm run test:ui
 npm run build
 npm run preview
-gh workflow run release.yml -f version=v2.2.12 -f publish_latest=true
+gh workflow run release.yml -f version=v2.2.13 -f publish_latest=true
 ```
 
 本机部署准备：
