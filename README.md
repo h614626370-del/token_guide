@@ -76,7 +76,44 @@ NUXT_IP_HASH_SALT
 
 主站地址、品牌信息和登录路由不再从环境变量读取，请登录管理员后台的「站点配置」维护。Guide 的公开地址按当前访问域名生成。
 
-## 发布镜像
+## 云端构建与发布
+
+推送到 `main` 后，GitHub Actions 会自动执行：
+
+- `CI`：类型检查、单元测试和 Nuxt 生产构建
+- `Docker Build`：在 Linux Runner 中验证 `linux/amd64` 镜像，并复用构建缓存
+
+以上流程不会推送镜像。正式发布前，在 GitHub 仓库或 `production` Environment
+中配置以下 Actions secrets：
+
+```text
+DOCKERHUB_USERNAME
+DOCKERHUB_TOKEN
+```
+
+镜像仓库默认是 `614626370/sub2api-guide`。如需覆盖，在 Actions variable 中设置：
+
+```text
+DOCKERHUB_REPOSITORY
+```
+
+发布时先把 `package.json` 中的版本改为目标版本并提交，然后推送同版本标签：
+
+```powershell
+git tag v2.2.11
+git push origin main v2.2.11
+```
+
+也可以在 Windows 中手动触发云端发布：
+
+```powershell
+gh workflow run release.yml -f version=v2.2.11 -f publish_latest=true
+```
+
+稳定版会推送 `v2.2.11` 和 `latest`；预发布版本不会覆盖 `latest`。工作流完成后
+会创建或更新对应的 GitHub Release。
+
+仍可使用原有本机发布流程：
 
 ```powershell
 npm run release -- -Version v2.2.10

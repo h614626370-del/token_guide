@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*.*.*
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example v2.2.11
+        required: true
+        type: string
+      publish_latest:
+        description: Also update the latest image tag
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish image and GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: production
+    env:
+      IMAGE_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY || '614626370/sub2api-guide' }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve and validate release
+        id: release
+        shell: bash
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+          DISPATCH_LATEST: ${{ inputs.publish_latest }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            version="${GITHUB_REF_NAME}"
+            publish_latest=true
+          else
+            version="${DISPATCH_VERSION}"
+            publish_latest="${DISPATCH_LATEST}"
+          fi
+
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version must look like v2.2.11." >&2
+            exit 1
+          fi
+
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "${version#v}" != "${package_version}" ]]; then
+            echo "Release ${version} does not match package.json version ${package_version}." >&2
+            exit 1
+          fi
+
+          if [[ "${version}" == *-* ]]; then
+            publish_latest=false
+            prerelease=true
+          else
+            prerelease=false
+          fi
+
+          tags="${IMAGE_REPOSITORY}:${version}"
+          if [[ "${publish_latest}" == "true" ]]; then
+            tags="${tags}"$'\n'"${IMAGE_REPOSITORY}:latest"
+          fi
+
+          {
+            echo "version=${version}"
+            echo "prerelease=${prerelease}"
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Verify Docker Hub credentials
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [[ -z "${DOCKERHUB_USERNAME}" || -z "${DOCKERHUB_TOKEN}" ]]; then
+            echo "Configure DOCKERHUB_USERNAME and DOCKERHUB_TOKEN in repository or production environment secrets." >&2
+            exit 1
+          fi
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build and publish image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            APP_VERSION=${{ steps.release.outputs.version }}
+          tags: ${{ steps.release.outputs.tags }}
+          cache-from: type=gha,scope=sub2api-guide-linux-amd64
+          cache-to: type=gha,mode=max,scope=sub2api-guide-linux-amd64
+          provenance: mode=max
+          sbom: true
+
+      - name: Create or update GitHub release
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          prerelease_args=()
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            prerelease_args+=(--prerelease)
+          fi
+
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            gh release edit "${VERSION}" \
+              --title "sub2api-guide ${VERSION}" \
+              "${prerelease_args[@]}"
+          else
+            gh release create "${VERSION}" \
+              --target "${GITHUB_SHA}" \
+              --title "sub2api-guide ${VERSION}" \
+              --generate-notes \
+              "${prerelease_args[@]}"
+          fi

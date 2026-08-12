@@ -1,0 +1,73 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/docker-build.yml
+      - app/**
+      - content/**
+      - deploy/**
+      - homeApps/**
+      - public/**
+      - scripts/**
+      - server/**
+      - shared/**
+      - Dockerfile
+      - package.json
+      - package-lock.json
+      - nuxt.config.ts
+      - content.config.ts
+      - tsconfig.json
+  pull_request:
+    paths:
+      - .github/workflows/docker-build.yml
+      - app/**
+      - content/**
+      - deploy/**
+      - homeApps/**
+      - public/**
+      - scripts/**
+      - server/**
+      - shared/**
+      - Dockerfile
+      - package.json
+      - package-lock.json
+      - nuxt.config.ts
+      - content.config.ts
+      - tsconfig.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Linux image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build image without publishing
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            APP_VERSION=sha-${{ github.sha }}
+          tags: sub2api-guide:ci
+          cache-from: type=gha,scope=sub2api-guide-linux-amd64
+          cache-to: type=gha,mode=max,scope=sub2api-guide-linux-amd64
+          provenance: false
