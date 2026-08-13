@@ -46,6 +46,7 @@ describe('database migrations', () => {
         { id: 21, name: 'localize_default_community_icons' },
         { id: 22, name: 'extend_community_details_and_images' },
         { id: 23, name: 'add_agent_and_plugin_community_categories' },
+        { id: 24, name: 'create_asset_metadata' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -116,7 +117,7 @@ describe('database migrations', () => {
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 23 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 24 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
       expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()).toEqual(firstAppliedAt)
     } finally {
