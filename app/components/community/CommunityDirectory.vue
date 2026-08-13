@@ -84,6 +84,7 @@ onBeforeUnmount(() => clearTimeout(searchDebounceTimer))
 
 async function toggleLike(item: CommunityItem) {
   notice.value = ''
+  if (!guideSession.initialized.value) await guideSession.ensureLoaded()
   if (!authenticated.value) {
     notice.value = `请先登录 ${site.value.project_name} 账号后点赞。`
     return
