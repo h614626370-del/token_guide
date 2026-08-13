@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, ExternalLink, ImagePlus, RefreshCw, Replace, Trash2, Upload } from 'lucide-vue-next'
+import { ArrowRightLeft, Copy, ExternalLink, ImagePlus, RefreshCw, Replace, Trash2, Upload } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 
@@ -12,6 +12,7 @@ interface AssetItem {
   content_type: string
   size: number
   created_at: string
+  kind: 'replaceable' | 'long_term'
 }
 
 const loading = ref(false)
@@ -21,6 +22,7 @@ const replacing = ref('')
 const admin = useAdminSessionState()
 const loaded = ref(false)
 const assets = ref<AssetItem[]>([])
+const activeTab = ref<'replaceable' | 'long_term'>('replaceable')
 const previewVersions = reactive<Record<string, number>>({})
 const fileInput = ref<HTMLInputElement | null>(null)
 const replaceInput = ref<HTMLInputElement | null>(null)
@@ -76,6 +78,7 @@ async function uploadFiles(event: Event) {
     for (const file of files) {
       const body = new FormData()
       body.append('file', file)
+      body.append('kind', activeTab.value)
       await $fetch<ApiSuccess<AssetItem>>('/api/admin/assets/upload', {
         method: 'POST',
         body,
@@ -91,6 +94,23 @@ async function uploadFiles(event: Event) {
     await loadAssets()
   } finally {
     uploading.value = false
+  }
+}
+
+const visibleAssets = computed(() => assets.value.filter(asset => asset.kind === activeTab.value))
+
+async function changeKind(asset: AssetItem, kind: AssetItem['kind']) {
+  try {
+    await $fetch<ApiSuccess<{ filename: string; kind: AssetItem['kind'] }>>(`/api/admin/assets/${encodeURIComponent(asset.filename)}/kind`, {
+      method: 'PUT',
+      body: { kind },
+    })
+    asset.kind = kind
+    notice.type = 'success'
+    notice.message = kind === 'replaceable' ? '已转为可替换图片，缓存时间为 10 分钟。' : '已转为长期图片，缓存时间为 1 年。'
+  } catch (cause) {
+    notice.type = 'error'
+    notice.message = apiErrorMessage(cause, '图片类型更新失败')
   }
 }
 
@@ -183,13 +203,13 @@ function formatTime(value: string) {
       <header class="admin-page-heading">
         <span>Assets</span>
         <h1>图片管理</h1>
-        <p>上传站点可复用图片，生成无需登录即可访问的公开地址。</p>
+        <p>按使用场景管理图片缓存：二维码适合定期替换，文档配图适合长期缓存。</p>
         <div class="admin-page-heading__actions">
           <button class="secondary-command" type="button" :disabled="loading" @click="loadAssets">
             <RefreshCw :size="16" :class="{ spinning: loading }" />刷新
           </button>
           <button class="primary-command" type="button" :disabled="uploading" @click="chooseFiles">
-            <Upload :size="16" />{{ uploading ? '上传中...' : '上传图片' }}
+            <Upload :size="16" />{{ uploading ? '上传中...' : `上传${activeTab === 'replaceable' ? '可替换' : '长期'}图片` }}
           </button>
         </div>
       </header>
@@ -197,6 +217,24 @@ function formatTime(value: string) {
       <div v-if="notice.message" :class="['tool-alert', notice.type === 'error' ? 'tool-alert--error' : 'tool-alert--success']">
         {{ notice.message }}
       </div>
+
+      <nav class="admin-asset-tabs" aria-label="图片类型">
+        <button type="button" :class="{ active: activeTab === 'replaceable' }" @click="activeTab = 'replaceable'">
+          <RefreshCw :size="16" />可替换图片
+        </button>
+        <button type="button" :class="{ active: activeTab === 'long_term' }" @click="activeTab = 'long_term'">
+          <ImagePlus :size="16" />长期图片
+        </button>
+      </nav>
+
+      <section v-if="activeTab === 'replaceable'" class="admin-asset-explanation">
+        <strong>适合微信群二维码、活动海报等需要定期更新的图片</strong>
+        <span>公开地址保持不变，替换后最多等待约 10 分钟即可在各地刷新到新图片。</span>
+      </section>
+      <section v-else class="admin-asset-explanation admin-asset-explanation--long-term">
+        <strong>适合 Markdown 指南、Scale 使用说明、Logo 和教程截图</strong>
+        <span>上传后地址稳定，使用 1 年缓存。不要直接覆盖正在文档中引用的长期图片。</span>
+      </section>
 
       <section class="admin-asset-uploader" @click="chooseFiles">
         <ImagePlus :size="28" />
@@ -206,8 +244,8 @@ function formatTime(value: string) {
         </div>
       </section>
 
-      <section v-if="assets.length" class="admin-asset-grid">
-        <article v-for="asset in assets" :key="asset.filename" class="admin-asset-card">
+      <section v-if="visibleAssets.length" class="admin-asset-grid">
+        <article v-for="asset in visibleAssets" :key="asset.filename" class="admin-asset-card">
           <a class="admin-asset-thumb" :href="previewUrl(asset)" target="_blank" rel="noreferrer" title="打开原图">
             <img :src="previewUrl(asset)" alt="">
           </a>
@@ -223,8 +261,12 @@ function formatTime(value: string) {
             <a class="icon-command" :href="previewUrl(asset)" target="_blank" rel="noreferrer" title="打开原图">
               <ExternalLink :size="15" />
             </a>
-            <button class="icon-command" type="button" :disabled="replacing === asset.filename" :title="replacing === asset.filename ? '替换中...' : '替换图片'" @click="chooseReplacement(asset)">
+            <button v-if="asset.kind === 'replaceable'" class="icon-command" type="button" :disabled="replacing === asset.filename" :title="replacing === asset.filename ? '替换中...' : '替换图片'" @click="chooseReplacement(asset)">
               <Replace :size="15" />
+            </button>
+            <span v-else class="icon-command icon-command--placeholder" aria-hidden="true"></span>
+            <button class="icon-command" type="button" :title="asset.kind === 'replaceable' ? '转为长期图片' : '转为可替换图片'" @click="changeKind(asset, asset.kind === 'replaceable' ? 'long_term' : 'replaceable')">
+              <ArrowRightLeft :size="15" />
             </button>
             <button class="icon-command danger-command" type="button" :disabled="deleting === asset.filename" title="删除图片" @click="deleteAsset(asset)">
               <Trash2 :size="15" />
@@ -235,7 +277,8 @@ function formatTime(value: string) {
 
       <div v-else-if="!loading" class="empty-result admin-assets-empty">
         <ImagePlus :size="30" />
-        <strong>还没有上传图片</strong>
+        <strong>{{ activeTab === 'replaceable' ? '还没有可替换图片' : '还没有长期图片' }}</strong>
+        <p>{{ activeTab === 'replaceable' ? '上传微信群二维码或其他需要定期更换的图片。' : '上传 Markdown 和指南中长期引用的图片。' }}</p>
       </div>
 
       <input

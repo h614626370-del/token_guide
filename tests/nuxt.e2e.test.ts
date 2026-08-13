@@ -938,6 +938,7 @@ describe('authentication and same-origin API protection', () => {
     )
     const body = new FormData()
     body.append('file', new Blob([transparentPng], { type: 'image/png' }), 'logo test.png')
+    body.append('kind', 'replaceable')
 
     const uploaded = await fetch('/api/admin/assets/upload', {
       method: 'POST',
@@ -951,6 +952,7 @@ describe('authentication and same-origin API protection', () => {
       data: {
         content_type: 'image/png',
         size: transparentPng.length,
+        kind: 'replaceable',
       },
     })
     expect(uploadedBody.data.filename).toMatch(/\.png$/)
@@ -962,6 +964,7 @@ describe('authentication and same-origin API protection', () => {
     const publicAsset = await fetch(publicPath)
     expect(publicAsset.status).toBe(200)
     expect(publicAsset.headers.get('content-type')).toContain('image/png')
+    expect(publicAsset.headers.get('cache-control')).toContain('max-age=600')
     expect(Buffer.from(await publicAsset.arrayBuffer())).toEqual(transparentPng)
 
     const list = await fetch('/api/admin/assets', { headers: { cookie } })
@@ -1003,9 +1006,39 @@ describe('authentication and same-origin API protection', () => {
       data: { filename: uploadedBody.data.filename, url: uploadedBody.data.url, size: transparentPng.length },
     })
     expect(Number.isNaN(Date.parse(replacedBody.data.created_at))).toBe(false)
+    expect(replacedBody.data.kind).toBe('replaceable')
     const replacedPublicAsset = await fetch(publicPath)
     expect(replacedPublicAsset.headers.get('cache-control')).toContain('must-revalidate')
     expect(Buffer.from(await replacedPublicAsset.arrayBuffer())).toEqual(transparentPng)
+
+    const longTermBody = new FormData()
+    longTermBody.append('file', new Blob([transparentPng], { type: 'image/png' }), 'long-term.png')
+    longTermBody.append('kind', 'long_term')
+    const longTermUpload = await fetch('/api/admin/assets/upload', {
+      method: 'POST',
+      headers: { cookie },
+      body: longTermBody,
+    })
+    expect(longTermUpload.status).toBe(200)
+    const longTermJson = await json(longTermUpload)
+    const longTermPublic = await fetch(new URL(longTermJson.data.url).pathname)
+    expect(longTermPublic.headers.get('cache-control')).toContain('max-age=31536000')
+
+    const moveToReplaceable = await fetch(`/api/admin/assets/${longTermJson.data.filename}/kind`, {
+      method: 'PUT',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'replaceable' }),
+    })
+    expect(moveToReplaceable.status).toBe(200)
+    const movedPublic = await fetch(new URL(longTermJson.data.url).pathname)
+    expect(movedPublic.headers.get('cache-control')).toContain('max-age=600')
+
+    const moveBack = await fetch(`/api/admin/assets/${longTermJson.data.filename}/kind`, {
+      method: 'PUT',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'long_term' }),
+    })
+    expect(moveBack.status).toBe(200)
 
     const invalidBody = new FormData()
     invalidBody.append('file', new Blob([Buffer.from('not an image')], { type: 'image/png' }), 'fake.png')
@@ -1022,6 +1055,7 @@ describe('authentication and same-origin API protection', () => {
     })
     expect(deleted.status).toBe(200)
     expect((await fetch(publicPath)).status).toBe(404)
+    await fetch(`/api/admin/assets/${longTermJson.data.filename}`, { method: 'DELETE', headers: { cookie } })
   })
 
   it('serves classified installer scripts and generates a command from the selected member key', async () => {

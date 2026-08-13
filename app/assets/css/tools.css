@@ -1461,7 +1461,7 @@
 .admin-asset-url {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) 34px 34px 34px;
+  grid-template-columns: minmax(0, 1fr) 34px 34px 34px 34px;
   gap: 6px;
 }
 
@@ -1492,6 +1492,11 @@
 .admin-asset-url .icon-command:hover:not(:disabled) {
   color: var(--brand-strong);
   background: var(--surface-subtle);
+}
+
+.admin-asset-url .icon-command--placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .admin-assets-empty {
@@ -3016,6 +3021,57 @@
 .community-card:hover {
   border-color: #bdcbc5;
   box-shadow: 0 8px 24px rgba(30, 35, 41, .07);
+}
+
+.admin-asset-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 24px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-asset-tabs button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-asset-tabs button.active {
+  border-bottom-color: var(--brand);
+  color: var(--brand-strong);
+}
+
+.admin-asset-explanation {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 13px 15px;
+  border: 1px solid #cfe2dc;
+  border-radius: 7px;
+  color: #315f56;
+  background: #f0f8f5;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.admin-asset-explanation--long-term {
+  border-color: #d8dfe4;
+  color: #50606b;
+  background: #f5f7f8;
+}
+
+.admin-asset-explanation strong {
+  color: var(--ink);
+  font-size: 13px;
 }
 
 .community-card {

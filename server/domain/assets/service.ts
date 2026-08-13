@@ -4,8 +4,10 @@ import path from 'node:path'
 import type { H3Event } from 'h3'
 import { getGuideConfig } from '../../utils/config'
 import { getPublicRequestOrigin } from '../../utils/request-url'
+import { useGuideDatabase } from '../../utils/database'
 
 const maxImageBytes = 2 * 1024 * 1024
+export type AssetKind = 'replaceable' | 'long_term'
 const allowedImageTypes = new Map([
   ['image/png', 'png'],
   ['image/jpeg', 'jpg'],
@@ -19,6 +21,7 @@ export interface UploadedAsset {
   content_type: string
   size: number
   created_at: string
+  kind: AssetKind
 }
 
 export interface AssetListItem extends UploadedAsset {
@@ -30,6 +33,7 @@ export interface PublicAsset {
   contentType: string
   bytes: Buffer
   size: number
+  kind: AssetKind
 }
 
 export function uploadsRoot(event?: H3Event) {
@@ -44,6 +48,7 @@ export async function saveUploadedImage(input: {
   data: Buffer
   contentType?: string
   originalName?: string
+  kind?: AssetKind
 }, event?: H3Event): Promise<UploadedAsset> {
   const contentType = normalizeContentType(input.contentType || '')
   const ext = allowedImageTypes.get(contentType)
@@ -68,6 +73,8 @@ export async function saveUploadedImage(input: {
   const fullPath = path.join(root, filename)
   await writeFile(fullPath, input.data, { flag: 'wx' })
   const info = await stat(fullPath)
+  const kind = normalizeAssetKind(input.kind)
+  upsertAssetMetadata(filename, kind)
 
   return {
     filename,
@@ -75,6 +82,7 @@ export async function saveUploadedImage(input: {
     content_type: contentType,
     size: input.data.length,
     created_at: info.mtime.toISOString(),
+    kind,
   }
 }
 
@@ -108,12 +116,15 @@ export async function replaceUploadedImage(filename: string, input: {
 
   await writeFile(fullPath, input.data)
   const info = await stat(fullPath)
+  const kind = getAssetKind(filename)
+  upsertAssetMetadata(filename, kind)
   return {
     filename,
     url: publicUploadUrl(filename, event),
     content_type: contentType,
     size: info.size,
     created_at: info.mtime.toISOString(),
+    kind,
   }
 }
 
@@ -135,6 +146,7 @@ export async function readPublicAsset(filename: string, event?: H3Event): Promis
       contentType,
       bytes: await readFile(resolved),
       size: info.size,
+      kind: getAssetKind(filename),
     }
   } catch {
     return null
@@ -156,6 +168,7 @@ export async function listUploadedAssets(event?: H3Event): Promise<AssetListItem
           content_type: contentTypeFromExt(ext),
           size: info.size,
           created_at: info.mtime.toISOString(),
+          kind: getAssetKind(entry.name),
         }
       }))
     return items
@@ -164,6 +177,21 @@ export async function listUploadedAssets(event?: H3Event): Promise<AssetListItem
   } catch {
     return []
   }
+}
+
+export async function updateAssetKind(filename: string, kind: AssetKind, event?: H3Event) {
+  if (!isSafeAssetFilename(filename)) return false
+  const root = uploadsRoot(event)
+  const fullPath = path.resolve(path.join(root, filename))
+  if (!fullPath.startsWith(`${path.resolve(root)}${path.sep}`)) return false
+  try {
+    const info = await stat(fullPath)
+    if (!info.isFile()) return false
+  } catch {
+    return false
+  }
+  upsertAssetMetadata(filename, kind)
+  return true
 }
 
 export async function deleteUploadedAsset(filename: string, event?: H3Event) {
@@ -175,6 +203,7 @@ export async function deleteUploadedAsset(filename: string, event?: H3Event) {
 
   try {
     await unlink(resolved)
+    useGuideDatabase().prepare('DELETE FROM asset_metadata WHERE filename = ?').run(filename)
     return true
   } catch {
     return false
@@ -183,6 +212,24 @@ export async function deleteUploadedAsset(filename: string, event?: H3Event) {
 
 function normalizeContentType(value: string) {
   return value.split(';', 1)[0]?.trim().toLowerCase() || ''
+}
+
+function normalizeAssetKind(value: unknown): AssetKind {
+  return value === 'replaceable' ? 'replaceable' : 'long_term'
+}
+
+function getAssetKind(filename: string): AssetKind {
+  const row = useGuideDatabase().prepare('SELECT kind FROM asset_metadata WHERE filename = ?').get(filename) as { kind?: string } | undefined
+  return row?.kind === 'replaceable' ? 'replaceable' : 'long_term'
+}
+
+function upsertAssetMetadata(filename: string, kind: AssetKind) {
+  const now = new Date().toISOString()
+  useGuideDatabase().prepare(`
+    INSERT INTO asset_metadata (filename, kind, created_at, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(filename) DO UPDATE SET kind = excluded.kind, updated_at = excluded.updated_at
+  `).run(filename, kind, now, now)
 }
 
 function detectImageContentType(data: Buffer) {

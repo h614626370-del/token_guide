@@ -729,4 +729,21 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 24,
+    name: 'create_asset_metadata',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS asset_metadata (
+          filename TEXT PRIMARY KEY,
+          kind TEXT NOT NULL DEFAULT 'long_term' CHECK (kind IN ('replaceable', 'long_term')),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_asset_metadata_kind_updated
+          ON asset_metadata(kind, updated_at DESC);
+      `)
+    },
+  },
 ]

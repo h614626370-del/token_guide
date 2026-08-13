@@ -10,7 +10,9 @@ export default defineEventHandler(async (event) => {
   }
 
   setHeader(event, 'content-type', asset.contentType)
-  setHeader(event, 'cache-control', 'public, max-age=0, must-revalidate')
+  setHeader(event, 'cache-control', asset.kind === 'replaceable'
+    ? 'public, max-age=600, must-revalidate'
+    : 'public, max-age=31536000, immutable')
   setHeader(event, 'content-length', asset.size)
   return asset.bytes
 })
