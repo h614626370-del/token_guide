@@ -2,7 +2,19 @@ import { defineEventHandler, setHeader } from 'h3'
 import { getPublicRequestOrigin } from '../utils/request-url'
 import { getPublicSiteConfig } from '../utils/site-config'
 
-const guidePaths = ['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback']
+const guidePaths = [
+  '/',
+  '/member',
+  '/integration',
+  '/install',
+  '/playground',
+  '/pricing',
+  '/community',
+  '/community/tools',
+  '/community/skills',
+  '/community/mcp',
+  '/feedback',
+]
 
 export default defineEventHandler((event) => {
   const requestOrigin = getPublicRequestOrigin(event)

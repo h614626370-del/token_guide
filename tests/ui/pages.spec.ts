@@ -9,12 +9,17 @@ const routes = [
   ['install', '/install'],
   ['playground', '/playground'],
   ['pricing', '/pricing'],
+  ['community', '/community'],
+  ['community-tools', '/community/tools'],
+  ['community-skills', '/community/skills'],
+  ['community-mcp', '/community/mcp'],
   ['feedback', '/feedback'],
   ['admin', '/admin'],
   ['admin-settings', '/admin/settings'],
   ['admin-installers', '/admin/installers'],
   ['admin-pricing', '/admin/pricing'],
   ['admin-homepage', '/admin/homepage'],
+  ['admin-community', '/admin/community'],
   ['admin-promotions', '/admin/promotions'],
 ] as const
 
@@ -172,6 +177,77 @@ test('tool pages stay outside the guide sidebar', async ({ page }, testInfo) => 
   await mainNavigation.getByRole('link', { name: '使用工作台' }).click()
   await expect(page).toHaveURL(/\/playground$/)
   await expect(page.locator('.guide-sidebar')).toHaveCount(0)
+})
+
+test('community directory supports search, category navigation and anonymous like guidance', async ({ page }) => {
+  await page.goto('/community', { waitUntil: 'domcontentloaded' })
+  const cards = page.locator('.community-card')
+  await expect(page.locator('.community-grid')).toHaveAttribute('aria-busy', 'false')
+  await expect(cards).toHaveCount(2)
+  await expect(cards.first()).toContainText('Codex++')
+  await expect(cards.nth(1)).toContainText('CC Switch')
+
+  const search = page.getByRole('searchbox', { name: '搜索社区资源' })
+  await search.fill('CC Switch')
+  await expect(cards).toHaveCount(1)
+  await expect(cards.first()).toContainText('CC Switch')
+  await expect(cards.first()).not.toContainText('Codex++')
+
+  await search.fill('')
+  await page.getByRole('link', { name: /Skills/ }).click()
+  await expect(page).toHaveURL(/\/community\/skills$/)
+  await expect(page.getByText('这个分类还没有公开条目')).toBeVisible()
+
+  await page.goto('/community', { waitUntil: 'domcontentloaded' })
+  await cards.first().getByRole('button', { name: '点赞 Codex++' }).click()
+  await expect(page.locator('.community-notice')).toContainText('请先登录')
+  await expect(page.locator('.community-notice a')).toBeVisible()
+})
+
+test('administrator can create, edit, archive, publish and delete a community item', async ({ page }) => {
+  const slug = `ui-community-${Date.now()}`
+  await page.goto('/admin/community', { waitUntil: 'networkidle' })
+  await page.getByLabel('管理员 Token').fill('playwright-admin-token')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '社区管理' })).toBeVisible()
+
+  await page.getByLabel('名称').fill('UI 社区测试条目')
+  await page.getByLabel('Slug').fill(slug)
+  await page.getByRole('combobox', { name: '社区分类' }).selectOption('mcp')
+  await page.getByLabel('简介').fill('这是一个用于验证社区管理完整交互流程的测试条目。')
+  await page.getByLabel('官方地址').fill('https://example.com/ui-community')
+  await page.getByLabel('标签').fill('UI, MCP')
+  await page.getByLabel('兼容对象').fill('测试环境')
+  await page.getByRole('button', { name: '创建条目' }).click()
+
+  const row = page.locator('.community-admin-rows > article').filter({ hasText: slug })
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('草稿')
+
+  await row.getByTitle('编辑').click()
+  await expect(page.getByRole('heading', { level: 2, name: '编辑条目' })).toBeVisible()
+  await page.getByLabel('名称').fill('UI 社区测试条目（已编辑）')
+  await page.getByRole('button', { name: '保存修改' }).click()
+  await expect(row).toContainText('UI 社区测试条目（已编辑）')
+
+  await row.getByTitle('发布').click()
+  await expect(row).toContainText('已发布')
+  const publicHref = await page.getByRole('link', { name: '查看前台' }).getAttribute('href')
+  expect(publicHref).toBe('/community')
+  await page.goto(publicHref!, { waitUntil: 'networkidle' })
+  const publicRow = page.locator('.community-card').filter({ hasText: 'UI 社区测试条目（已编辑）' })
+  await expect(publicRow).toBeVisible()
+  await page.goto('/admin/community', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('heading', { level: 1, name: '社区管理' })).toBeVisible()
+
+  const currentRow = page.locator('.community-admin-rows > article').filter({ hasText: slug })
+  await currentRow.getByTitle('归档').click()
+  await expect(currentRow).toContainText('已归档')
+  await currentRow.getByTitle('发布').click()
+  await expect(currentRow).toContainText('已发布')
+  page.once('dialog', dialog => dialog.accept())
+  await currentRow.getByTitle('删除').click()
+  await expect(page.locator('.community-admin-rows > article').filter({ hasText: slug })).toHaveCount(0)
 })
 
 test('pricing shows official prices once and scopes plans to supported models', async ({ page }, testInfo) => {

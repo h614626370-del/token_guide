@@ -1,0 +1,3 @@
+<template>
+  <CommunityDirectory />
+</template>

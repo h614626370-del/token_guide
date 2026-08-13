@@ -229,7 +229,7 @@ describe('Nuxt application routes', () => {
       }),
     })
   })
-  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/feedback', '/admin', '/admin/assets', '/admin/email', '/admin/installers', '/admin/homepage', '/admin/promotions'])('renders %s', async (path) => {
+  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/community', '/community/tools', '/community/skills', '/community/mcp', '/feedback', '/admin', '/admin/assets', '/admin/email', '/admin/installers', '/admin/homepage', '/admin/community', '/admin/promotions'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
@@ -274,6 +274,69 @@ describe('Nuxt application routes', () => {
         api_base_url: `${upstreamOrigin}/v1`,
       },
     })
+  })
+
+  it('serves the public community directory and protects likes behind member login', async () => {
+    const all = await fetch('/api/community/items?sort=popular')
+    expect(all.status).toBe(200)
+    expect(await json(all)).toMatchObject({
+      ok: true,
+      data: [
+        expect.objectContaining({ slug: 'codex-plus-plus', category: 'tools', liked: false }),
+        expect.objectContaining({ slug: 'cc-switch', category: 'tools' }),
+      ],
+      meta: { counts: { all: 2, tools: 2, skills: 0, mcp: 0 }, authenticated: false },
+    })
+
+    const skills = await fetch('/api/community/items?category=skills')
+    expect(await json(skills)).toMatchObject({ ok: true, data: [], meta: { counts: { tools: 2 } } })
+
+    const like = await fetch('/api/community/items/1/like', { method: 'POST' })
+    expect(like.status).toBe(401)
+    expect(await json(like)).toMatchObject({ data: { code: 'LOGIN_REQUIRED' } })
+
+    const member = await memberCookie()
+    const liked = await fetch('/api/community/items/1/like', { method: 'POST', headers: { cookie: member } })
+    expect(await json(liked)).toMatchObject({ ok: true, data: { liked: true, like_count: 1 } })
+    const repeatedLike = await fetch('/api/community/items/1/like', { method: 'POST', headers: { cookie: member } })
+    expect(await json(repeatedLike)).toMatchObject({ ok: true, data: { liked: true, like_count: 1 } })
+    const memberList = await fetch('/api/community/items', { headers: { cookie: member } })
+    const memberListBody = await json(memberList)
+    expect(memberListBody.meta).toMatchObject({ authenticated: true })
+    expect(memberListBody.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 1, liked: true, like_count: 1 }),
+    ]))
+    const unliked = await fetch('/api/community/items/1/like', { method: 'DELETE', headers: { cookie: member } })
+    expect(await json(unliked)).toMatchObject({ ok: true, data: { liked: false, like_count: 0 } })
+    const repeatedUnlike = await fetch('/api/community/items/1/like', { method: 'DELETE', headers: { cookie: member } })
+    expect(await json(repeatedUnlike)).toMatchObject({ ok: true, data: { liked: false, like_count: 0 } })
+
+    const cookie = await administratorCookie()
+    const invalidCreate = await fetch('/api/admin/community', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'unsafe', category: 'tools', name: 'Unsafe', summary: '这是一个测试条目，简介长度足够。',
+        official_url: 'javascript:alert(1)', status: 'draft', tags: [],
+      }),
+    })
+    expect(invalidCreate.status).toBe(400)
+
+    const create = await fetch('/api/admin/community', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'e2e-community-item', category: 'mcp', name: 'E2E 社区条目',
+        summary: '这是一个用于验证社区后台流程的测试条目。', official_url: 'https://example.com/mcp',
+        tags: ['E2E', 'MCP'], compatibility: '测试环境', status: 'published', sort_order: 999,
+      }),
+    })
+    expect(create.status).toBe(200)
+    const created = (await json(create)).data
+    expect(created).toMatchObject({ slug: 'e2e-community-item', status: 'published', tags: ['E2E', 'MCP'] })
+
+    const remove = await fetch(`/api/admin/community/${created.id}`, { method: 'DELETE', headers: { cookie } })
+    expect(remove.status).toBe(200)
   })
 
   it('serves the active static homepage and protects preview selection', async () => {

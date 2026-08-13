@@ -14,6 +14,7 @@ export default defineEventHandler((event) => {
       content: true,
       playground: true,
       pricing: true,
+      community: true,
       feedback: true,
       administration: true,
       embedded_login: true,

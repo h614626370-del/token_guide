@@ -42,6 +42,8 @@ describe('database migrations', () => {
         { id: 17, name: 'reset_pricing_model_discovery_baseline' },
         { id: 18, name: 'create_pricing_source_snapshots' },
         { id: 19, name: 'extend_pricing_models_for_image_prices' },
+        { id: 20, name: 'create_community_directory' },
+        { id: 21, name: 'localize_default_community_icons' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -79,6 +81,12 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'email_settings'").get()).toEqual({ name: 'email_settings' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_model_discoveries'").get()).toEqual({ name: 'pricing_model_discoveries' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_source_snapshots'").get()).toEqual({ name: 'pricing_source_snapshots' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_items'").get()).toEqual({ name: 'community_items' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_likes'").get()).toEqual({ name: 'community_likes' })
+      expect(db.prepare('SELECT slug, status, icon_url FROM community_items ORDER BY sort_order').all()).toEqual([
+        { slug: 'codex-plus-plus', status: 'published', icon_url: '/community/codex-plus-plus.png' },
+        { slug: 'cc-switch', status: 'published', icon_url: null },
+      ])
     } finally {
       db.close()
     }
@@ -89,16 +97,16 @@ describe('database migrations', () => {
     const first = openDatabase(databasePath)
     let firstAppliedAt: any
     try {
-      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 19').get()
+      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 21').get()
     } finally {
       first.close()
     }
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 19 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 21 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
-      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 19').get()).toEqual(firstAppliedAt)
+      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 21').get()).toEqual(firstAppliedAt)
     } finally {
       second.close()
     }

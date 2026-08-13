@@ -525,4 +525,98 @@ export const migrations = [
       addColumn('image_price_4k', 'image_price_4k REAL CHECK (image_price_4k IS NULL OR image_price_4k > 0)')
     },
   },
+  {
+    id: 20,
+    name: 'create_community_directory',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS community_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT NOT NULL UNIQUE,
+          category TEXT NOT NULL CHECK (category IN ('tools', 'skills', 'mcp')),
+          name TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          icon_url TEXT,
+          official_url TEXT NOT NULL,
+          tags_json TEXT NOT NULL DEFAULT '[]',
+          compatibility TEXT,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+          is_featured INTEGER NOT NULL DEFAULT 0 CHECK (is_featured IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 1000,
+          like_count INTEGER NOT NULL DEFAULT 0 CHECK (like_count >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          published_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_community_items_public
+          ON community_items(status, category, is_featured DESC, sort_order, name);
+
+        CREATE TABLE IF NOT EXISTS community_likes (
+          item_id INTEGER NOT NULL REFERENCES community_items(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (item_id, user_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_community_likes_user
+          ON community_likes(user_id, created_at DESC);
+      `)
+
+      const now = new Date().toISOString()
+      const seed = db.prepare(`
+        INSERT OR IGNORE INTO community_items (
+          slug, category, name, summary, icon_url, official_url, tags_json,
+          compatibility, status, is_featured, sort_order, like_count,
+          created_at, updated_at, published_at
+        ) VALUES (?, 'tools', ?, ?, ?, ?, ?, ?, 'published', ?, ?, 0, ?, ?, ?)
+      `)
+      const defaults = [
+        [
+          'codex-plus-plus',
+          'Codex++',
+          '面向 OpenAI Codex 与 ChatGPT 桌面应用的外部启动器和管理工具，支持供应商切换、协议转换、会话管理与界面增强。',
+          '/community/codex-plus-plus.png',
+          'https://github.com/BigPizzaV3/CodexPlusPlus',
+          JSON.stringify(['Codex', 'ChatGPT', 'Tauri']),
+          'Windows / macOS',
+          1,
+          10,
+        ],
+        [
+          'cc-switch',
+          'CC Switch',
+          '跨平台的 AI 编程助手配置管理工具，可集中维护和切换 Claude Code、Codex 等客户端的 Provider 配置。',
+          null,
+          'https://github.com/farion1231/cc-switch',
+          JSON.stringify(['Codex', 'Claude Code', '配置管理']),
+          'Windows / macOS / Linux',
+          1,
+          20,
+        ],
+      ]
+
+      for (const item of defaults) {
+        seed.run(...item, now, now, now)
+      }
+    },
+  },
+  {
+    id: 21,
+    name: 'localize_default_community_icons',
+    up(db) {
+      db.prepare(`
+        UPDATE community_items
+        SET icon_url = '/community/codex-plus-plus.png', updated_at = ?
+        WHERE slug = 'codex-plus-plus'
+          AND icon_url = 'https://raw.githubusercontent.com/BigPizzaV3/CodexPlusPlus/main/docs/images/codex-plus-plus.png'
+      `).run(new Date().toISOString())
+      db.prepare(`
+        UPDATE community_items
+        SET icon_url = NULL, updated_at = ?
+        WHERE slug = 'cc-switch'
+          AND icon_url = 'https://raw.githubusercontent.com/farion1231/cc-switch/main/src-tauri/icons/icon.png'
+      `).run(new Date().toISOString())
+    },
+  },
 ]
