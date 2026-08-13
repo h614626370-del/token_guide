@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, ExternalLink, ImagePlus, RefreshCw, Trash2, Upload } from 'lucide-vue-next'
+import { Copy, ExternalLink, ImagePlus, RefreshCw, Replace, Trash2, Upload } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 
@@ -17,10 +17,13 @@ interface AssetItem {
 const loading = ref(false)
 const uploading = ref(false)
 const deleting = ref('')
+const replacing = ref('')
 const admin = useAdminSessionState()
 const loaded = ref(false)
 const assets = ref<AssetItem[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
+const replaceInput = ref<HTMLInputElement | null>(null)
+const replacingFilename = ref('')
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 
 watch(() => admin.session.value?.admin, (authenticated) => {
@@ -43,6 +46,11 @@ async function loadAssets() {
 
 function chooseFiles() {
   fileInput.value?.click()
+}
+
+function chooseReplacement(asset: AssetItem) {
+  replacingFilename.value = asset.filename
+  replaceInput.value?.click()
 }
 
 async function uploadFiles(event: Event) {
@@ -74,6 +82,33 @@ async function uploadFiles(event: Event) {
     await loadAssets()
   } finally {
     uploading.value = false
+  }
+}
+
+async function replaceFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  const filename = replacingFilename.value
+  replacingFilename.value = ''
+  if (!file || !filename) return
+
+  replacing.value = filename
+  notice.type = 'idle'
+  notice.message = ''
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    const response = await $fetch<ApiSuccess<AssetItem>>(`/api/admin/assets/${encodeURIComponent(filename)}`, { method: 'PUT', body })
+    const index = assets.value.findIndex(item => item.filename === filename)
+    if (index >= 0) assets.value[index] = { ...assets.value[index], ...response.data }
+    notice.type = 'success'
+    notice.message = '图片已替换，公开地址保持不变。'
+  } catch (cause) {
+    notice.type = 'error'
+    notice.message = apiErrorMessage(cause, '图片替换失败')
+  } finally {
+    replacing.value = ''
   }
 }
 
@@ -171,6 +206,9 @@ function formatTime(value: string) {
             <a class="icon-command" :href="asset.url" target="_blank" rel="noreferrer" title="打开原图">
               <ExternalLink :size="15" />
             </a>
+            <button class="icon-command" type="button" :disabled="replacing === asset.filename" :title="replacing === asset.filename ? '替换中...' : '替换图片'" @click="chooseReplacement(asset)">
+              <Replace :size="15" />
+            </button>
             <button class="icon-command danger-command" type="button" :disabled="deleting === asset.filename" title="删除图片" @click="deleteAsset(asset)">
               <Trash2 :size="15" />
             </button>
@@ -191,6 +229,7 @@ function formatTime(value: string) {
         multiple
         @change="uploadFiles"
       >
+      <input ref="replaceInput" class="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="replaceFile">
     </div>
   </AdminAccessGate>
 </template>

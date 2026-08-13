@@ -12,6 +12,7 @@ interface Bucket {
 
 const buckets = new Map<string, Bucket>()
 const adminLoginBuckets = new Map<string, Bucket>()
+const communityLikeBuckets = new Map<string, Bucket>()
 
 export function enforceFeedbackRateLimit(event: H3Event) {
   const config = getGuideConfig(event)
@@ -64,6 +65,26 @@ export function enforceAdminLoginRateLimit(event: H3Event) {
 
 export function clearAdminLoginRateLimit(event: H3Event) {
   adminLoginBuckets.delete(adminLoginKey(event))
+}
+
+export function enforceCommunityLikeRateLimit(event: H3Event, userId: string) {
+  const config = getGuideConfig(event)
+  const now = Date.now()
+  const key = `community-like:${userId}`
+  const current = communityLikeBuckets.get(key)
+
+  if (!current || current.resetAt <= now) {
+    communityLikeBuckets.set(key, { count: 1, resetAt: now + config.communityLikeWindowMs })
+    cleanupBuckets(communityLikeBuckets, now)
+    return
+  }
+
+  current.count += 1
+  if (current.count <= config.communityLikeMax) return
+
+  const retryAfter = Math.max(1, Math.ceil((current.resetAt - now) / 1000))
+  setHeader(event, 'retry-after', retryAfter)
+  apiError(429, 'COMMUNITY_LIKE_RATE_LIMITED', '点赞操作过于频繁，请稍后再试。', { retry_after_seconds: retryAfter })
 }
 
 function adminLoginKey(event: H3Event) {

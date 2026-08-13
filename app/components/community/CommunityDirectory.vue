@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowUpRight, Box, Heart, Search, SlidersHorizontal, Sparkles, Wrench } from 'lucide-vue-next'
+import { ArrowUpRight, Bot, Box, Heart, Package, Search, SlidersHorizontal, Sparkles, Wrench } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { CommunityCategory, CommunityCounts, CommunityItem } from '~/types/community'
@@ -15,12 +15,15 @@ const brokenIcons = reactive<Record<number, boolean>>({})
 const loading = ref(true)
 const loadError = ref<unknown>(null)
 let loadSequence = 0
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
 
 const categories: Array<{ key: CommunityCategory | 'all', label: string, to: string, icon: typeof Wrench }> = [
   { key: 'all', label: '全部', to: '/community', icon: Sparkles },
   { key: 'tools', label: '开源工具', to: '/community/tools', icon: Wrench },
   { key: 'skills', label: 'Skills', to: '/community/skills', icon: Box },
   { key: 'mcp', label: 'MCP', to: '/community/mcp', icon: SlidersHorizontal },
+  { key: 'agent', label: 'Agent', to: '/community/agent', icon: Bot },
+  { key: 'plugin', label: 'Plugin', to: '/community/plugin', icon: Package },
 ]
 
 const activeCategory = computed<CommunityCategory | 'all'>(() => props.category || 'all')
@@ -39,6 +42,8 @@ const counts = ref<CommunityCounts>((initialData.value?.meta?.counts as Communit
   tools: 0,
   skills: 0,
   mcp: 0,
+  agent: 0,
+  plugin: 0,
 })
 const authenticated = computed(() => guideSession.initialized.value
   ? Boolean(guideSession.session.value?.authenticated)
@@ -66,8 +71,16 @@ onMounted(() => {
   loading.value = false
 })
 
-watch([query, sort], () => { void loadItems() })
+function scheduleLoadItems() {
+  clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => { void loadItems() }, 280)
+}
+
+watch(query, scheduleLoadItems)
+watch(sort, () => { void loadItems() })
 watch(() => props.category, () => { void loadItems() })
+
+onBeforeUnmount(() => clearTimeout(searchDebounceTimer))
 
 async function toggleLike(item: CommunityItem) {
   notice.value = ''
@@ -102,7 +115,7 @@ function handleIconError(item: CommunityItem) {
 
 useSeoMeta({
   title: props.category ? `${categories.find(item => item.key === props.category)?.label} - 社区` : '社区',
-  description: `浏览 ${site.value.project_name} 社区整理的开源工具、Skills 与 MCP 项目。`,
+  description: `浏览 ${site.value.project_name} 社区整理的开源工具、Skills、MCP、Agent 与 Plugin。`,
 })
 </script>
 
@@ -113,7 +126,7 @@ useSeoMeta({
         <div>
           <span>Community directory</span>
           <h1>社区资源库</h1>
-          <p>发现值得关注的开源工具、Skills 与 MCP 项目。</p>
+          <p>发现值得关注的开源工具、Skills、MCP、Agent 与 Plugin。</p>
         </div>
         <div class="community-heading__stat">
           <strong>{{ counts.all }}</strong>
@@ -170,6 +183,8 @@ useSeoMeta({
               <small>{{ categories.find(category => category.key === item.category)?.label }}</small>
             </div>
           </header>
+
+          <NuxtLink class="community-card__overlay-link" :to="`/community/${item.category}/${item.slug}`" :aria-label="`查看 ${item.name} 详情`" />
 
           <p>{{ item.summary }}</p>
           <div v-if="item.tags.length" class="community-tags" aria-label="标签">

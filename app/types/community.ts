@@ -1,5 +1,13 @@
-export type CommunityCategory = 'tools' | 'skills' | 'mcp'
+export type CommunityCategory = 'tools' | 'skills' | 'mcp' | 'agent' | 'plugin'
 export type CommunityStatus = 'draft' | 'published' | 'archived'
+
+export interface CommunityImage {
+  id?: number
+  image_url: string
+  title: string | null
+  alt_text: string | null
+  sort_order: number
+}
 
 export interface CommunityItem {
   id: number
@@ -7,6 +15,7 @@ export interface CommunityItem {
   category: CommunityCategory
   name: string
   summary: string
+  description_md: string
   icon_url: string | null
   official_url: string
   tags: string[]
@@ -19,6 +28,7 @@ export interface CommunityItem {
   created_at: string
   updated_at: string
   published_at: string | null
+  images: CommunityImage[]
 }
 
 export interface CommunityCounts {
@@ -26,4 +36,6 @@ export interface CommunityCounts {
   tools: number
   skills: number
   mcp: number
+  agent: number
+  plugin: number
 }

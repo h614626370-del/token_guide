@@ -229,7 +229,7 @@ describe('Nuxt application routes', () => {
       }),
     })
   })
-  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/community', '/community/tools', '/community/skills', '/community/mcp', '/feedback', '/admin', '/admin/assets', '/admin/email', '/admin/installers', '/admin/homepage', '/admin/community', '/admin/promotions'])('renders %s', async (path) => {
+  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/community', '/community/tools', '/community/skills', '/community/mcp', '/community/agent', '/community/plugin', '/feedback', '/admin', '/admin/assets', '/admin/email', '/admin/installers', '/admin/homepage', '/admin/community', '/admin/promotions'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
@@ -285,7 +285,7 @@ describe('Nuxt application routes', () => {
         expect.objectContaining({ slug: 'codex-plus-plus', category: 'tools', liked: false }),
         expect.objectContaining({ slug: 'cc-switch', category: 'tools' }),
       ],
-      meta: { counts: { all: 2, tools: 2, skills: 0, mcp: 0 }, authenticated: false },
+      meta: { counts: { all: 2, tools: 2, skills: 0, mcp: 0, agent: 0, plugin: 0 }, authenticated: false },
     })
 
     const skills = await fetch('/api/community/items?category=skills')
@@ -328,12 +328,29 @@ describe('Nuxt application routes', () => {
       body: JSON.stringify({
         slug: 'e2e-community-item', category: 'mcp', name: 'E2E 社区条目',
         summary: '这是一个用于验证社区后台流程的测试条目。', official_url: 'https://example.com/mcp',
+        description_md: '## 使用说明\n\n这是 E2E 详情内容。',
+        images: [{ image_url: 'https://example.com/community-shot.png', title: '功能界面', alt_text: '测试详情图片' }],
         tags: ['E2E', 'MCP'], compatibility: '测试环境', status: 'published', sort_order: 999,
       }),
     })
     expect(create.status).toBe(200)
     const created = (await json(create)).data
-    expect(created).toMatchObject({ slug: 'e2e-community-item', status: 'published', tags: ['E2E', 'MCP'] })
+    expect(created).toMatchObject({
+      slug: 'e2e-community-item', status: 'published', tags: ['E2E', 'MCP'],
+      description_md: '## 使用说明\n\n这是 E2E 详情内容。',
+      images: [{ image_url: 'https://example.com/community-shot.png', title: '功能界面', alt_text: '测试详情图片' }],
+    })
+
+    const detail = await fetch('/api/community/item?category=mcp&slug=e2e-community-item')
+    expect(detail.status).toBe(200)
+    expect(await json(detail)).toMatchObject({
+      ok: true,
+      data: {
+        slug: 'e2e-community-item',
+        description_md: '## 使用说明\n\n这是 E2E 详情内容。',
+        images: [{ image_url: 'https://example.com/community-shot.png', title: '功能界面' }],
+      },
+    })
 
     const remove = await fetch(`/api/admin/community/${created.id}`, { method: 'DELETE', headers: { cookie } })
     expect(remove.status).toBe(200)
@@ -970,6 +987,20 @@ describe('authentication and same-origin API protection', () => {
     })
     expect(proxiedList.status).toBe(200)
     expect((await json(proxiedList)).data[0].url).toBe(`https://guide.example.com${publicPath}`)
+
+    const replacementBody = new FormData()
+    replacementBody.append('file', new Blob([transparentPng], { type: 'image/png' }), 'replacement.png')
+    const replaced = await fetch(`/api/admin/assets/${uploadedBody.data.filename}`, {
+      method: 'PUT',
+      headers: { cookie },
+      body: replacementBody,
+    })
+    expect(replaced.status).toBe(200)
+    expect(await json(replaced)).toMatchObject({
+      ok: true,
+      data: { filename: uploadedBody.data.filename, url: uploadedBody.data.url, size: transparentPng.length },
+    })
+    expect(Buffer.from(await (await fetch(publicPath)).arrayBuffer())).toEqual(transparentPng)
 
     const invalidBody = new FormData()
     invalidBody.append('file', new Blob([Buffer.from('not an image')], { type: 'image/png' }), 'fake.png')

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, unlink, writeFile, rename } from 'node:fs/promises'
 import path from 'node:path'
 import type { H3Event } from 'h3'
 import { getGuideConfig } from '../../utils/config'
@@ -72,6 +72,46 @@ export async function saveUploadedImage(input: {
     content_type: contentType,
     size: input.data.length,
   }
+}
+
+export async function replaceUploadedImage(filename: string, input: {
+  data: Buffer
+  contentType?: string
+}, event?: H3Event): Promise<UploadedAsset> {
+  if (!isSafeAssetFilename(filename)) throw new Error('图片文件名无效。')
+  const contentType = normalizeContentType(input.contentType || '')
+  const ext = path.extname(filename).slice(1).toLowerCase()
+  const expectedContentType = contentTypeFromExt(ext)
+  if (!expectedContentType || contentType !== expectedContentType) {
+    throw new Error(`替换图片必须保持原格式（${ext.toUpperCase()}）。`)
+  }
+  if (!input.data.length) throw new Error('上传文件不能为空。')
+  if (input.data.length > maxImageBytes) throw new Error('图片不能超过 2MB。')
+  if (detectImageContentType(input.data) !== contentType) throw new Error('图片文件内容与格式不匹配。')
+
+  const root = uploadsRoot(event)
+  await mkdir(root, { recursive: true })
+  const fullPath = path.join(root, filename)
+  const resolved = path.resolve(fullPath)
+  if (!resolved.startsWith(`${path.resolve(root)}${path.sep}`)) throw new Error('图片路径无效。')
+  try {
+    const info = await stat(resolved)
+    if (!info.isFile()) throw new Error('图片不存在。')
+  } catch (error) {
+    if (error instanceof Error && error.message === '图片不存在。') throw error
+    throw new Error('图片不存在。')
+  }
+
+  const tempPath = `${fullPath}.${crypto.randomBytes(6).toString('hex')}.tmp`
+  await writeFile(tempPath, input.data, { flag: 'wx' })
+  try {
+    await rename(tempPath, fullPath)
+  } catch (error) {
+    await unlink(tempPath).catch(() => undefined)
+    throw error
+  }
+  const info = await stat(fullPath)
+  return { filename, url: publicUploadUrl(filename, event), content_type: contentType, size: info.size }
 }
 
 export async function readPublicAsset(filename: string, event?: H3Event): Promise<PublicAsset | null> {

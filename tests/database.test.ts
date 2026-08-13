@@ -44,6 +44,8 @@ describe('database migrations', () => {
         { id: 19, name: 'extend_pricing_models_for_image_prices' },
         { id: 20, name: 'create_community_directory' },
         { id: 21, name: 'localize_default_community_icons' },
+        { id: 22, name: 'extend_community_details_and_images' },
+        { id: 23, name: 'add_agent_and_plugin_community_categories' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -83,10 +85,20 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_source_snapshots'").get()).toEqual({ name: 'pricing_source_snapshots' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_items'").get()).toEqual({ name: 'community_items' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_likes'").get()).toEqual({ name: 'community_likes' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_item_images'").get()).toEqual({ name: 'community_item_images' })
+      expect(db.prepare('PRAGMA table_info(community_items)').all().map((row: any) => row.name)).toContain('description_md')
       expect(db.prepare('SELECT slug, status, icon_url FROM community_items ORDER BY sort_order').all()).toEqual([
         { slug: 'codex-plus-plus', status: 'published', icon_url: '/community/codex-plus-plus.png' },
         { slug: 'cc-switch', status: 'published', icon_url: null },
       ])
+      expect(() => db.prepare(`INSERT INTO community_items (
+        slug, category, name, summary, official_url, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)`)
+        .run('database-agent', 'agent', 'Database Agent', '用于验证 Agent 社区分类可以保存。', 'https://example.com/agent', new Date().toISOString(), new Date().toISOString())).not.toThrow()
+      expect(() => db.prepare(`INSERT INTO community_items (
+        slug, category, name, summary, official_url, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)`)
+        .run('database-plugin', 'plugin', 'Database Plugin', '用于验证 Plugin 社区分类可以保存。', 'https://example.com/plugin', new Date().toISOString(), new Date().toISOString())).not.toThrow()
     } finally {
       db.close()
     }
@@ -97,16 +109,16 @@ describe('database migrations', () => {
     const first = openDatabase(databasePath)
     let firstAppliedAt: any
     try {
-      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 21').get()
+      firstAppliedAt = first.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()
     } finally {
       first.close()
     }
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 21 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 23 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
-      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 21').get()).toEqual(firstAppliedAt)
+      expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()).toEqual(firstAppliedAt)
     } finally {
       second.close()
     }

@@ -5,7 +5,7 @@ const route = useRoute()
 const communityCategory = computed(() => String(route.params.category) as CommunityCategory)
 
 definePageMeta({
-  validate: route => ['tools', 'skills', 'mcp'].includes(String(route.params.category || '')),
+  validate: route => ['tools', 'skills', 'mcp', 'agent', 'plugin'].includes(String(route.params.category || '')),
 })
 </script>
 

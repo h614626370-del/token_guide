@@ -13,6 +13,8 @@ const routes = [
   ['community-tools', '/community/tools'],
   ['community-skills', '/community/skills'],
   ['community-mcp', '/community/mcp'],
+  ['community-agent', '/community/agent'],
+  ['community-plugin', '/community/plugin'],
   ['feedback', '/feedback'],
   ['admin', '/admin'],
   ['admin-settings', '/admin/settings'],
@@ -186,6 +188,10 @@ test('community directory supports search, category navigation and anonymous lik
   await expect(cards).toHaveCount(2)
   await expect(cards.first()).toContainText('Codex++')
   await expect(cards.nth(1)).toContainText('CC Switch')
+  await cards.first().click()
+  await expect(page).toHaveURL(/\/community\/tools\/codex-plus-plus$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Codex++' })).toBeVisible()
+  await page.goBack()
 
   const search = page.getByRole('searchbox', { name: '搜索社区资源' })
   await search.fill('CC Switch')
@@ -218,6 +224,12 @@ test('administrator can create, edit, archive, publish and delete a community it
   await page.getByLabel('官方地址').fill('https://example.com/ui-community')
   await page.getByLabel('标签').fill('UI, MCP')
   await page.getByLabel('兼容对象').fill('测试环境')
+  await page.getByLabel('详细介绍（可选 Markdown）').fill('## 使用说明\n\n这是详情页内容。')
+  const preview = page.locator('.community-card--preview')
+  await expect(preview).toContainText('UI 社区测试条目')
+  await expect(preview).toContainText('这是一个用于验证社区管理完整交互流程的测试条目。')
+  await expect(preview).toContainText('UI')
+  await expect(preview).toContainText('测试环境')
   await page.getByRole('button', { name: '创建条目' }).click()
 
   const row = page.locator('.community-admin-rows > article').filter({ hasText: slug })
@@ -237,6 +249,9 @@ test('administrator can create, edit, archive, publish and delete a community it
   await page.goto(publicHref!, { waitUntil: 'networkidle' })
   const publicRow = page.locator('.community-card').filter({ hasText: 'UI 社区测试条目（已编辑）' })
   await expect(publicRow).toBeVisible()
+  await publicRow.click()
+  await expect(page).toHaveURL(new RegExp(`/community/mcp/${slug}$`))
+  await expect(page.locator('.community-detail-content')).toContainText('详情页内容')
   await page.goto('/admin/community', { waitUntil: 'networkidle' })
   await expect(page.getByRole('heading', { level: 1, name: '社区管理' })).toBeVisible()
 

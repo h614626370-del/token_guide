@@ -25,7 +25,7 @@ const navigation = [
   { label: '自动安装', to: '/install', icon: PackageOpen, paths: ['/install'] },
   { label: '模型价格', to: '/pricing', icon: BadgeDollarSign, paths: ['/pricing'] },
   { label: '使用工作台', to: '/playground', icon: FlaskConical, paths: ['/playground'] },
-  { label: '社区', to: '/community', icon: Boxes, paths: ['/community', '/community/tools', '/community/skills', '/community/mcp'] },
+  { label: '社区', to: '/community', icon: Boxes, paths: ['/community', '/community/tools', '/community/skills', '/community/mcp', '/community/agent', '/community/plugin'] },
   { label: '反馈', to: '/feedback', icon: MessageSquareText, paths: ['/feedback'] },
 ]
 
