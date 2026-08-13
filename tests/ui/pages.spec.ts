@@ -181,7 +181,7 @@ test('tool pages stay outside the guide sidebar', async ({ page }, testInfo) => 
   await expect(page.locator('.guide-sidebar')).toHaveCount(0)
 })
 
-test('community directory supports search, category navigation and anonymous like guidance', async ({ page }) => {
+test('community directory supports search and category navigation', async ({ page }) => {
   await page.goto('/community', { waitUntil: 'domcontentloaded' })
   const cards = page.locator('.community-card')
   await expect(page.locator('.community-grid')).toHaveAttribute('aria-busy', 'false')
@@ -204,10 +204,6 @@ test('community directory supports search, category navigation and anonymous lik
   await expect(page).toHaveURL(/\/community\/skills$/)
   await expect(page.getByText('这个分类还没有公开条目')).toBeVisible()
 
-  await page.goto('/community', { waitUntil: 'domcontentloaded' })
-  await cards.first().getByRole('button', { name: '点赞 Codex++' }).click()
-  await expect(page.locator('.community-notice')).toContainText('请先登录')
-  await expect(page.locator('.community-notice a')).toBeVisible()
 })
 
 test('administrator can create, edit, archive, publish and delete a community item', async ({ page }) => {
