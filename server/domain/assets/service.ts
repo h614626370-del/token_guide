@@ -18,6 +18,7 @@ export interface UploadedAsset {
   url: string
   content_type: string
   size: number
+  created_at: string
 }
 
 export interface AssetListItem extends UploadedAsset {
@@ -64,13 +65,16 @@ export async function saveUploadedImage(input: {
   const basename = safeBaseName(input.originalName || 'image')
   const stamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
   const filename = `${stamp}-${basename}-${crypto.randomBytes(5).toString('hex')}.${ext}`
-  await writeFile(path.join(root, filename), input.data, { flag: 'wx' })
+  const fullPath = path.join(root, filename)
+  await writeFile(fullPath, input.data, { flag: 'wx' })
+  const info = await stat(fullPath)
 
   return {
     filename,
     url: publicUploadUrl(filename, event),
     content_type: contentType,
     size: input.data.length,
+    created_at: info.mtime.toISOString(),
   }
 }
 
@@ -104,7 +108,13 @@ export async function replaceUploadedImage(filename: string, input: {
 
   await writeFile(fullPath, input.data)
   const info = await stat(fullPath)
-  return { filename, url: publicUploadUrl(filename, event), content_type: contentType, size: info.size }
+  return {
+    filename,
+    url: publicUploadUrl(filename, event),
+    content_type: contentType,
+    size: info.size,
+    created_at: info.mtime.toISOString(),
+  }
 }
 
 export async function readPublicAsset(filename: string, event?: H3Event): Promise<PublicAsset | null> {

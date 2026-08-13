@@ -954,6 +954,7 @@ describe('authentication and same-origin API protection', () => {
       },
     })
     expect(uploadedBody.data.filename).toMatch(/\.png$/)
+    expect(Number.isNaN(Date.parse(uploadedBody.data.created_at))).toBe(false)
     expect(new URL(uploadedBody.data.url).origin).toBe(new URL(url('/')).origin)
     expect(new URL(uploadedBody.data.url).pathname).toMatch(/^\/uploads\//)
 
@@ -996,10 +997,12 @@ describe('authentication and same-origin API protection', () => {
       body: replacementBody,
     })
     expect(replaced.status).toBe(200)
-    expect(await json(replaced)).toMatchObject({
+    const replacedBody = await json(replaced)
+    expect(replacedBody).toMatchObject({
       ok: true,
       data: { filename: uploadedBody.data.filename, url: uploadedBody.data.url, size: transparentPng.length },
     })
+    expect(Number.isNaN(Date.parse(replacedBody.data.created_at))).toBe(false)
     const replacedPublicAsset = await fetch(publicPath)
     expect(replacedPublicAsset.headers.get('cache-control')).toContain('must-revalidate')
     expect(Buffer.from(await replacedPublicAsset.arrayBuffer())).toEqual(transparentPng)

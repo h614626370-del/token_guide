@@ -55,7 +55,10 @@ function chooseReplacement(asset: AssetItem) {
 }
 
 function previewUrl(asset: AssetItem) {
-  const version = previewVersions[asset.filename]
+  // The public URL stays stable, but previews need a cache key derived from
+  // the current file mtime so a reverse proxy cannot keep showing an older
+  // image after replacement or a full page reload.
+  const version = previewVersions[asset.filename] || Date.parse(asset.created_at)
   return version ? `${asset.url}?v=${version}` : asset.url
 }
 
@@ -107,7 +110,14 @@ async function replaceFile(event: Event) {
     body.append('file', file)
     const response = await $fetch<ApiSuccess<AssetItem>>(`/api/admin/assets/${encodeURIComponent(filename)}`, { method: 'PUT', body })
     const index = assets.value.findIndex(item => item.filename === filename)
-    if (index >= 0) assets.value[index] = { ...assets.value[index], ...response.data }
+    if (index >= 0) {
+      assets.value[index] = {
+        ...assets.value[index],
+        ...response.data,
+        // The API returns the replacement mtime, while the public path stays unchanged.
+        created_at: response.data.created_at,
+      }
+    }
     previewVersions[filename] = Date.now()
     notice.type = 'success'
     notice.message = '图片已替换，公开地址保持不变。'
@@ -210,7 +220,7 @@ function formatTime(value: string) {
             <button class="icon-command" type="button" title="复制地址" @click="copyUrl(asset)">
               <Copy :size="15" />
             </button>
-            <a class="icon-command" :href="asset.url" target="_blank" rel="noreferrer" title="打开原图">
+            <a class="icon-command" :href="previewUrl(asset)" target="_blank" rel="noreferrer" title="打开原图">
               <ExternalLink :size="15" />
             </a>
             <button class="icon-command" type="button" :disabled="replacing === asset.filename" :title="replacing === asset.filename ? '替换中...' : '替换图片'" @click="chooseReplacement(asset)">
