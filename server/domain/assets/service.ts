@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { mkdir, readFile, readdir, stat, unlink, writeFile, rename } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { H3Event } from 'h3'
 import { getGuideConfig } from '../../utils/config'
@@ -102,14 +102,7 @@ export async function replaceUploadedImage(filename: string, input: {
     throw new Error('图片不存在。')
   }
 
-  const tempPath = `${fullPath}.${crypto.randomBytes(6).toString('hex')}.tmp`
-  await writeFile(tempPath, input.data, { flag: 'wx' })
-  try {
-    await rename(tempPath, fullPath)
-  } catch (error) {
-    await unlink(tempPath).catch(() => undefined)
-    throw error
-  }
+  await writeFile(fullPath, input.data)
   const info = await stat(fullPath)
   return { filename, url: publicUploadUrl(filename, event), content_type: contentType, size: info.size }
 }

@@ -1000,7 +1000,9 @@ describe('authentication and same-origin API protection', () => {
       ok: true,
       data: { filename: uploadedBody.data.filename, url: uploadedBody.data.url, size: transparentPng.length },
     })
-    expect(Buffer.from(await (await fetch(publicPath)).arrayBuffer())).toEqual(transparentPng)
+    const replacedPublicAsset = await fetch(publicPath)
+    expect(replacedPublicAsset.headers.get('cache-control')).toContain('must-revalidate')
+    expect(Buffer.from(await replacedPublicAsset.arrayBuffer())).toEqual(transparentPng)
 
     const invalidBody = new FormData()
     invalidBody.append('file', new Blob([Buffer.from('not an image')], { type: 'image/png' }), 'fake.png')

@@ -21,6 +21,7 @@ const replacing = ref('')
 const admin = useAdminSessionState()
 const loaded = ref(false)
 const assets = ref<AssetItem[]>([])
+const previewVersions = reactive<Record<string, number>>({})
 const fileInput = ref<HTMLInputElement | null>(null)
 const replaceInput = ref<HTMLInputElement | null>(null)
 const replacingFilename = ref('')
@@ -51,6 +52,11 @@ function chooseFiles() {
 function chooseReplacement(asset: AssetItem) {
   replacingFilename.value = asset.filename
   replaceInput.value?.click()
+}
+
+function previewUrl(asset: AssetItem) {
+  const version = previewVersions[asset.filename]
+  return version ? `${asset.url}?v=${version}` : asset.url
 }
 
 async function uploadFiles(event: Event) {
@@ -102,6 +108,7 @@ async function replaceFile(event: Event) {
     const response = await $fetch<ApiSuccess<AssetItem>>(`/api/admin/assets/${encodeURIComponent(filename)}`, { method: 'PUT', body })
     const index = assets.value.findIndex(item => item.filename === filename)
     if (index >= 0) assets.value[index] = { ...assets.value[index], ...response.data }
+    previewVersions[filename] = Date.now()
     notice.type = 'success'
     notice.message = '图片已替换，公开地址保持不变。'
   } catch (cause) {
@@ -191,8 +198,8 @@ function formatTime(value: string) {
 
       <section v-if="assets.length" class="admin-asset-grid">
         <article v-for="asset in assets" :key="asset.filename" class="admin-asset-card">
-          <a class="admin-asset-thumb" :href="asset.url" target="_blank" rel="noreferrer" title="打开原图">
-            <img :src="asset.url" alt="">
+          <a class="admin-asset-thumb" :href="previewUrl(asset)" target="_blank" rel="noreferrer" title="打开原图">
+            <img :src="previewUrl(asset)" alt="">
           </a>
           <div class="admin-asset-meta">
             <strong>{{ asset.filename }}</strong>
