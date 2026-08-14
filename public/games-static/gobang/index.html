@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <meta name="description" content="五子棋人机对战小游戏">
+    <title>五子棋人机对战</title>
+    <link rel="shortcut icon" href="favicon.png">
+    <style>
+      :root { color-scheme: light; font-family: "Microsoft YaHei", sans-serif; }
+      * { box-sizing: border-box; }
+      html, body { min-width: 320px; min-height: 100%; margin: 0; background: #eef4f1; color: #24312d; }
+      body { display: grid; min-height: 100vh; place-items: center; padding: 18px; }
+      .game-shell { width: min(100%, 1000px); padding: 18px; border: 1px solid #cfddd7; border-radius: 12px; background: #fff; box-shadow: 0 12px 34px rgba(24, 48, 40, .12); text-align: center; }
+      h1 { margin: 0 0 12px; font-size: clamp(20px, 4vw, 30px); }
+      canvas { display: block; width: min(100%, 960px); height: auto; margin: 0 auto; border: 1px solid #d3dbd8; border-radius: 6px; background: #529888; touch-action: none; }
+      p { margin: 12px 0 0; color: #687a73; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main class="game-shell">
+      <h1>五子棋人机对战</h1>
+      <canvas id="canvas" width="960" height="640">不支持画布</canvas>
+      <p>执黑棋者先行</p>
+    </main>
+    <script src="./dist/gobang.min.js"></script>
+  </body>
+</html>

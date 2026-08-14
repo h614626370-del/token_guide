@@ -1173,4 +1173,150 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 32,
+    name: 'create_game_directory_and_seed',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS game_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT NOT NULL UNIQUE,
+          category TEXT NOT NULL CHECK (category IN ('board', 'arcade', 'puzzle', 'training', 'adventure')),
+          name TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          description_md TEXT NOT NULL DEFAULT '',
+          cover_url TEXT,
+          official_url TEXT NOT NULL,
+          play_path TEXT NOT NULL,
+          license TEXT NOT NULL,
+          author TEXT NOT NULL,
+          tags_json TEXT NOT NULL DEFAULT '[]',
+          compatibility TEXT,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+          is_featured INTEGER NOT NULL DEFAULT 0 CHECK (is_featured IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 1000,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          published_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_game_items_public
+          ON game_items(status, category, is_featured DESC, sort_order, name);
+      `)
+
+      const now = new Date().toISOString()
+      const seed = db.prepare(`
+        INSERT OR IGNORE INTO game_items (
+          slug, category, name, summary, description_md, cover_url, official_url, play_path,
+          license, author, tags_json, compatibility, status, is_featured, sort_order,
+          created_at, updated_at, published_at
+        ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?)
+      `)
+      const defaults = [
+        [
+          'gobang', 'board', '五子棋',
+          '中文界面的轻量五子棋人机对战，打开页面即可开始。',
+          '## 玩法\n\n黑白双方轮流落子，率先连成五子的一方获胜。支持浏览器本地对战，不需要账号或额外服务。\n\n## 来源\n\n由 passer-by.com 制作，保留作者署名和 MIT 许可证。',
+          'https://github.com/mumuy/gobang', '/games-static/gobang/index.html',
+          'MIT', 'passer-by.com', JSON.stringify(['五子棋', '人机对战', 'Canvas']),
+          '手机 / 电脑', 1, 10,
+        ],
+        [
+          'pacman', 'arcade', '吃豆人',
+          '经典迷宫吃豆游戏，支持本地游玩和多关卡挑战。',
+          '## 玩法\n\n控制角色在迷宫中吃掉豆子，利用能量豆躲避或反击追逐者。游戏逻辑和资源都在浏览器中运行。\n\n## 来源\n\n由 passer-by.com 制作，保留作者署名和 MIT 许可证。',
+          'https://github.com/mumuy/pacman', '/games-static/pacman/index.html',
+          'MIT', 'passer-by.com', JSON.stringify(['街机', '迷宫', '多关卡']),
+          '手机 / 电脑', 1, 20,
+        ],
+        [
+          'train-gun', 'training', '练枪训练器',
+          '面向开发者和游戏用户的浏览器瞄准训练工具，支持多种训练模式。',
+          '## 玩法\n\n选择目标训练、追踪、切换等模式，在浏览器中完成短时练习并查看本地成绩。运行时不需要后端，字体资源已改为本地系统字体。\n\n## 来源\n\n项目作者为 lby-1，使用 MIT 许可证。',
+          'https://github.com/lby-1/trainGun', '/games-static/train-gun/index.html',
+          'MIT', 'lby-1', JSON.stringify(['训练', '瞄准', '开发者']),
+          '电脑 / 鼠标', 1, 30,
+        ],
+        [
+          'fruit', 'arcade', '切水果',
+          '基于 Phaser 的中文切水果小游戏，支持鼠标和触摸操作。',
+          '## 玩法\n\n拖动鼠标或手指划过水果获得分数，注意避开炸弹。游戏使用本地 Phaser 引擎和本地资源，不依赖外部 CDN。\n\n## 来源\n\n来自 channingbreeze/games，使用仓库中的 MIT 许可证，并保留原作者信息。',
+          'https://github.com/channingbreeze/games', '/games-static/fruit/index.html',
+          'MIT', 'channingbreeze', JSON.stringify(['Phaser', '街机', '触摸']),
+          '手机 / 电脑', 1, 40,
+        ],
+        [
+          'puzzle', 'puzzle', '拼图',
+          '轻量的中文拼图小游戏，适合在页面中快速玩一局。',
+          '## 玩法\n\n将打乱的图片方块移动到正确位置完成拼图。资源体积很小，适合移动端快速加载。\n\n## 来源\n\n来自 channingbreeze/games，使用仓库中的 MIT 许可证，并保留原作者信息。',
+          'https://github.com/channingbreeze/games', '/games-static/puzzle/index.html',
+          'MIT', 'channingbreeze', JSON.stringify(['Phaser', '益智', '拼图']),
+          '手机 / 电脑', 0, 50,
+        ],
+        [
+          'stardog', 'arcade', '星星狗',
+          '轻量的中文休闲小游戏，适合做站内短时娱乐入口。',
+          '## 玩法\n\n控制星星狗完成关卡中的移动和收集目标。游戏采用本地 Phaser 引擎，打开即玩。\n\n## 来源\n\n来自 channingbreeze/games，使用仓库中的 MIT 许可证，并保留原作者信息。',
+          'https://github.com/channingbreeze/games', '/games-static/stardog/index.html',
+          'MIT', 'channingbreeze', JSON.stringify(['Phaser', '休闲', '轻量']),
+          '手机 / 电脑', 0, 60,
+        ],
+      ]
+
+      for (const item of defaults) {
+        seed.run(...item, now, now, now)
+      }
+    },
+  },
+  {
+    id: 33,
+    name: 'replace_demo_games_with_replayable_games',
+    up(db) {
+      // Older local databases used migration ids 31/32 for games before the
+      // community category migration landed. Complete that migration first.
+      if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_categories'").get()) {
+        const communityCategoriesMigration = migrations.find(migration => migration.id === 31)
+        communityCategoriesMigration?.up(db)
+      }
+
+      const now = new Date().toISOString()
+      const update = db.prepare(`
+        UPDATE game_items
+        SET slug = ?, category = ?, name = ?, summary = ?, description_md = ?,
+            official_url = ?, play_path = ?, license = ?, author = ?, tags_json = ?,
+            compatibility = ?, updated_at = ?
+        WHERE slug = ?
+      `)
+      const replacements = [
+        [
+          '2048', 'puzzle', '2048',
+          '经典数字合成益智游戏，支持触屏滑动和本地最高分记录。',
+          '## 玩法\n\n滑动相同数字方块，让它们合并成更大的数字，目标是合成 2048。游戏完全在浏览器本地运行，适合手机和电脑快速开始。\n\n## 来源\n\n来自 channingbreeze/games，使用仓库中的 MIT 许可证，并保留原作者信息。',
+          'https://github.com/channingbreeze/games', '/games-static/2048/index.html',
+          'MIT', 'channingbreeze', JSON.stringify(['Phaser', '益智', '数字合成', '触屏']),
+          '手机 / 电脑', now, 'fruit',
+        ],
+        [
+          'allalive', 'arcade', '一个都不能死',
+          '中文双人躲避挑战，控制两个角色同时避开障碍，坚持得越久分数越高。',
+          '## 玩法\n\n同时控制两个角色，避开四周和移动障碍物，尽可能坚持更长时间。游戏支持鼠标和触摸操作，成绩保存在浏览器本地。\n\n## 来源\n\n来自 channingbreeze/games，使用仓库中的 MIT 许可证，并保留原作者信息。',
+          'https://github.com/channingbreeze/games', '/games-static/allalive/index.html',
+          'MIT', 'channingbreeze', JSON.stringify(['Phaser', '街机', '躲避', '双人']),
+          '手机 / 电脑', now, 'puzzle',
+        ],
+        [
+          'fifty', 'arcade', '看谁能坚持五十秒',
+          '计时躲避挑战，在上下两条路线间保持移动，争取突破自己的坚持时间。',
+          '## 玩法\n\n点击标题开始游戏，控制角色躲避不断移动的障碍物。碰撞后会显示本局时间和历史最佳成绩，适合进行短时挑战。\n\n## 来源\n\n来自 channingbreeze/games，使用仓库中的 MIT 许可证，并保留原作者信息。',
+          'https://github.com/channingbreeze/games', '/games-static/fifty/index.html',
+          'MIT', 'channingbreeze', JSON.stringify(['Phaser', '街机', '挑战', '计时']),
+          '手机 / 电脑', now, 'stardog',
+        ],
+      ]
+
+      for (const replacement of replacements) {
+        update.run(...replacement)
+      }
+    },
+  },
 ]

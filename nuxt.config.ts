@@ -77,6 +77,11 @@ export default defineNuxtConfig({
         'cache-control': 'no-store',
       },
     },
+    '/games-static/**': {
+      headers: {
+        'cache-control': 'public, max-age=86400',
+      },
+    },
   },
   typescript: {
     strict: true,

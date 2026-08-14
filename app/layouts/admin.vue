@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, BadgeDollarSign, BarChart3, Boxes, FileText, FolderTree, Home, Images, LayoutDashboard, List, LogOut, Mail, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
+import { ArrowLeft, BadgeDollarSign, BarChart3, Boxes, FileText, FolderTree, Gamepad2, Home, Images, LayoutDashboard, List, LogOut, Mail, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
 import { PackageOpen } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -21,6 +21,7 @@ const links = [
       { label: '条目管理', to: '/admin/community/items', icon: List },
     ],
   },
+  { label: '游戏管理', to: '/admin/games', icon: Gamepad2 },
   { label: '推广统计', to: '/admin/promotions', icon: BarChart3 },
   { label: '系统更新', to: '/admin/update', icon: RefreshCcw },
 ]
