@@ -279,17 +279,25 @@ describe('Nuxt application routes', () => {
   it('serves the public community directory and protects likes behind member login', async () => {
     const all = await fetch('/api/community/items?sort=popular')
     expect(all.status).toBe(200)
-    expect(await json(all)).toMatchObject({
+    const allBody = await json(all)
+    expect(allBody).toMatchObject({
       ok: true,
-      data: [
-        expect.objectContaining({ slug: 'codex-plus-plus', category: 'tools', liked: false }),
-        expect.objectContaining({ slug: 'cc-switch', category: 'tools' }),
-      ],
-      meta: { counts: { all: 2, tools: 2, skills: 0, mcp: 0, agent: 0, plugin: 0 }, authenticated: false },
+      meta: { counts: { all: 26, tools: 13, skills: 3, mcp: 5, agent: 5, plugin: 0 }, authenticated: false },
     })
+    expect(allBody.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ slug: 'codex-plus-plus', category: 'tools', liked: false }),
+      expect.objectContaining({ slug: 'cc-switch', category: 'tools' }),
+    ]))
 
     const skills = await fetch('/api/community/items?category=skills')
-    expect(await json(skills)).toMatchObject({ ok: true, data: [], meta: { counts: { tools: 2 } } })
+    expect(await json(skills)).toMatchObject({
+      ok: true,
+      data: expect.arrayContaining([
+        expect.objectContaining({ slug: 'superpowers', category: 'skills' }),
+        expect.objectContaining({ slug: 'awesome-copilot', category: 'skills' }),
+      ]),
+      meta: { counts: { all: 26, skills: 3 } },
+    })
 
     const like = await fetch('/api/community/items/1/like', { method: 'POST' })
     expect(like.status).toBe(401)

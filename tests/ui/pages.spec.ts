@@ -185,7 +185,7 @@ test('community directory supports search and category navigation', async ({ pag
   await page.goto('/community', { waitUntil: 'domcontentloaded' })
   const cards = page.locator('.community-card')
   await expect(page.locator('.community-grid')).toHaveAttribute('aria-busy', 'false')
-  await expect(cards).toHaveCount(2)
+  await expect(cards).toHaveCount(26)
   await expect(cards.first()).toContainText('Codex++')
   await expect(cards.nth(1)).toContainText('CC Switch')
   await cards.first().click()
@@ -202,7 +202,8 @@ test('community directory supports search and category navigation', async ({ pag
   await search.fill('')
   await page.getByRole('link', { name: /Skills/ }).click()
   await expect(page).toHaveURL(/\/community\/skills$/)
-  await expect(page.getByText('这个分类还没有公开条目')).toBeVisible()
+  await expect(page.locator('.community-card')).toHaveCount(3)
+  await expect(page.locator('.community-card').first()).toContainText('Superpowers')
 
 })
 

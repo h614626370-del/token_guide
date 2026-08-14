@@ -47,6 +47,12 @@ describe('database migrations', () => {
         { id: 22, name: 'extend_community_details_and_images' },
         { id: 23, name: 'add_agent_and_plugin_community_categories' },
         { id: 24, name: 'create_asset_metadata' },
+        { id: 25, name: 'seed_domestic_codex_community_items' },
+        { id: 26, name: 'seed_codex_tools_for_existing_community' },
+        { id: 27, name: 'correct_seeded_community_urls' },
+        { id: 28, name: 'seed_second_batch_community_items' },
+        { id: 29, name: 'seed_database_community_mcp' },
+        { id: 30, name: 'seed_renwei_writing_skill' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -88,10 +94,16 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_likes'").get()).toEqual({ name: 'community_likes' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_item_images'").get()).toEqual({ name: 'community_item_images' })
       expect(db.prepare('PRAGMA table_info(community_items)').all().map((row: any) => row.name)).toContain('description_md')
-      expect(db.prepare('SELECT slug, status, icon_url FROM community_items ORDER BY sort_order').all()).toEqual([
+      expect(db.prepare('SELECT COUNT(*) AS count FROM community_items').get()).toEqual({ count: 26 })
+      expect(db.prepare('SELECT slug, status, icon_url FROM community_items ORDER BY sort_order').all()).toEqual(expect.arrayContaining([
         { slug: 'codex-plus-plus', status: 'published', icon_url: '/community/codex-plus-plus.png' },
         { slug: 'cc-switch', status: 'published', icon_url: null },
-      ])
+        { slug: 'openai-codex', status: 'published', icon_url: null },
+        { slug: 'cherry-studio', status: 'published', icon_url: null },
+        { slug: 'tencentcloud-mcp', status: 'published', icon_url: null },
+        { slug: 'qwen-agent', status: 'published', icon_url: null },
+        { slug: 'superpowers', status: 'published', icon_url: null },
+      ]))
       expect(() => db.prepare(`INSERT INTO community_items (
         slug, category, name, summary, official_url, status, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, 'draft', ?, ?)`)
@@ -117,7 +129,7 @@ describe('database migrations', () => {
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 24 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 30 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
       expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()).toEqual(firstAppliedAt)
     } finally {
