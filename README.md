@@ -102,24 +102,24 @@ DOCKERHUB_REPOSITORY
 发布时先把 `package.json` 中的版本改为目标版本并提交，然后推送同版本标签：
 
 ```powershell
-git tag v2.2.20
-git push origin main v2.2.20
+git tag v2.2.21
+git push origin main v2.2.21
 ```
 
 也可以在 Windows 中手动触发云端发布：
 
 ```powershell
-gh workflow run release.yml -f version=v2.2.20 -f publish_latest=true
+gh workflow run release.yml -f version=v2.2.21 -f publish_latest=true
 ```
 
 正式发布会等待并复用同一提交已经运行的 `CI` 结果，不会重复执行测试。稳定版会
-推送 `v2.2.20` 和 `latest`；预发布版本不会覆盖 `latest`。工作流完成后会创建或
+推送 `v2.2.21` 和 `latest`；预发布版本不会覆盖 `latest`。工作流完成后会创建或
 更新对应的 GitHub Release。
 
 仍可使用原有本机发布流程：
 
 ```powershell
-npm run release -- -Version v2.2.20
+npm run release -- -Version v2.2.21
 ```
 
 ## 注意
