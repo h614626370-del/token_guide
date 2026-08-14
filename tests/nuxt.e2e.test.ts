@@ -229,7 +229,7 @@ describe('Nuxt application routes', () => {
       }),
     })
   })
-  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/community', '/community/tools', '/community/skills', '/community/mcp', '/community/agent', '/community/plugin', '/feedback', '/admin', '/admin/assets', '/admin/email', '/admin/installers', '/admin/homepage', '/admin/community', '/admin/promotions'])('renders %s', async (path) => {
+  it.each(['/', '/member', '/integration', '/install', '/playground', '/pricing', '/community', '/community/tools', '/community/skills', '/community/mcp', '/community/agent', '/community/plugin', '/feedback', '/admin', '/admin/assets', '/admin/email', '/admin/installers', '/admin/homepage', '/admin/community', '/admin/community/categories', '/admin/community/items', '/admin/promotions'])('renders %s', async (path) => {
     const response = await fetch(path)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
@@ -320,6 +320,31 @@ describe('Nuxt application routes', () => {
     expect(await json(repeatedUnlike)).toMatchObject({ ok: true, data: { liked: false, like_count: 0 } })
 
     const cookie = await administratorCookie()
+    const categoryList = await fetch('/api/admin/community/categories', { headers: { cookie } })
+    const categoryListBody = await json(categoryList)
+    expect(categoryListBody.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ slug: 'tools', name: '开源工具', is_visible: true }),
+      expect.objectContaining({ slug: 'mcp', name: 'MCP', is_visible: true }),
+    ]))
+    const mcpCategory = categoryListBody.data.find((category: any) => category.slug === 'mcp')
+
+    const createCategory = await fetch('/api/admin/community/categories', {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        slug: 'e2e-resources', name: 'E2E 资源', icon_key: 'database',
+        description: '用于验证动态社区分类。', is_visible: true, sort_order: 35,
+      }),
+    })
+    expect(createCategory.status).toBe(200)
+    const createdCategory = (await json(createCategory)).data
+
+    const publicCategories = await fetch('/api/community/categories')
+    expect(await json(publicCategories)).toMatchObject({
+      ok: true,
+      data: expect.arrayContaining([expect.objectContaining({ slug: 'e2e-resources', name: 'E2E 资源' })]),
+    })
+
     const invalidCreate = await fetch('/api/admin/community', {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
@@ -334,7 +359,7 @@ describe('Nuxt application routes', () => {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({
-        slug: 'e2e-community-item', category: 'mcp', name: 'E2E 社区条目',
+        slug: 'e2e-community-item', category: 'e2e-resources', name: 'E2E 社区条目',
         summary: '这是一个用于验证社区后台流程的测试条目。', official_url: 'https://example.com/mcp',
         description_md: '## 使用说明\n\n这是 E2E 详情内容。',
         images: [{ image_url: 'https://example.com/community-shot.png', title: '功能界面', alt_text: '测试详情图片' }],
@@ -349,16 +374,38 @@ describe('Nuxt application routes', () => {
       images: [{ image_url: 'https://example.com/community-shot.png', title: '功能界面', alt_text: '测试详情图片' }],
     })
 
-    const detail = await fetch('/api/community/item?category=mcp&slug=e2e-community-item')
+    const detail = await fetch('/api/community/item?category=e2e-resources&slug=e2e-community-item')
     expect(detail.status).toBe(200)
     expect(await json(detail)).toMatchObject({
       ok: true,
       data: {
         slug: 'e2e-community-item',
+        category_name: 'E2E 资源',
         description_md: '## 使用说明\n\n这是 E2E 详情内容。',
         images: [{ image_url: 'https://example.com/community-shot.png', title: '功能界面' }],
       },
     })
+
+    const hideCategory = await fetch(`/api/admin/community/categories/${createdCategory.id}`, {
+      method: 'PUT',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ is_visible: false }),
+    })
+    expect(await json(hideCategory)).toMatchObject({ ok: true, data: { is_visible: false } })
+    expect((await fetch('/api/community/item?category=e2e-resources&slug=e2e-community-item')).status).toBe(404)
+
+    await fetch(`/api/admin/community/categories/${createdCategory.id}`, {
+      method: 'PUT',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ is_visible: true }),
+    })
+    const deleteCategory = await fetch(`/api/admin/community/categories/${createdCategory.id}`, {
+      method: 'DELETE',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ replacement_id: mcpCategory.id }),
+    })
+    expect(await json(deleteCategory)).toMatchObject({ ok: true, data: { moved_to: 'mcp' } })
+    expect((await fetch('/api/community/item?category=mcp&slug=e2e-community-item')).status).toBe(200)
 
     const remove = await fetch(`/api/admin/community/${created.id}`, { method: 'DELETE', headers: { cookie } })
     expect(remove.status).toBe(200)

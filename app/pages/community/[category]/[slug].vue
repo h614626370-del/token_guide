@@ -2,7 +2,6 @@
 import { ArrowLeft, ArrowUpRight, Heart } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import type { CommunityItem } from '~/types/community'
-import type { CommunityCategory } from '~/types/community'
 import { apiErrorMessage } from '~/types/api'
 
 const route = useRoute()
@@ -22,10 +21,6 @@ const activeImage = ref(0)
 const authenticated = computed(() => guideSession.initialized.value
   ? Boolean(guideSession.session.value?.authenticated)
   : Boolean(data.value?.meta?.authenticated))
-
-function categoryLabel(value: CommunityCategory) {
-  return { tools: '开源工具', skills: 'Skills', mcp: 'MCP', agent: 'Agent', plugin: 'Plugin' }[value]
-}
 
 if (error.value || !item.value) {
   throw createError({ statusCode: 404, statusMessage: '社区条目不存在' })
@@ -62,7 +57,7 @@ async function toggleLike() {
 <template>
   <div v-if="item" class="community-detail-page">
     <div class="community-detail-page__inner">
-      <NuxtLink class="community-detail-back" :to="`/community/${item.category}`"><ArrowLeft :size="16" />返回{{ categoryLabel(item.category) }}</NuxtLink>
+      <NuxtLink class="community-detail-back" :to="`/community/${item.category}`"><ArrowLeft :size="16" />返回{{ item.category_name }}</NuxtLink>
       <header class="community-detail-heading">
         <div class="community-detail-heading__icon">
           <img v-if="item.icon_url" :src="item.icon_url" :alt="`${item.name} 图标`">
@@ -92,7 +87,7 @@ async function toggleLike() {
           <p v-else class="community-detail-empty">管理员还没有补充详细介绍。</p>
         </article>
         <aside class="community-detail-meta">
-          <div><span>分类</span><strong>{{ categoryLabel(item.category) }}</strong></div>
+          <div><span>分类</span><strong>{{ item.category_name }}</strong></div>
           <div v-if="item.compatibility"><span>兼容平台</span><strong>{{ item.compatibility }}</strong></div>
           <div><span>收录时间</span><strong>{{ new Date(item.published_at || item.created_at).toLocaleDateString('zh-CN') }}</strong></div>
         </aside>

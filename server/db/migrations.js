@@ -1056,4 +1056,121 @@ export const migrations = [
       )
     },
   },
+  {
+    id: 31,
+    name: 'create_community_categories',
+    up(db) {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE community_categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          icon_key TEXT NOT NULL DEFAULT 'box',
+          description TEXT NOT NULL DEFAULT '',
+          is_visible INTEGER NOT NULL DEFAULT 0 CHECK (is_visible IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 1000,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX idx_community_categories_visible_order
+          ON community_categories(is_visible, sort_order, name);
+      `)
+
+      const seedCategory = db.prepare(`
+        INSERT INTO community_categories (
+          slug, name, icon_key, description, is_visible, sort_order, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+      `)
+      const categories = [
+        ['tools', '开源工具', 'wrench', '社区整理的开源工具与实用项目。', 10],
+        ['skills', 'Skills', 'box', '可复用的 Agent Skills 与工作流能力。', 20],
+        ['mcp', 'MCP', 'sliders-horizontal', '可连接模型与外部服务的 MCP 工具。', 30],
+        ['agent', 'Agent', 'bot', '面向不同任务场景的智能 Agent。', 40],
+        ['plugin', 'Plugin', 'package', '扩展客户端和工作流能力的插件。', 50],
+      ]
+      for (const category of categories) seedCategory.run(...category, now, now)
+
+      db.exec(`
+        CREATE TEMP TABLE community_likes_backup AS
+          SELECT item_id, user_id, created_at FROM community_likes;
+        CREATE TEMP TABLE community_item_images_backup AS
+          SELECT id, item_id, image_url, title, alt_text, sort_order, created_at, updated_at
+          FROM community_item_images;
+
+        DROP TABLE community_likes;
+        DROP TABLE community_item_images;
+
+        CREATE TABLE community_items_next (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT NOT NULL UNIQUE,
+          category TEXT NOT NULL REFERENCES community_categories(slug) ON UPDATE CASCADE ON DELETE RESTRICT,
+          name TEXT NOT NULL,
+          summary TEXT NOT NULL,
+          icon_url TEXT,
+          official_url TEXT NOT NULL,
+          tags_json TEXT NOT NULL DEFAULT '[]',
+          compatibility TEXT,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
+          is_featured INTEGER NOT NULL DEFAULT 0 CHECK (is_featured IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 1000,
+          like_count INTEGER NOT NULL DEFAULT 0 CHECK (like_count >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          published_at TEXT,
+          description_md TEXT NOT NULL DEFAULT ''
+        );
+
+        INSERT INTO community_items_next (
+          id, slug, category, name, summary, icon_url, official_url, tags_json,
+          compatibility, status, is_featured, sort_order, like_count,
+          created_at, updated_at, published_at, description_md
+        )
+        SELECT
+          id, slug, category, name, summary, icon_url, official_url, tags_json,
+          compatibility, status, is_featured, sort_order, like_count,
+          created_at, updated_at, published_at, description_md
+        FROM community_items;
+
+        DROP TABLE community_items;
+        ALTER TABLE community_items_next RENAME TO community_items;
+
+        CREATE INDEX idx_community_items_public
+          ON community_items(status, category, is_featured DESC, sort_order, name);
+
+        CREATE TABLE community_likes (
+          item_id INTEGER NOT NULL REFERENCES community_items(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (item_id, user_id)
+        );
+        INSERT INTO community_likes (item_id, user_id, created_at)
+          SELECT item_id, user_id, created_at FROM community_likes_backup;
+        CREATE INDEX idx_community_likes_user
+          ON community_likes(user_id, created_at DESC);
+
+        CREATE TABLE community_item_images (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          item_id INTEGER NOT NULL REFERENCES community_items(id) ON DELETE CASCADE,
+          image_url TEXT NOT NULL,
+          title TEXT,
+          alt_text TEXT,
+          sort_order INTEGER NOT NULL DEFAULT 1000,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO community_item_images (
+          id, item_id, image_url, title, alt_text, sort_order, created_at, updated_at
+        )
+        SELECT id, item_id, image_url, title, alt_text, sort_order, created_at, updated_at
+        FROM community_item_images_backup;
+        CREATE INDEX idx_community_item_images_item_order
+          ON community_item_images(item_id, sort_order, id);
+
+        DROP TABLE community_likes_backup;
+        DROP TABLE community_item_images_backup;
+      `)
+    },
+  },
 ]

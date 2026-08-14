@@ -1,15 +1,41 @@
 import type Database from 'better-sqlite3'
 import { useGuideDatabase } from '../../utils/database'
 
-export const communityCategories = ['tools', 'skills', 'mcp', 'agent', 'plugin'] as const
+export const communityCategoryIcons = ['wrench', 'box', 'sliders-horizontal', 'bot', 'package', 'database', 'boxes', 'folder', 'sparkles', 'workflow'] as const
 export const communityStatuses = ['draft', 'published', 'archived'] as const
 
-export type CommunityCategory = typeof communityCategories[number]
+export type CommunityCategorySlug = string
+export type CommunityCategoryIcon = typeof communityCategoryIcons[number]
 export type CommunityStatus = typeof communityStatuses[number]
+
+export interface CommunityCategoryInput {
+  slug: string
+  name: string
+  icon_key?: CommunityCategoryIcon
+  description?: string
+  is_visible?: boolean
+  sort_order?: number
+}
+
+export type CommunityCategoryUpdateInput = Partial<Omit<CommunityCategoryInput, 'slug'>>
+
+export interface CommunityCategory {
+  id: number
+  slug: CommunityCategorySlug
+  name: string
+  icon_key: CommunityCategoryIcon
+  description: string
+  is_visible: boolean
+  sort_order: number
+  item_count: number
+  published_count: number
+  created_at: string
+  updated_at: string
+}
 
 export interface CommunityItemInput {
   slug: string
-  category: CommunityCategory
+  category: CommunityCategorySlug
   name: string
   summary: string
   description_md?: string
@@ -41,7 +67,8 @@ export interface CommunityImage {
 export interface CommunityItem {
   id: number
   slug: string
-  category: CommunityCategory
+  category: CommunityCategorySlug
+  category_name: string
   name: string
   summary: string
   description_md: string
@@ -61,7 +88,7 @@ export interface CommunityItem {
 }
 
 interface CommunityListOptions {
-  category?: CommunityCategory
+  category?: CommunityCategorySlug
   query?: string
   sort?: 'recommended' | 'popular' | 'recent'
   userId?: string | null
@@ -71,7 +98,8 @@ function itemFromRow(row: Record<string, unknown>, images: CommunityImage[] = []
   return {
     id: Number(row.id),
     slug: String(row.slug),
-    category: String(row.category) as CommunityCategory,
+    category: String(row.category),
+    category_name: String(row.category_name || row.category),
     name: String(row.name),
     summary: String(row.summary),
     description_md: String(row.description_md || ''),
@@ -91,12 +119,151 @@ function itemFromRow(row: Record<string, unknown>, images: CommunityImage[] = []
   }
 }
 
-export function isCommunityCategory(value: unknown): value is CommunityCategory {
-  return communityCategories.includes(value as CommunityCategory)
+function categoryFromRow(row: Record<string, unknown>): CommunityCategory {
+  return {
+    id: Number(row.id),
+    slug: String(row.slug),
+    name: String(row.name),
+    icon_key: String(row.icon_key) as CommunityCategoryIcon,
+    description: String(row.description || ''),
+    is_visible: Boolean(row.is_visible),
+    sort_order: Number(row.sort_order),
+    item_count: Number(row.item_count || 0),
+    published_count: Number(row.published_count || 0),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  }
+}
+
+export function isCommunityCategorySlug(value: unknown): value is CommunityCategorySlug {
+  return typeof value === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value.length <= 80 && value !== 'all'
 }
 
 export function isCommunityStatus(value: unknown): value is CommunityStatus {
   return communityStatuses.includes(value as CommunityStatus)
+}
+
+export function listPublicCommunityCategories() {
+  const rows = useGuideDatabase().prepare(`
+    SELECT c.*,
+      COUNT(i.id) AS item_count,
+      SUM(CASE WHEN i.status = 'published' THEN 1 ELSE 0 END) AS published_count
+    FROM community_categories c
+    LEFT JOIN community_items i ON i.category = c.slug
+    WHERE c.is_visible = 1
+    GROUP BY c.id
+    ORDER BY c.sort_order ASC, c.name COLLATE NOCASE ASC
+  `).all() as Array<Record<string, unknown>>
+  return rows.map(categoryFromRow)
+}
+
+export function listAdminCommunityCategories() {
+  const rows = useGuideDatabase().prepare(`
+    SELECT c.*,
+      COUNT(i.id) AS item_count,
+      SUM(CASE WHEN i.status = 'published' THEN 1 ELSE 0 END) AS published_count
+    FROM community_categories c
+    LEFT JOIN community_items i ON i.category = c.slug
+    GROUP BY c.id
+    ORDER BY c.sort_order ASC, c.name COLLATE NOCASE ASC
+  `).all() as Array<Record<string, unknown>>
+  return rows.map(categoryFromRow)
+}
+
+export function getCommunityCategoryBySlug(slug: string, includeHidden = false) {
+  const row = useGuideDatabase().prepare(`
+    SELECT c.*,
+      COUNT(i.id) AS item_count,
+      SUM(CASE WHEN i.status = 'published' THEN 1 ELSE 0 END) AS published_count
+    FROM community_categories c
+    LEFT JOIN community_items i ON i.category = c.slug
+    WHERE c.slug = @slug ${includeHidden ? '' : 'AND c.is_visible = 1'}
+    GROUP BY c.id
+  `).get({ slug }) as Record<string, unknown> | undefined
+  return row ? categoryFromRow(row) : null
+}
+
+export function createCommunityCategory(input: CommunityCategoryInput) {
+  const db = useGuideDatabase()
+  const normalized = normalizeCommunityCategoryInput(input)
+  const now = new Date().toISOString()
+  const result = db.prepare(`
+    INSERT INTO community_categories (
+      slug, name, icon_key, description, is_visible, sort_order, created_at, updated_at
+    ) VALUES (
+      @slug, @name, @icon_key, @description, @is_visible, @sort_order, @created_at, @updated_at
+    )
+  `).run({
+    ...normalized,
+    is_visible: normalized.is_visible ? 1 : 0,
+    created_at: now,
+    updated_at: now,
+  })
+  return getCommunityCategoryById(Number(result.lastInsertRowid))
+}
+
+export function updateCommunityCategory(id: number, input: CommunityCategoryUpdateInput) {
+  const db = useGuideDatabase()
+  const existing = getCommunityCategoryById(id)
+  if (!existing) return null
+  const normalized = normalizeCommunityCategoryInput({
+    slug: existing.slug,
+    name: input.name ?? existing.name,
+    icon_key: input.icon_key ?? existing.icon_key,
+    description: input.description ?? existing.description,
+    is_visible: input.is_visible ?? existing.is_visible,
+    sort_order: input.sort_order ?? existing.sort_order,
+  })
+  db.prepare(`
+    UPDATE community_categories
+    SET name = @name, icon_key = @icon_key, description = @description,
+        is_visible = @is_visible, sort_order = @sort_order, updated_at = @updated_at
+    WHERE id = @id
+  `).run({
+    ...normalized,
+    id,
+    is_visible: normalized.is_visible ? 1 : 0,
+    updated_at: new Date().toISOString(),
+  })
+  return getCommunityCategoryById(id)
+}
+
+export function deleteCommunityCategory(id: number, replacementId?: number | null) {
+  const db = useGuideDatabase()
+  const category = getCommunityCategoryById(id)
+  if (!category) return null
+  const categoryCount = Number((db.prepare('SELECT COUNT(*) AS count FROM community_categories').get() as { count: number }).count)
+  if (categoryCount <= 1) throw new Error('至少需要保留一个社区分类。')
+
+  let replacement: CommunityCategory | null = null
+  if (category.item_count > 0) {
+    if (!replacementId || replacementId === id) throw new Error('该分类下还有条目，请选择迁移目标分类。')
+    replacement = getCommunityCategoryById(replacementId)
+    if (!replacement) throw new Error('迁移目标分类不存在。')
+  }
+
+  const apply = db.transaction(() => {
+    if (replacement) {
+      db.prepare('UPDATE community_items SET category = ?, updated_at = ? WHERE category = ?')
+        .run(replacement.slug, new Date().toISOString(), category.slug)
+    }
+    db.prepare('DELETE FROM community_categories WHERE id = ?').run(id)
+  })
+  apply()
+  return { id, moved_to: replacement?.slug || null }
+}
+
+function getCommunityCategoryById(id: number) {
+  const row = useGuideDatabase().prepare(`
+    SELECT c.*,
+      COUNT(i.id) AS item_count,
+      SUM(CASE WHEN i.status = 'published' THEN 1 ELSE 0 END) AS published_count
+    FROM community_categories c
+    LEFT JOIN community_items i ON i.category = c.slug
+    WHERE c.id = ?
+    GROUP BY c.id
+  `).get(id) as Record<string, unknown> | undefined
+  return row ? categoryFromRow(row) : null
 }
 
 export function listPublishedCommunityItems(options: CommunityListOptions = {}) {
@@ -118,12 +285,13 @@ export function listPublishedCommunityItems(options: CommunityListOptions = {}) 
       ? 'COALESCE(i.published_at, i.created_at) DESC, i.id DESC'
       : 'i.is_featured DESC, i.sort_order ASC, i.like_count DESC, i.name COLLATE NOCASE ASC'
   const rows = db.prepare(`
-    SELECT i.*,
+    SELECT i.*, c.name AS category_name,
       EXISTS(
         SELECT 1 FROM community_likes l
         WHERE l.item_id = i.id AND l.user_id = @user_id
       ) AS liked
     FROM community_items i
+    INNER JOIN community_categories c ON c.slug = i.category AND c.is_visible = 1
     WHERE ${conditions.join(' AND ')}
     ORDER BY ${orderBy}
   `).all(params) as Array<Record<string, unknown>>
@@ -131,41 +299,45 @@ export function listPublishedCommunityItems(options: CommunityListOptions = {}) 
   return {
     items: rows.map(row => itemFromRow(row)),
     counts: publicCategoryCounts(db),
+    categories: listPublicCommunityCategories(),
   }
 }
 
 export function listAdminCommunityItems() {
   const db = useGuideDatabase()
   const rows = useGuideDatabase().prepare(`
-    SELECT i.*, 0 AS liked
+    SELECT i.*, c.name AS category_name, 0 AS liked
     FROM community_items i
-    ORDER BY i.category ASC, i.sort_order ASC, i.created_at DESC
+    INNER JOIN community_categories c ON c.slug = i.category
+    ORDER BY c.sort_order ASC, i.sort_order ASC, i.created_at DESC
   `).all() as Array<Record<string, unknown>>
   return rows.map(row => itemFromRow(row, listCommunityImages(db, Number(row.id))))
 }
 
 export function getCommunityItem(id: number, includeUnpublished = false, userId?: string | null) {
   const row = useGuideDatabase().prepare(`
-    SELECT i.*,
+    SELECT i.*, c.name AS category_name,
       EXISTS(
         SELECT 1 FROM community_likes l
         WHERE l.item_id = i.id AND l.user_id = @user_id
       ) AS liked
     FROM community_items i
+    INNER JOIN community_categories c ON c.slug = i.category
     WHERE i.id = @id ${includeUnpublished ? '' : "AND i.status = 'published'"}
   `).get({ id, user_id: userId || '' }) as Record<string, unknown> | undefined
   return row ? itemFromRow(row, listCommunityImages(useGuideDatabase(), Number(row.id))) : null
 }
 
-export function getCommunityItemBySlug(category: CommunityCategory, slug: string, userId?: string | null) {
+export function getCommunityItemBySlug(category: CommunityCategorySlug, slug: string, userId?: string | null) {
   const db = useGuideDatabase()
   const row = db.prepare(`
-    SELECT i.*,
+    SELECT i.*, c.name AS category_name,
       EXISTS(
         SELECT 1 FROM community_likes l
         WHERE l.item_id = i.id AND l.user_id = @user_id
       ) AS liked
     FROM community_items i
+    INNER JOIN community_categories c ON c.slug = i.category AND c.is_visible = 1
     WHERE i.category = @category AND i.slug = @slug AND i.status = 'published'
   `).get({ category, slug, user_id: userId || '' }) as Record<string, unknown> | undefined
   return row ? itemFromRow(row, listCommunityImages(db, Number(row.id))) : null
@@ -173,11 +345,12 @@ export function getCommunityItemBySlug(category: CommunityCategory, slug: string
 
 export function listPublishedCommunityPaths() {
   return useGuideDatabase().prepare(`
-    SELECT category, slug
-    FROM community_items
-    WHERE status = 'published'
-    ORDER BY category ASC, sort_order ASC, id ASC
-  `).all() as Array<{ category: CommunityCategory, slug: string }>
+    SELECT i.category, i.slug
+    FROM community_items i
+    INNER JOIN community_categories c ON c.slug = i.category AND c.is_visible = 1
+    WHERE i.status = 'published'
+    ORDER BY c.sort_order ASC, i.sort_order ASC, i.id ASC
+  `).all() as Array<{ category: CommunityCategorySlug, slug: string }>
 }
 
 export function createCommunityItem(input: CommunityItemInput) {
@@ -213,7 +386,7 @@ export function updateCommunityItem(id: number, input: Partial<CommunityItemInpu
   if (!existing) return null
   const normalized = normalizeCommunityInput({
     slug: input.slug ?? String(existing.slug),
-    category: input.category ?? String(existing.category) as CommunityCategory,
+    category: input.category ?? String(existing.category),
     name: input.name ?? String(existing.name),
     summary: input.summary ?? String(existing.summary),
     description_md: input.description_md ?? String(existing.description_md || ''),
@@ -295,18 +468,43 @@ export function recountCommunityLikes() {
 }
 
 function publicCategoryCounts(db: Database.Database) {
-  const counts: Record<CommunityCategory | 'all', number> = { all: 0, tools: 0, skills: 0, mcp: 0, agent: 0, plugin: 0 }
+  const counts: Record<string, number> = { all: 0 }
   const rows = db.prepare(`
-    SELECT category, COUNT(*) AS count
-    FROM community_items
-    WHERE status = 'published'
-    GROUP BY category
-  `).all() as Array<{ category: CommunityCategory, count: number }>
+    SELECT c.slug AS category, COUNT(i.id) AS count
+    FROM community_categories c
+    LEFT JOIN community_items i ON i.category = c.slug AND i.status = 'published'
+    WHERE c.is_visible = 1
+    GROUP BY c.id
+    ORDER BY c.sort_order ASC, c.name COLLATE NOCASE ASC
+  `).all() as Array<{ category: string, count: number }>
   for (const row of rows) {
     counts[row.category] = Number(row.count)
-    counts.all += Number(row.count)
+    counts.all = (counts.all || 0) + Number(row.count)
   }
   return counts
+}
+
+function normalizeCommunityCategoryInput(input: CommunityCategoryInput) {
+  const slug = String(input.slug || '').trim().toLowerCase()
+  const name = String(input.name || '').trim()
+  const iconKey = input.icon_key || 'box'
+  const description = String(input.description || '').trim()
+  const sortOrder = Number(input.sort_order ?? 1000)
+  if (!isCommunityCategorySlug(slug)) throw new Error('分类 Slug 只能使用小写字母、数字和短横线，且不能使用 all。')
+  if (!name || name.length > 40) throw new Error('分类名称不能为空且不能超过 40 个字符。')
+  if (!communityCategoryIcons.includes(iconKey)) throw new Error('分类图标无效。')
+  if (description.length > 240) throw new Error('分类简介不能超过 240 个字符。')
+  if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 1_000_000) {
+    throw new Error('分类排序值必须是 0-1000000 之间的整数。')
+  }
+  return {
+    slug,
+    name,
+    icon_key: iconKey,
+    description,
+    is_visible: input.is_visible === true,
+    sort_order: sortOrder,
+  }
 }
 
 function normalizeCommunityInput(input: CommunityItemInput) {
@@ -318,7 +516,7 @@ function normalizeCommunityInput(input: CommunityItemInput) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 80) {
     throw new Error('Slug 只能使用小写字母、数字和短横线，且不能超过 80 个字符。')
   }
-  if (!isCommunityCategory(category)) throw new Error('社区分类无效。')
+  if (!isCommunityCategorySlug(category) || !getCommunityCategoryBySlug(category, true)) throw new Error('社区分类无效。')
   if (!name || name.length > 80) throw new Error('名称不能为空且不能超过 80 个字符。')
   if (summary.length < 10 || summary.length > 500) throw new Error('简介需要 10-500 个字符。')
   if (!isCommunityStatus(status)) throw new Error('发布状态无效。')

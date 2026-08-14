@@ -25,7 +25,7 @@ const navigation = [
   { label: '自动安装', to: '/install', icon: PackageOpen, paths: ['/install'] },
   { label: '模型价格', to: '/pricing', icon: BadgeDollarSign, paths: ['/pricing'] },
   { label: '使用工作台', to: '/playground', icon: FlaskConical, paths: ['/playground'] },
-  { label: '社区', to: '/community', icon: Boxes, paths: ['/community', '/community/tools', '/community/skills', '/community/mcp', '/community/agent', '/community/plugin'] },
+  { label: '社区', to: '/community', icon: Boxes, paths: ['/community'], prefix: '/community' },
   { label: '反馈', to: '/feedback', icon: MessageSquareText, paths: ['/feedback'] },
 ]
 
@@ -42,8 +42,8 @@ watch(() => site.value.logo_path, () => {
 onMounted(scheduleLogoFallback)
 onBeforeUnmount(() => clearTimeout(logoFallbackTimer))
 
-function isActive(paths: string[]) {
-  return paths.includes(route.path)
+function isActive(paths: string[], prefix?: string) {
+  return paths.includes(route.path) || Boolean(prefix && route.path.startsWith(`${prefix}/`))
 }
 
 function handleLogoError() {
@@ -76,7 +76,7 @@ function scheduleLogoFallback() {
             v-for="item in navigation"
             :key="item.to"
             :to="item.to"
-            :aria-current="isActive(item.paths) ? 'page' : undefined"
+            :aria-current="isActive(item.paths, item.prefix) ? 'page' : undefined"
           >
             <component :is="item.icon" :size="17" />
             <span>{{ item.label }}</span>

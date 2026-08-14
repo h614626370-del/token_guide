@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, BadgeDollarSign, BarChart3, Boxes, FileText, Home, Images, LayoutDashboard, LogOut, Mail, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
+import { ArrowLeft, BadgeDollarSign, BarChart3, Boxes, FileText, FolderTree, Home, Images, LayoutDashboard, List, LogOut, Mail, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
 import { PackageOpen } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -15,7 +15,12 @@ const links = [
   { label: '脚本配置', to: '/admin/installers', icon: PackageOpen },
   { label: '价格配置', to: '/admin/pricing', icon: BadgeDollarSign },
   { label: '反馈处理', to: '/admin/feedback', icon: MessageSquareText },
-  { label: '社区管理', to: '/admin/community', icon: Boxes },
+  {
+    label: '社区管理', icon: Boxes, children: [
+      { label: '分类管理', to: '/admin/community/categories', icon: FolderTree },
+      { label: '条目管理', to: '/admin/community/items', icon: List },
+    ],
+  },
   { label: '推广统计', to: '/admin/promotions', icon: BarChart3 },
   { label: '系统更新', to: '/admin/update', icon: RefreshCcw },
 ]
@@ -23,6 +28,14 @@ const links = [
 async function logout() {
   await admin.logout()
   await navigateTo('/admin')
+}
+
+function isActive(to: string) {
+  return route.path === to
+}
+
+function isGroupActive(item: { children?: Array<{ to: string }> }) {
+  return item.children?.some(child => route.path === child.to) || false
 }
 </script>
 
@@ -34,10 +47,19 @@ async function logout() {
         <span>{{ site.project_name }}管理</span>
       </NuxtLink>
       <nav aria-label="管理员导航">
-        <NuxtLink v-for="item in links" :key="item.to" :to="item.to" :aria-current="route.path === item.to ? 'page' : undefined">
-          <component :is="item.icon" :size="17" />
-          {{ item.label }}
-        </NuxtLink>
+        <template v-for="item in links" :key="item.label">
+          <div v-if="item.children" :class="['admin-nav-group', { active: isGroupActive(item) }]">
+            <div class="admin-nav-group__label"><component :is="item.icon" :size="17" /><span>{{ item.label }}</span></div>
+            <NuxtLink v-for="child in item.children" :key="child.to" class="admin-nav-child" :to="child.to" :aria-current="isActive(child.to) ? 'page' : undefined" :title="child.label">
+              <component :is="child.icon" :size="16" />
+              <span>{{ child.label }}</span>
+            </NuxtLink>
+          </div>
+          <NuxtLink v-else :to="item.to" :aria-current="isActive(item.to!) ? 'page' : undefined" :title="item.label">
+            <component :is="item.icon" :size="17" />
+            <span>{{ item.label }}</span>
+          </NuxtLink>
+        </template>
       </nav>
       <div class="admin-sidebar__foot">
         <NuxtLink to="/"><ArrowLeft :size="16" /> 返回站点</NuxtLink>

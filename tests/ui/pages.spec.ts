@@ -21,7 +21,8 @@ const routes = [
   ['admin-installers', '/admin/installers'],
   ['admin-pricing', '/admin/pricing'],
   ['admin-homepage', '/admin/homepage'],
-  ['admin-community', '/admin/community'],
+  ['admin-community-categories', '/admin/community/categories'],
+  ['admin-community-items', '/admin/community/items'],
   ['admin-promotions', '/admin/promotions'],
 ] as const
 
@@ -207,36 +208,78 @@ test('community directory supports search and category navigation', async ({ pag
 
 })
 
-test('administrator can create, edit, archive, publish and delete a community item', async ({ page }) => {
-  const slug = `ui-community-${Date.now()}`
-  await page.goto('/admin/community', { waitUntil: 'networkidle' })
+test('administrator can create, edit and delete a community category', async ({ page }) => {
+  const slug = `ui-category-${Date.now()}`
+  await page.goto('/admin/community/categories', { waitUntil: 'networkidle' })
   await page.getByLabel('管理员 Token').fill('playwright-admin-token')
   await page.getByRole('button', { name: '登录', exact: true }).click()
-  await expect(page.getByRole('heading', { level: 1, name: '社区管理' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '社区分类管理' })).toBeVisible()
 
-  await page.getByLabel('名称').fill('UI 社区测试条目')
+  await page.getByRole('button', { name: '新增分类' }).click()
+  await expect(page.getByRole('dialog', { name: '新增分类' })).toBeVisible()
+  await page.getByLabel('分类名称').fill('UI 分类')
   await page.getByLabel('Slug').fill(slug)
-  await page.getByRole('combobox', { name: '社区分类' }).selectOption('mcp')
-  await page.getByLabel('简介').fill('这是一个用于验证社区管理完整交互流程的测试条目。')
-  await page.getByLabel('官方地址').fill('https://example.com/ui-community')
-  await page.getByLabel('标签').fill('UI, MCP')
-  await page.getByLabel('兼容对象').fill('测试环境')
-  await page.getByLabel('详细介绍（可选 Markdown）').fill('## 使用说明\n\n这是详情页内容。')
-  const preview = page.locator('.community-card--preview')
+  await page.getByLabel('分类图标').selectOption('database')
+  await page.getByLabel('分类简介').fill('用于验证社区分类管理交互。')
+  await page.getByLabel('在前台显示分类和已发布条目').check()
+  await page.getByRole('button', { name: '创建分类' }).click()
+
+  const row = page.locator('.community-category-rows > article').filter({ hasText: slug })
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('前台显示')
+  await row.getByTitle('编辑分类').click()
+  await expect(page.getByRole('dialog', { name: '编辑分类' })).toBeVisible()
+  await page.getByLabel('分类名称').fill('UI 分类（已编辑）')
+  await page.getByRole('button', { name: '保存修改' }).click()
+  await expect(row).toContainText('UI 分类（已编辑）')
+
+  await row.getByTitle('删除分类').click()
+  await page.getByRole('button', { name: '确认删除' }).click()
+  await expect(page.locator('.community-category-rows > article').filter({ hasText: slug })).toHaveCount(0)
+})
+
+test('administrator can create, edit, archive, publish and delete a community item', async ({ page }, testInfo) => {
+  const slug = `ui-community-${Date.now()}`
+  await page.goto('/admin/community/items', { waitUntil: 'networkidle' })
+  await page.getByLabel('管理员 Token').fill('playwright-admin-token')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '社区条目管理' })).toBeVisible()
+  await page.screenshot({ path: join('artifacts', 'ui', `${testInfo.project.name}-admin-community-items-list.png`) })
+
+  await page.getByRole('button', { name: '新增条目' }).click()
+  const createDialog = page.getByRole('dialog', { name: '新增条目' })
+  await expect(createDialog).toBeVisible()
+  const drawerLayout = await page.evaluate(() => ({
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: document.documentElement.clientWidth,
+  }))
+  expect(drawerLayout.documentWidth).toBeLessThanOrEqual(drawerLayout.viewportWidth + 1)
+  await page.screenshot({ path: join('artifacts', 'ui', `${testInfo.project.name}-admin-community-items-drawer.png`) })
+  await createDialog.getByLabel('名称').fill('UI 社区测试条目')
+  await createDialog.getByLabel('Slug').fill(slug)
+  await createDialog.getByRole('combobox', { name: '社区分类' }).selectOption('mcp')
+  await createDialog.getByLabel('简介').fill('这是一个用于验证社区管理完整交互流程的测试条目。')
+  await createDialog.getByLabel('官方地址').fill('https://example.com/ui-community')
+  await createDialog.getByLabel('标签').fill('UI, MCP')
+  await createDialog.getByLabel('兼容对象').fill('测试环境')
+  await createDialog.getByLabel('详细介绍（可选 Markdown）').fill('## 使用说明\n\n这是详情页内容。')
+  await createDialog.getByRole('button', { name: '实时预览' }).click()
+  const preview = createDialog.locator('.community-card--preview')
   await expect(preview).toContainText('UI 社区测试条目')
   await expect(preview).toContainText('这是一个用于验证社区管理完整交互流程的测试条目。')
   await expect(preview).toContainText('UI')
   await expect(preview).toContainText('测试环境')
-  await page.getByRole('button', { name: '创建条目' }).click()
+  await createDialog.getByRole('button', { name: '创建条目' }).click()
 
   const row = page.locator('.community-admin-rows > article').filter({ hasText: slug })
   await expect(row).toBeVisible()
   await expect(row).toContainText('草稿')
 
   await row.getByTitle('编辑').click()
-  await expect(page.getByRole('heading', { level: 2, name: '编辑条目' })).toBeVisible()
-  await page.getByLabel('名称').fill('UI 社区测试条目（已编辑）')
-  await page.getByRole('button', { name: '保存修改' }).click()
+  const editDialog = page.getByRole('dialog', { name: '编辑条目' })
+  await expect(editDialog).toBeVisible()
+  await editDialog.getByLabel('名称').fill('UI 社区测试条目（已编辑）')
+  await editDialog.getByRole('button', { name: '保存修改' }).click()
   await expect(row).toContainText('UI 社区测试条目（已编辑）')
 
   await row.getByTitle('发布').click()
@@ -244,21 +287,25 @@ test('administrator can create, edit, archive, publish and delete a community it
   const publicHref = await page.getByRole('link', { name: '查看前台' }).getAttribute('href')
   expect(publicHref).toBe('/community')
   await page.goto(publicHref!, { waitUntil: 'networkidle' })
-  const publicRow = page.locator('.community-card').filter({ hasText: 'UI 社区测试条目（已编辑）' })
-  await expect(publicRow).toBeVisible()
-  await publicRow.click()
-  await expect(page).toHaveURL(new RegExp(`/community/mcp/${slug}$`))
+  const publicLink = page.locator(`a[href="/community/mcp/${slug}"]`)
+  await expect(publicLink).toBeVisible()
+  await Promise.all([
+    page.waitForURL(new RegExp(`/community/mcp/${slug}$`)),
+    publicLink.click(),
+  ])
+  await page.waitForLoadState('networkidle')
   await expect(page.locator('.community-detail-content')).toContainText('详情页内容')
-  await page.goto('/admin/community', { waitUntil: 'networkidle' })
-  await expect(page.getByRole('heading', { level: 1, name: '社区管理' })).toBeVisible()
+  await page.goto('/admin/community/items', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('heading', { level: 1, name: '社区条目管理' })).toBeVisible()
+  await page.getByRole('searchbox', { name: '搜索社区条目' }).fill(slug)
 
   const currentRow = page.locator('.community-admin-rows > article').filter({ hasText: slug })
   await currentRow.getByTitle('归档').click()
   await expect(currentRow).toContainText('已归档')
   await currentRow.getByTitle('发布').click()
   await expect(currentRow).toContainText('已发布')
-  page.once('dialog', dialog => dialog.accept())
   await currentRow.getByTitle('删除').click()
+  await page.getByRole('button', { name: '确认删除' }).click()
   await expect(page.locator('.community-admin-rows > article').filter({ hasText: slug })).toHaveCount(0)
 })
 

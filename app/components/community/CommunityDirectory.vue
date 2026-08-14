@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ArrowUpRight, Bot, Box, Heart, Package, Search, SlidersHorizontal, Sparkles, Wrench } from 'lucide-vue-next'
+import { ArrowUpRight, Heart, Search } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
-import type { CommunityCategory, CommunityCounts, CommunityItem } from '~/types/community'
+import type { CommunityCategory, CommunityCategoryIcon, CommunityCounts, CommunityItem } from '~/types/community'
 
-const props = defineProps<{ category?: CommunityCategory }>()
+const props = defineProps<{ category?: string }>()
 const site = useSiteConfigState()
 const guideSession = useGuideSessionState()
 const query = ref('')
@@ -17,16 +17,7 @@ const loadError = ref<unknown>(null)
 let loadSequence = 0
 let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined
 
-const categories: Array<{ key: CommunityCategory | 'all', label: string, to: string, icon: typeof Wrench }> = [
-  { key: 'all', label: '全部', to: '/community', icon: Sparkles },
-  { key: 'tools', label: '开源工具', to: '/community/tools', icon: Wrench },
-  { key: 'skills', label: 'Skills', to: '/community/skills', icon: Box },
-  { key: 'mcp', label: 'MCP', to: '/community/mcp', icon: SlidersHorizontal },
-  { key: 'agent', label: 'Agent', to: '/community/agent', icon: Bot },
-  { key: 'plugin', label: 'Plugin', to: '/community/plugin', icon: Package },
-]
-
-const activeCategory = computed<CommunityCategory | 'all'>(() => props.category || 'all')
+const activeCategory = computed(() => props.category || 'all')
 const requestQuery = computed(() => ({
   ...(props.category ? { category: props.category } : {}),
   ...(query.value.trim() ? { q: query.value.trim() } : {}),
@@ -37,14 +28,17 @@ const { data: initialData } = await useAsyncData<ApiSuccess<CommunityItem[]>>(
   () => $fetch<ApiSuccess<CommunityItem[]>>('/api/community/items', { query: requestQuery.value }),
 )
 const items = ref<CommunityItem[]>(initialData.value?.data || [])
-const counts = ref<CommunityCounts>((initialData.value?.meta?.counts as CommunityCounts | undefined) || {
-  all: 0,
-  tools: 0,
-  skills: 0,
-  mcp: 0,
-  agent: 0,
-  plugin: 0,
-})
+const categories = ref<CommunityCategory[]>((initialData.value?.meta?.categories as CommunityCategory[] | undefined) || [])
+const counts = ref<CommunityCounts>((initialData.value?.meta?.counts as CommunityCounts | undefined) || { all: 0 })
+const tabs = computed<Array<{ key: string, label: string, to: string, icon_key: CommunityCategoryIcon }>>(() => [
+  { key: 'all', label: '全部', to: '/community', icon_key: 'sparkles' },
+  ...categories.value.map(category => ({
+    key: category.slug,
+    label: category.name,
+    to: `/community/${category.slug}`,
+    icon_key: category.icon_key,
+  })),
+])
 const authenticated = computed(() => guideSession.initialized.value
   ? Boolean(guideSession.session.value?.authenticated)
   : Boolean(initialData.value?.meta?.authenticated))
@@ -58,6 +52,7 @@ async function loadItems() {
     if (sequence !== loadSequence) return
     items.value = response.data
     counts.value = (response.meta?.counts as CommunityCounts | undefined) || counts.value
+    categories.value = (response.meta?.categories as CommunityCategory[] | undefined) || categories.value
   } catch (cause) {
     if (sequence !== loadSequence) return
     loadError.value = cause
@@ -116,8 +111,8 @@ function handleIconError(item: CommunityItem) {
 }
 
 useSeoMeta({
-  title: props.category ? `${categories.find(item => item.key === props.category)?.label} - 社区` : '社区',
-  description: `浏览 ${site.value.project_name} 社区整理的开源工具、Skills、MCP、Agent 与 Plugin。`,
+  title: props.category ? `${categories.value.find(item => item.slug === props.category)?.name || '分类'} - 社区` : '社区',
+  description: `浏览 ${site.value.project_name} 社区整理的工具、扩展与 Agent 资源。`,
 })
 </script>
 
@@ -128,7 +123,7 @@ useSeoMeta({
         <div>
           <span>Community directory</span>
           <h1>社区资源库</h1>
-          <p>发现值得关注的开源工具、Skills、MCP、Agent 与 Plugin。</p>
+          <p>发现值得关注的工具、扩展与 Agent 资源。</p>
         </div>
         <div class="community-heading__stat">
           <strong>{{ counts.all }}</strong>
@@ -138,12 +133,12 @@ useSeoMeta({
 
       <nav class="community-tabs" aria-label="社区分类">
         <NuxtLink
-          v-for="item in categories"
+          v-for="item in tabs"
           :key="item.key"
           :to="item.to"
           :aria-current="activeCategory === item.key ? 'page' : undefined"
         >
-          <component :is="item.icon" :size="17" />
+          <CommunityCategoryIcon :icon-key="item.icon_key" :size="17" />
           <span>{{ item.label }}</span>
           <small>{{ counts[item.key] }}</small>
         </NuxtLink>
@@ -182,7 +177,7 @@ useSeoMeta({
                 <h2>{{ item.name }}</h2>
                 <span v-if="item.is_featured">精选</span>
               </div>
-              <small>{{ categories.find(category => category.key === item.category)?.label }}</small>
+              <small>{{ item.category_name }}</small>
             </div>
           </header>
 

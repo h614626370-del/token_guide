@@ -1,5 +1,20 @@
-export type CommunityCategory = 'tools' | 'skills' | 'mcp' | 'agent' | 'plugin'
+export type CommunityCategorySlug = string
+export type CommunityCategoryIcon = 'wrench' | 'box' | 'sliders-horizontal' | 'bot' | 'package' | 'database' | 'boxes' | 'folder' | 'sparkles' | 'workflow'
 export type CommunityStatus = 'draft' | 'published' | 'archived'
+
+export interface CommunityCategory {
+  id: number
+  slug: CommunityCategorySlug
+  name: string
+  icon_key: CommunityCategoryIcon
+  description: string
+  is_visible: boolean
+  sort_order: number
+  item_count: number
+  published_count: number
+  created_at: string
+  updated_at: string
+}
 
 export interface CommunityImage {
   id?: number
@@ -12,7 +27,8 @@ export interface CommunityImage {
 export interface CommunityItem {
   id: number
   slug: string
-  category: CommunityCategory
+  category: CommunityCategorySlug
+  category_name: string
   name: string
   summary: string
   description_md: string
@@ -31,11 +47,4 @@ export interface CommunityItem {
   images: CommunityImage[]
 }
 
-export interface CommunityCounts {
-  all: number
-  tools: number
-  skills: number
-  mcp: number
-  agent: number
-  plugin: number
-}
+export type CommunityCounts = Record<string, number>
