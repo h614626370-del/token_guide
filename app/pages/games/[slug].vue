@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, ArrowUpRight, ExternalLink, Gamepad2, Users } from 'lucide-vue-next'
+import { ArrowLeft, ExternalLink, Gamepad2, RefreshCcw, Users } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import type { GameItem } from '~/types/games'
 
@@ -8,6 +8,12 @@ const slug = String(route.params.slug || '')
 const sessionKey = `guide-game-presence:${slug}`
 const gameSession = ref('')
 const onlineCount = ref(0)
+const gameFrame = ref<HTMLIFrameElement | null>(null)
+const gameDifficulty = ref('standard')
+const gameStatus = ref('你的回合 · 黑棋')
+const gameMoveCount = ref(0)
+const gameState = ref('ready')
+const gameFrameVersion = ref(0)
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined
 
 const { data, error } = await useAsyncData<ApiSuccess<GameItem>>(
@@ -15,6 +21,12 @@ const { data, error } = await useAsyncData<ApiSuccess<GameItem>>(
   () => $fetch<ApiSuccess<GameItem>>(`/api/games/${slug}`),
 )
 const game = computed(() => data.value?.data || null)
+const isGobang = computed(() => game.value?.slug === 'gobang')
+const embedPlayPath = computed(() => {
+  const path = game.value?.play_path || ''
+  if (!isGobang.value) return path
+  return `${path}${path.includes('?') ? '&' : '?'}embed=1&v=${gameFrameVersion.value}`
+})
 
 if (error.value || !game.value) {
   throw createError({ statusCode: 404, statusMessage: '游戏不存在或尚未上架' })
@@ -42,12 +54,44 @@ onMounted(() => {
     if (document.visibilityState === 'visible') void sendHeartbeat()
   }, 30_000)
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('message', handleGameMessage)
 })
 
 onBeforeUnmount(() => {
   if (heartbeatTimer) clearInterval(heartbeatTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('message', handleGameMessage)
 })
+
+function postGameCommand(message: Record<string, string>) {
+  if (!isGobang.value) return
+  gameFrame.value?.contentWindow?.postMessage({ source: 'gobang-host', ...message }, window.location.origin)
+}
+
+function handleGameFrameLoad() {
+  if (!isGobang.value) return
+  postGameCommand({ type: 'set-difficulty', value: gameDifficulty.value })
+}
+
+function handleGameMessage(event: MessageEvent) {
+  if (!isGobang.value) return
+  if (event.origin !== window.location.origin || event.source !== gameFrame.value?.contentWindow) return
+  if (!event.data || event.data.source !== 'gobang' || event.data.type !== 'status') return
+  gameStatus.value = event.data.message
+  gameState.value = event.data.state || 'ready'
+  gameMoveCount.value = event.data.moveCount || 0
+}
+
+function restartEmbeddedGame() {
+  gameFrameVersion.value += 1
+  gameStatus.value = '你的回合 · 黑棋'
+  gameState.value = 'ready'
+  gameMoveCount.value = 0
+}
+
+function changeGameDifficulty() {
+  gameFrameVersion.value += 1
+}
 
 async function sendHeartbeat() {
   if (!game.value || !gameSession.value) return
@@ -81,8 +125,25 @@ function handleVisibilityChange() {
         <div class="game-detail-heading__online"><Users :size="17" /><strong>{{ onlineCount || game.online_count }}</strong><span>人在线</span></div>
       </header>
 
-      <section class="game-stage" aria-label="游戏区域">
-        <iframe :src="game.play_path" :title="`${game.name} 游戏`" loading="eager" allow="fullscreen" />
+      <section v-if="isGobang" class="game-host-controls" aria-label="对局控制">
+        <div class="game-host-controls__actions">
+          <label>难度
+            <select v-model="gameDifficulty" aria-label="选择难度" @change="changeGameDifficulty">
+              <option value="casual">休闲</option>
+              <option value="standard">标准</option>
+              <option value="challenge">挑战</option>
+            </select>
+          </label>
+          <button type="button" @click="restartEmbeddedGame"><RefreshCcw :size="15" />重新开始</button>
+        </div>
+        <div class="game-host-status" :data-state="gameState" role="status" aria-live="polite">
+          <strong>{{ gameStatus }}</strong>
+          <span>已落子 {{ gameMoveCount }} 手</span>
+        </div>
+      </section>
+
+      <section class="game-stage" :class="`game-stage--${game.slug}`" aria-label="游戏区域">
+        <iframe ref="gameFrame" :src="embedPlayPath" :title="`${game.name} 游戏`" loading="eager" allow="fullscreen" @load="handleGameFrameLoad" />
       </section>
 
       <div class="game-detail-layout">

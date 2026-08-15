@@ -2,27 +2,120 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-    <meta name="description" content="五子棋人机对战小游戏">
-    <title>五子棋人机对战</title>
-    <link rel="shortcut icon" href="favicon.png">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="本地 Minimax 五子棋对战">
+    <title>五子棋 · 本地对战</title>
+    <script>if (new URLSearchParams(window.location.search).get('embed') === '1') document.documentElement.classList.add('is-embedded')</script>
     <style>
-      :root { color-scheme: light; font-family: "Microsoft YaHei", sans-serif; }
+      :root {
+        color-scheme: light;
+        font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
+        color: #20302d;
+        background: #edf4f1;
+      }
+
       * { box-sizing: border-box; }
-      html, body { min-width: 320px; min-height: 100%; margin: 0; background: #eef4f1; color: #24312d; }
-      body { display: grid; min-height: 100vh; place-items: center; padding: 18px; }
-      .game-shell { width: min(100%, 1000px); padding: 18px; border: 1px solid #cfddd7; border-radius: 12px; background: #fff; box-shadow: 0 12px 34px rgba(24, 48, 40, .12); text-align: center; }
-      h1 { margin: 0 0 12px; font-size: clamp(20px, 4vw, 30px); }
-      canvas { display: block; width: min(100%, 960px); height: auto; margin: 0 auto; border: 1px solid #d3dbd8; border-radius: 6px; background: #529888; touch-action: none; }
-      p { margin: 12px 0 0; color: #687a73; font-size: 13px; }
+      html, body { min-width: 320px; min-height: 100%; height: 100%; margin: 0; }
+      body { display: grid; min-height: 100%; place-items: center; overflow: hidden; padding: 12px; }
+
+      .game-shell {
+        display: flex;
+        width: min(100%, 860px);
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        flex-direction: column;
+        padding: 22px;
+        border: 1px solid #cfddd7;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 10px 30px rgba(24, 48, 40, .12);
+      }
+
+      .game-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+      .game-header h1 { margin: 0; color: #1e2c2a; font-size: clamp(22px, 4vw, 32px); line-height: 1.15; }
+      .game-header p { margin: 7px 0 0; color: #687a73; font-size: 13px; line-height: 1.5; }
+      .game-actions { display: flex; align-items: center; gap: 8px; }
+      .game-actions label { display: grid; gap: 4px; color: #687a73; font-size: 11px; }
+      .game-actions select,
+      .game-actions button { height: 44px; border: 1px solid #cbd9d4; border-radius: 6px; background: #fff; color: #20302d; font: inherit; font-size: 12px; }
+      .game-actions select { padding: 0 8px; }
+      .game-actions button { padding: 0 12px; cursor: pointer; font-weight: 750; }
+      .game-actions button:hover { border-color: #4b9481; background: #f2faf7; }
+
+      .game-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; margin: 18px 0 12px; padding: 9px 12px; border: 1px solid #d9e6e1; border-radius: 6px; color: #356d5e; background: #f4faf7; font-size: 12px; }
+      .game-status strong { color: #1e5b4c; }
+      .game-status[data-state="thinking"] { color: #795a23; background: #fff9e9; }
+      .game-status[data-state="over"] { color: #1f4d42; background: #eaf6f0; }
+
+      .board-wrap { display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #c8d9d3; border-radius: 8px; background: #579c8c; }
+      canvas { display: block; width: 100%; height: auto; max-height: 100%; aspect-ratio: 1 / 1; touch-action: none; }
+      canvas:focus-visible { outline: 3px solid #f0b74d; outline-offset: -3px; }
+
+      .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; margin: -1px; padding: 0; border: 0; clip: rect(0 0 0 0); white-space: nowrap; }
+
+      .game-help { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 11px; color: #687a73; font-size: 11px; line-height: 1.5; }
+      .game-help span { display: inline-flex; align-items: center; gap: 6px; }
+      .stone { display: inline-block; width: 13px; height: 13px; border: 1px solid #bdcfca; border-radius: 50%; background: #182825; }
+      .stone--white { background: #f8fbfa; }
+      .last-move-key { display: inline-block; width: 14px; height: 14px; border: 2px solid #f0b74d; border-radius: 50%; box-shadow: 0 0 0 2px rgba(240,183,77,.18); }
+
+      html.is-embedded body { padding: 0; }
+      html.is-embedded .game-shell { width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+      html.is-embedded .game-header,
+      html.is-embedded .game-status { display: none; }
+      html.is-embedded .board-wrap { border: 0; border-radius: 0; }
+      html.is-embedded canvas { width: min(100%, calc(100vh - 32px)); height: auto; max-width: 100%; max-height: none; }
+      html.is-embedded .game-help { margin: 0; padding: 8px 14px; }
+
+      @media (max-width: 620px) {
+        body { padding: 10px; }
+        .game-shell { padding: 14px; }
+        .game-header { flex-direction: column; }
+        .game-actions { width: 100%; justify-content: space-between; }
+        .game-actions label { flex: 1; }
+        .game-actions select { width: 100%; }
+      }
     </style>
   </head>
   <body>
     <main class="game-shell">
-      <h1>五子棋人机对战</h1>
-      <canvas id="canvas" width="960" height="640">不支持画布</canvas>
-      <p>执黑棋者先行</p>
+      <header class="game-header">
+        <div>
+          <h1>五子棋 · 本地对战</h1>
+          <p>黑棋先行。电脑会计算进攻和防守，不需要联网或 API Key。</p>
+        </div>
+        <div class="game-actions">
+          <label>难度
+            <select id="difficulty" aria-label="选择难度">
+              <option value="casual">休闲</option>
+              <option value="standard" selected>标准</option>
+              <option value="challenge">挑战</option>
+            </select>
+          </label>
+          <button id="restart" type="button">重新开始</button>
+        </div>
+      </header>
+
+      <div id="status" class="game-status" data-state="ready" role="status" aria-live="polite">
+        <strong>你的回合 · 黑棋</strong>
+        <span>已落子 0 手</span>
+      </div>
+
+      <div class="board-wrap">
+        <canvas id="canvas" width="900" height="900" tabindex="0" role="application" aria-label="五子棋棋盘，15 列 15 行" aria-describedby="board-instructions">不支持画布</canvas>
+      </div>
+
+      <p id="board-instructions" class="sr-only">使用方向键移动棋盘光标，按回车或空格落下黑棋。</p>
+      <p id="board-announcer" class="sr-only" aria-live="polite"></p>
+
+      <div class="game-help">
+        <span><i class="stone" aria-hidden="true"></i>你的黑棋</span>
+        <span><i class="stone stone--white" aria-hidden="true"></i>电脑的白棋</span>
+        <span><i class="last-move-key" aria-hidden="true"></i>金色标记为最近一步</span>
+        <span>连成五子即可获胜</span>
+      </div>
     </main>
-    <script src="./dist/gobang.min.js"></script>
+    <script src="./gobang.js"></script>
   </body>
 </html>

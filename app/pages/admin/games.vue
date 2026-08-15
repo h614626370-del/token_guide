@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Archive, ExternalLink, Gamepad2, Pencil, Plus, RotateCcw, Save, Send, Trash2 } from 'lucide-vue-next'
+import { Archive, ExternalLink, Gamepad2, Pencil, Plus, Save, Send, Trash2, X } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { GameCategory, GameItem, GameStatus } from '~/types/games'
@@ -12,6 +12,8 @@ const items = ref<GameItem[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const editingId = ref<number | null>(null)
+const editorOpen = ref(false)
+const nameInput = ref<HTMLInputElement | null>(null)
 const categoryFilter = ref<GameCategory | 'all'>('all')
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 const form = reactive({
@@ -46,6 +48,16 @@ watch(() => admin.session.value?.admin, (authenticated) => {
   if (authenticated && !items.value.length) void loadGames()
 }, { immediate: true })
 
+watch(editorOpen, (open) => {
+  if (import.meta.client) document.body.style.overflow = open ? 'hidden' : ''
+})
+
+onMounted(() => window.addEventListener('keydown', handleEscape))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleEscape)
+  document.body.style.overflow = ''
+})
+
 async function loadGames() {
   loading.value = true
   try {
@@ -78,7 +90,7 @@ async function saveGame() {
     items.value.sort(compareItems)
     notice.type = 'success'
     notice.message = editingId.value ? '游戏条目已保存。' : '游戏条目已创建。'
-    resetForm()
+    closeEditor()
   } catch (cause) {
     showError(cause, '游戏条目保存失败。')
   } finally {
@@ -105,7 +117,25 @@ function editGame(game: GameItem) {
     is_featured: game.is_featured,
     sort_order: game.sort_order,
   })
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  editorOpen.value = true
+  clearNotice()
+  nextTick(() => nameInput.value?.focus())
+}
+
+function openCreate() {
+  resetForm()
+  editorOpen.value = true
+  clearNotice()
+  nextTick(() => nameInput.value?.focus())
+}
+
+function closeEditor() {
+  editorOpen.value = false
+  resetForm()
+}
+
+function handleEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape' && editorOpen.value && !saving.value) closeEditor()
 }
 
 function resetForm() {
@@ -135,7 +165,7 @@ async function removeGame(game: GameItem) {
   try {
     await $fetch(`/api/admin/games/${game.id}`, { method: 'DELETE' })
     items.value = items.value.filter(item => item.id !== game.id)
-    if (editingId.value === game.id) resetForm()
+    if (editingId.value === game.id) closeEditor()
     notice.type = 'success'
     notice.message = '游戏条目已删除。'
   } catch (cause) {
@@ -174,6 +204,7 @@ function showError(cause: unknown, fallback: string) {
         <h1>游戏管理</h1>
         <p>维护中文网页小游戏、分类、运行地址和上架状态。在线人数按最近 90 秒心跳估算。</p>
         <div class="admin-page-heading__actions">
+          <button class="primary-command" type="button" @click="openCreate"><Plus :size="16" />新增游戏</button>
           <NuxtLink class="secondary-command" to="/games" target="_blank"><ExternalLink :size="16" />查看前台</NuxtLink>
           <button class="secondary-command" type="button" :disabled="loading" @click="loadGames"><Gamepad2 :size="16" />{{ loading ? '读取中...' : '刷新' }}</button>
         </div>
@@ -186,31 +217,6 @@ function showError(cause: unknown, fallback: string) {
         <div><strong>{{ metrics.published }}</strong><span>已上架</span></div>
         <div><strong>{{ metrics.online }}</strong><span>当前在线</span></div>
         <div><strong>{{ metrics.featured }}</strong><span>精选游戏</span></div>
-      </section>
-
-      <section class="admin-section">
-        <header><h2>{{ editingId ? '编辑游戏' : '新增游戏' }}</h2><span>{{ editingId ? `ID ${editingId}` : '默认保存为草稿' }}</span></header>
-        <form class="games-editor-form" @submit.prevent="saveGame">
-          <label class="form-field"><span>名称</span><input v-model.trim="form.name" required maxlength="80" placeholder="例如 五子棋"></label>
-          <label class="form-field"><span>Slug</span><input v-model.trim="form.slug" required maxlength="80" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="gobang"></label>
-          <label class="form-field"><span>分类</span><select v-model="form.category" aria-label="游戏分类"><option value="board">棋类对战</option><option value="arcade">街机休闲</option><option value="puzzle">益智拼图</option><option value="training">训练工具</option><option value="adventure">冒险闯关</option></select></label>
-          <label class="form-field"><span>状态</span><select v-model="form.status" aria-label="游戏状态"><option value="draft">草稿</option><option value="published">已上架</option><option value="archived">已下架</option></select></label>
-          <label class="form-field games-editor-wide"><span>简介</span><textarea v-model.trim="form.summary" required minlength="10" maxlength="500" rows="3" placeholder="说明游戏怎么玩，以及适合什么场景。" /></label>
-          <label class="form-field games-editor-wide games-editor-description"><span>详细介绍（可选 Markdown）</span><textarea v-model="form.description_md" maxlength="30000" placeholder="可填写玩法、来源、许可证和注意事项。" /></label>
-          <label class="form-field"><span>官方地址</span><input v-model.trim="form.official_url" required type="url" maxlength="500" placeholder="https://github.com/owner/project"></label>
-          <label class="form-field"><span>站内运行地址</span><input v-model.trim="form.play_path" required maxlength="500" pattern="/games-static/.+\.html" placeholder="/games-static/gobang/index.html"></label>
-          <label class="form-field"><span>许可证</span><input v-model.trim="form.license" required maxlength="80" placeholder="MIT"></label>
-          <label class="form-field"><span>作者或来源</span><input v-model.trim="form.author" required maxlength="120" placeholder="作者名或组织名"></label>
-          <label class="form-field"><span>标签</span><input v-model="form.tags" maxlength="240" placeholder="中文, Phaser, 休闲"><small>使用逗号分隔，最多 8 个。</small></label>
-          <label class="form-field"><span>适合设备</span><input v-model.trim="form.compatibility" maxlength="120" placeholder="手机 / 电脑"></label>
-          <label class="form-field"><span>封面地址（可选）</span><input v-model.trim="form.cover_url" maxlength="800" placeholder="/uploads/game-cover.png"></label>
-          <label class="form-field"><span>排序</span><input v-model.number="form.sort_order" type="number" min="0" max="1000000" step="1"></label>
-          <label class="check-line"><input v-model="form.is_featured" type="checkbox" aria-label="精选游戏">优先展示</label>
-          <div class="community-editor-actions games-editor-wide">
-            <button v-if="editingId" class="secondary-command" type="button" @click="resetForm"><RotateCcw :size="16" />取消编辑</button>
-            <button class="primary-command" type="submit" :disabled="saving"><Save :size="16" />{{ saving ? '保存中...' : (editingId ? '保存修改' : '创建游戏') }}</button>
-          </div>
-        </form>
       </section>
 
       <section class="admin-section">
@@ -233,5 +239,68 @@ function showError(cause: unknown, fallback: string) {
         </div>
       </section>
     </div>
+
+    <Teleport to="body">
+      <div v-if="editorOpen" class="community-drawer-backdrop" @mousedown.self="closeEditor">
+        <aside class="community-item-drawer games-item-drawer" role="dialog" aria-modal="true" :aria-labelledby="editingId ? 'game-edit-title' : 'game-create-title'">
+          <header>
+            <div>
+              <span>{{ editingId ? `Game item · ID ${editingId}` : 'New game item' }}</span>
+              <h2 :id="editingId ? 'game-edit-title' : 'game-create-title'">{{ editingId ? '编辑游戏' : '新增游戏' }}</h2>
+              <p>编辑内容时列表保持原位，保存后自动返回当前筛选结果。</p>
+            </div>
+            <button class="icon-button" type="button" title="关闭编辑" :disabled="saving" @click="closeEditor"><X :size="18" /></button>
+          </header>
+
+          <form class="community-item-editor-form" @submit.prevent="saveGame">
+            <div class="community-item-drawer__body">
+              <div v-if="notice.message && notice.type === 'error'" class="tool-alert tool-alert--error">{{ notice.message }}</div>
+
+              <section class="community-item-editor-section">
+                <header><h3>基础信息</h3><span>名称、分类和发布状态</span></header>
+                <div class="community-item-editor-grid">
+                  <label class="form-field"><span>名称</span><input ref="nameInput" v-model.trim="form.name" required maxlength="80" placeholder="例如 五子棋"></label>
+                  <label class="form-field"><span>Slug</span><input v-model.trim="form.slug" required maxlength="80" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="gobang"></label>
+                  <label class="form-field"><span>分类</span><select v-model="form.category" aria-label="游戏分类"><option value="board">棋类对战</option><option value="arcade">街机休闲</option><option value="puzzle">益智拼图</option><option value="training">训练工具</option><option value="adventure">冒险闯关</option></select></label>
+                  <label class="form-field"><span>状态</span><select v-model="form.status" aria-label="游戏状态"><option value="draft">草稿</option><option value="published">已上架</option><option value="archived">已下架</option></select></label>
+                </div>
+              </section>
+
+              <section class="community-item-editor-section">
+                <header><h3>内容介绍</h3><span>用于前台卡片和详情页</span></header>
+                <label class="form-field"><span>简介</span><textarea v-model.trim="form.summary" required minlength="10" maxlength="500" rows="3" placeholder="说明游戏怎么玩，以及适合什么场景。" /></label>
+                <label class="form-field"><span>详细介绍（可选 Markdown）</span><textarea v-model="form.description_md" rows="12" maxlength="30000" placeholder="可填写玩法、来源、许可证和注意事项。" /></label>
+              </section>
+
+              <section class="community-item-editor-section">
+                <header><h3>运行与来源</h3><span>链接、资源地址和授权信息</span></header>
+                <label class="form-field"><span>官方地址</span><input v-model.trim="form.official_url" required type="url" maxlength="500" placeholder="https://github.com/owner/project"></label>
+                <label class="form-field"><span>站内运行地址</span><input v-model.trim="form.play_path" required maxlength="500" pattern="/games-static/.+\.html" placeholder="/games-static/gobang/index.html"></label>
+                <div class="community-item-editor-grid">
+                  <label class="form-field"><span>许可证</span><input v-model.trim="form.license" required maxlength="80" placeholder="MIT"></label>
+                  <label class="form-field"><span>作者或来源</span><input v-model.trim="form.author" required maxlength="120" placeholder="作者名或组织名"></label>
+                </div>
+              </section>
+
+              <section class="community-item-editor-section">
+                <header><h3>展示设置</h3><span>标签、封面和排序</span></header>
+                <div class="community-item-editor-grid">
+                  <label class="form-field"><span>标签</span><input v-model="form.tags" maxlength="240" placeholder="中文, Phaser, 休闲"><small>使用逗号分隔，最多 8 个。</small></label>
+                  <label class="form-field"><span>适合设备</span><input v-model.trim="form.compatibility" maxlength="120" placeholder="手机 / 电脑"></label>
+                  <label class="form-field"><span>封面地址（可选）</span><input v-model.trim="form.cover_url" maxlength="800" placeholder="/uploads/game-cover.png"></label>
+                  <label class="form-field"><span>排序</span><input v-model.number="form.sort_order" type="number" min="0" max="1000000" step="1"></label>
+                </div>
+                <label class="check-line"><input v-model="form.is_featured" type="checkbox" aria-label="精选游戏">优先展示</label>
+              </section>
+            </div>
+
+            <footer>
+              <button class="secondary-command" type="button" :disabled="saving" @click="closeEditor">取消</button>
+              <button class="primary-command" type="submit" :disabled="saving"><Save :size="16" />{{ saving ? '保存中...' : (editingId ? '保存修改' : '创建游戏') }}</button>
+            </footer>
+          </form>
+        </aside>
+      </div>
+    </Teleport>
   </AdminAccessGate>
 </template>

@@ -56,6 +56,9 @@ describe('database migrations', () => {
         { id: 31, name: 'create_community_categories' },
         { id: 32, name: 'create_game_directory_and_seed' },
         { id: 33, name: 'replace_demo_games_with_replayable_games' },
+        { id: 34, name: 'rewrite_gobang_as_local_minimax_game' },
+        { id: 35, name: 'remove_low_playability_games' },
+        { id: 36, name: 'keep_default_games_unpublished' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -107,14 +110,9 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'game_items'").get()).toEqual({ name: 'game_items' })
       expect(db.prepare('PRAGMA table_info(community_items)').all().map((row: any) => row.name)).toContain('description_md')
       expect(db.prepare('SELECT COUNT(*) AS count FROM community_items').get()).toEqual({ count: 26 })
-      expect(db.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 6 })
+      expect(db.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 1 })
       expect(db.prepare('SELECT slug, category, status, play_path FROM game_items ORDER BY sort_order').all()).toEqual([
-        { slug: 'gobang', category: 'board', status: 'published', play_path: '/games-static/gobang/index.html' },
-        { slug: 'pacman', category: 'arcade', status: 'published', play_path: '/games-static/pacman/index.html' },
-        { slug: 'train-gun', category: 'training', status: 'published', play_path: '/games-static/train-gun/index.html' },
-        { slug: '2048', category: 'puzzle', status: 'published', play_path: '/games-static/2048/index.html' },
-        { slug: 'allalive', category: 'arcade', status: 'published', play_path: '/games-static/allalive/index.html' },
-        { slug: 'fifty', category: 'arcade', status: 'published', play_path: '/games-static/fifty/index.html' },
+        { slug: 'gobang', category: 'board', status: 'draft', play_path: '/games-static/gobang/index.html' },
       ])
       expect(db.prepare('SELECT slug, status, icon_url FROM community_items ORDER BY sort_order').all()).toEqual(expect.arrayContaining([
         { slug: 'codex-plus-plus', status: 'published', icon_url: '/community/codex-plus-plus.png' },
@@ -163,9 +161,9 @@ describe('database migrations', () => {
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 33 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 36 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
-      expect(second.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 6 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 1 })
       expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()).toEqual(firstAppliedAt)
     } finally {
       second.close()

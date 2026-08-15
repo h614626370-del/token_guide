@@ -15,6 +15,7 @@ const routes = [
   ['community-mcp', '/community/mcp'],
   ['community-agent', '/community/agent'],
   ['community-plugin', '/community/plugin'],
+  ['games', '/games'],
   ['feedback', '/feedback'],
   ['admin', '/admin'],
   ['admin-settings', '/admin/settings'],
@@ -23,6 +24,7 @@ const routes = [
   ['admin-homepage', '/admin/homepage'],
   ['admin-community-categories', '/admin/community/categories'],
   ['admin-community-items', '/admin/community/items'],
+  ['admin-games', '/admin/games'],
   ['admin-promotions', '/admin/promotions'],
 ] as const
 
@@ -177,9 +179,76 @@ test('tool pages stay outside the guide sidebar', async ({ page }, testInfo) => 
 
   const mainNavigation = page.getByRole('navigation', { name: '主导航' })
   await expect(mainNavigation.getByRole('link', { name: '模型价格' })).toHaveAttribute('aria-current', 'page')
+  await expect(mainNavigation.getByRole('link', { name: '小游戏' })).toHaveCount(0)
   await mainNavigation.getByRole('link', { name: '使用工作台' }).click()
   await expect(page).toHaveURL(/\/playground$/)
   await expect(page.locator('.guide-sidebar')).toHaveCount(0)
+})
+
+test('administrator can open and close the game editor drawer', async ({ page }) => {
+  await page.goto('/admin/games', { waitUntil: 'networkidle' })
+  await page.getByLabel('管理员 Token').fill('playwright-admin-token')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: '游戏管理' })).toBeVisible()
+
+  await page.getByRole('button', { name: '新增游戏' }).click()
+  const drawer = page.getByRole('dialog')
+  await expect(drawer).toBeVisible()
+  await expect(drawer.getByRole('heading', { level: 2, name: '新增游戏' })).toBeVisible()
+  await expect(page.locator('body')).toHaveCSS('overflow', 'hidden')
+  await drawer.getByTitle('关闭编辑').click()
+  await expect(drawer).toHaveCount(0)
+
+  const defaultGame = page.locator('.games-admin-rows > article').filter({ hasText: 'gobang' })
+  await expect(defaultGame).toContainText('草稿')
+})
+
+test('default games stay unpublished and the public navigation hides games', async ({ page, request }, testInfo) => {
+  await page.goto('/games', { waitUntil: 'networkidle' })
+  await expect(page.locator('.game-card')).toHaveCount(0)
+
+  if (testInfo.project.name === 'mobile') {
+    await page.getByRole('button', { name: '切换导航' }).click()
+  }
+  await expect(page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '小游戏' })).toHaveCount(0)
+
+  await expect((await request.get('/api/games/gobang')).status()).toBe(404)
+  await expect((await request.get('/api/games/2048')).status()).toBe(404)
+  await expect((await request.get('/games-static/2048/index.html')).status()).toBe(404)
+})
+
+test('unpublished gobang static game still supports pointer and keyboard play', async ({ page }, testInfo) => {
+  await page.goto('/games-static/gobang/index.html', { waitUntil: 'networkidle' })
+
+  const status = page.locator('.game-status')
+  const difficulty = page.getByLabel('选择难度')
+  const restart = page.getByRole('button', { name: '重新开始' })
+  const canvas = page.getByRole('application', { name: /五子棋棋盘/ })
+
+  await expect(difficulty).toHaveCSS('height', '44px')
+  await expect(restart).toHaveCSS('height', '44px')
+  await expect(canvas).toHaveAttribute('width', '900')
+  await expect(canvas).toHaveAttribute('height', '900')
+  await expect(page.locator('meta[name="viewport"]')).not.toHaveAttribute('content', /user-scalable=no|maximum-scale=1/)
+
+  await canvas.click({ position: { x: 120, y: 120 } })
+  await expect(status).toContainText('已落子 2 手')
+
+  await restart.click()
+  await expect(status).toContainText('已落子 0 手')
+
+  await difficulty.selectOption('challenge')
+  await expect(difficulty).toHaveValue('challenge')
+
+  await canvas.focus()
+  await canvas.press('ArrowRight')
+  await canvas.press('Enter')
+  await expect(status).toContainText('已落子 2 手')
+  await page.screenshot({
+    path: join('artifacts', 'ui', `${testInfo.project.name}-game-gobang-played.png`),
+    fullPage: true,
+  })
+
 })
 
 test('community directory supports search and category navigation', async ({ page }) => {

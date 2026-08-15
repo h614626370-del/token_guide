@@ -5,7 +5,6 @@ import {
   Boxes,
   ExternalLink,
   FlaskConical,
-  Gamepad2,
   LogIn,
   Menu,
   MessageSquareText,
@@ -26,7 +25,6 @@ const navigation = [
   { label: '自动安装', to: '/install', icon: PackageOpen, paths: ['/install'] },
   { label: '模型价格', to: '/pricing', icon: BadgeDollarSign, paths: ['/pricing'] },
   { label: '使用工作台', to: '/playground', icon: FlaskConical, paths: ['/playground'] },
-  { label: '小游戏', to: '/games', icon: Gamepad2, paths: ['/games', '/games/category/board', '/games/category/arcade', '/games/category/puzzle', '/games/category/training', '/games/category/adventure'] },
   { label: '社区', to: '/community', icon: Boxes, paths: ['/community'], prefix: '/community' },
   { label: '反馈', to: '/feedback', icon: MessageSquareText, paths: ['/feedback'] },
 ]

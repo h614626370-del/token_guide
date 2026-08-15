@@ -1215,10 +1215,10 @@ export const migrations = [
       const defaults = [
         [
           'gobang', 'board', '五子棋',
-          '中文界面的轻量五子棋人机对战，打开页面即可开始。',
-          '## 玩法\n\n黑白双方轮流落子，率先连成五子的一方获胜。支持浏览器本地对战，不需要账号或额外服务。\n\n## 来源\n\n由 passer-by.com 制作，保留作者署名和 MIT 许可证。',
-          'https://github.com/mumuy/gobang', '/games-static/gobang/index.html',
-          'MIT', 'passer-by.com', JSON.stringify(['五子棋', '人机对战', 'Canvas']),
+          '本地 Minimax 五子棋人机对战，支持休闲、标准和挑战三档难度。',
+          '## 玩法\n\n黑棋先行，率先连成五子的一方获胜。棋盘、规则和电脑 AI 都在浏览器本地运行，不需要账号、联网或 API Key。\n\n## AI\n\n电脑使用局面评分、Alpha-Beta 剪枝和有限深度 Minimax 搜索，会主动进攻并处理玩家的必胜威胁。',
+          'https://github.com/h614626370-del/token_guide', '/games-static/gobang/index.html',
+          '自有实现', 'Token向云指南', JSON.stringify(['五子棋', 'Minimax', '人机对战', 'Canvas']),
           '手机 / 电脑', 1, 10,
         ],
         [
@@ -1317,6 +1317,47 @@ export const migrations = [
       for (const replacement of replacements) {
         update.run(...replacement)
       }
+    },
+  },
+  {
+    id: 34,
+    name: 'rewrite_gobang_as_local_minimax_game',
+    up(db) {
+      const now = new Date().toISOString()
+      db.prepare(`
+        UPDATE game_items
+        SET summary = ?, description_md = ?, official_url = ?, license = ?, author = ?, tags_json = ?, updated_at = ?
+        WHERE slug = 'gobang'
+      `).run(
+        '本地 Minimax 五子棋人机对战，支持休闲、标准和挑战三档难度。',
+        '## 玩法\n\n黑棋先行，率先连成五子的一方获胜。棋盘、规则和电脑 AI 都在浏览器本地运行，不需要账号、联网或 API Key。\n\n## AI\n\n电脑使用局面评分、Alpha-Beta 剪枝和有限深度 Minimax 搜索，会主动进攻并处理玩家的必胜威胁。',
+        'https://github.com/h614626370-del/token_guide',
+        '自有实现',
+        'Token向云指南',
+        JSON.stringify(['五子棋', 'Minimax', '人机对战', 'Canvas']),
+        now,
+      )
+    },
+  },
+  {
+    id: 35,
+    name: 'remove_low_playability_games',
+    up(db) {
+      db.prepare(`
+        DELETE FROM game_items
+        WHERE slug IN ('2048', 'allalive', 'fifty', 'pacman', 'train-gun')
+      `).run()
+    },
+  },
+  {
+    id: 36,
+    name: 'keep_default_games_unpublished',
+    up(db) {
+      db.prepare(`
+        UPDATE game_items
+        SET status = 'draft', published_at = NULL, updated_at = ?
+        WHERE slug = 'gobang'
+      `).run(new Date().toISOString())
     },
   },
 ]
