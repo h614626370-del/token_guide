@@ -450,6 +450,26 @@ describe('Nuxt application routes', () => {
     expect(xiangyunHtml).toContain(`href="${url('/logo-80.png')}"`)
     expect(xiangyunHtml).not.toContain('guide.kkflow.org/site-home/assets/logo-')
 
+    const linglianPreview = await fetch('/site-home/?default=linglian', {
+      headers: { cookie: previewCookie },
+    })
+    expect(linglianPreview.status).toBe(200)
+    const linglianHtml = await linglianPreview.text()
+    expect(linglianHtml).toContain(`href="${url('/logo-80.png')}"`)
+    expect(linglianHtml).not.toContain('api-public/assets/logo.svg')
+
+    const linglianConfig = await fetch('/site-home/api-public/config/config.js?default=linglian', {
+      headers: { cookie: previewCookie },
+    })
+    expect(linglianConfig.status).toBe(200)
+    expect(await linglianConfig.text()).toContain('logoUrl: "./assets/logo-80.png"')
+
+    const linglianLogo = await fetch('/site-home/assets/logo-80.png?default=linglian', {
+      headers: { cookie: previewCookie },
+    })
+    expect(linglianLogo.status).toBe(200)
+    expect(linglianLogo.headers.get('content-type')).toBe('image/png')
+
     const unauthorizedPreview = await fetch('/site-home/?default=xiangyun')
     expect(unauthorizedPreview.status).toBe(401)
   })

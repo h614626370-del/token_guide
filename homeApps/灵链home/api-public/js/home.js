@@ -46,8 +46,8 @@
         siteUrl: "https://llapi.org",
         apiBaseUrl: "https://llapi.org/v1",
         guideUrl: "https://guide.llapi.org",
-        logoUrl: "./api-public/assets/logo.svg",
-        socialImageUrl: "/api-public/assets/logo.svg",
+        logoUrl: "./assets/logo-80.png",
+        socialImageUrl: "./assets/logo-256.png",
         loginUrl: "/login",
         registerUrl: "/register",
         dashboardUrl: "/dashboard",
@@ -244,11 +244,17 @@
         setConfiguredHref('a[href="/register"]', siteConfig.registerUrl);
         setConfiguredHref('a[href="/dashboard"]', siteConfig.dashboardUrl);
 
+        const markupLogoUrl = document.querySelector('.brand img')?.getAttribute("src");
+        const effectiveLogoUrl = markupLogoUrl && markupLogoUrl !== SITE_CONFIG_DEFAULTS.logoUrl
+          ? markupLogoUrl
+          : siteConfig.logoUrl;
         document.title = siteConfig.pageTitle;
         document.querySelector('link[rel="canonical"]')?.setAttribute("href", `${siteConfig.siteUrl}/`);
-        document.querySelector('link[rel="icon"]')?.setAttribute("href", siteConfig.logoUrl);
-        document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute("href", siteConfig.logoUrl);
-        document.querySelector('.brand img')?.setAttribute("src", siteConfig.logoUrl);
+        if (effectiveLogoUrl !== SITE_CONFIG_DEFAULTS.logoUrl) {
+          document.querySelectorAll('link[rel="icon"]').forEach((element) => element.setAttribute("href", effectiveLogoUrl));
+          document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute("href", effectiveLogoUrl);
+        }
+        document.querySelector('.brand img')?.setAttribute("src", effectiveLogoUrl);
         document.querySelector('.brand-copy span').textContent = siteConfig.brandTagline;
         navStatusTexts.forEach((element) => {
           element.textContent = siteConfig.statusText;
@@ -262,10 +268,11 @@
         setMetaContent('meta[property="og:title"]', siteConfig.pageTitle);
         setMetaContent('meta[property="og:description"]', siteConfig.ogDescription);
         setMetaContent('meta[property="og:url"]', `${siteConfig.siteUrl}/`);
-        const socialImageUrl = toAbsoluteUrl(
-          siteConfig.socialImageUrl,
-          `${siteConfig.siteUrl}/api-public/assets/logo.svg`
-        );
+        const markupSocialImageUrl = document.querySelector('meta[property="og:image"]')?.getAttribute("content");
+        const effectiveSocialImageUrl = markupSocialImageUrl && markupSocialImageUrl !== SITE_CONFIG_DEFAULTS.socialImageUrl
+          ? markupSocialImageUrl
+          : siteConfig.socialImageUrl;
+        const socialImageUrl = toAbsoluteUrl(effectiveSocialImageUrl, `${siteConfig.siteUrl}/assets/logo-256.png`);
         setMetaContent('meta[property="og:image"]', socialImageUrl);
         setMetaContent('meta[name="twitter:title"]', siteConfig.pageTitle);
         setMetaContent('meta[name="twitter:description"]', siteConfig.twitterDescription);
