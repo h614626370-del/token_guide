@@ -1,7 +1,7 @@
 export function createSub2apiClient(config, logger) {
   const configured = Boolean(config.sub2apiApiBase && config.sub2apiAdminApiKey)
 
-  async function request(path, params = {}) {
+  async function request(path, params = {}, options = {}) {
     if (!configured) {
       throw new Error('sub2api admin source is not configured.')
     }
@@ -15,13 +15,19 @@ export function createSub2apiClient(config, logger) {
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), config.pricingFetchTimeoutMs)
+    const method = String(options.method || 'GET').toUpperCase()
+    const requestHeaders = {
+      accept: 'application/json',
+      'x-api-key': config.sub2apiAdminApiKey,
+      ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
+      ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(options.headers || {}),
+    }
     try {
       const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          accept: 'application/json',
-          'x-api-key': config.sub2apiAdminApiKey,
-        },
+        method,
+        headers: requestHeaders,
+        ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
         signal: controller.signal,
       })
 
@@ -45,6 +51,67 @@ export function createSub2apiClient(config, logger) {
 
     async listSubscriptionPlans() {
       return request('/admin/payment/plans')
+    },
+
+    async listUsageLogs({ startDate, endDate, timezone, page = 1, pageSize = 1000 } = {}) {
+      const data = await request('/admin/usage', {
+        start_date: startDate,
+        end_date: endDate,
+        timezone,
+        page,
+        page_size: pageSize,
+        exact_total: true,
+      })
+      return normalizeUsagePage(data)
+    },
+
+    async listUsageLogsAll({ startDate, endDate, timezone, maxPages = 500 } = {}) {
+      const items = []
+      let page = 1
+      let pages = 1
+      do {
+        if (page > maxPages) throw new Error('sub2api usage result exceeds the configured page limit.')
+        const result = await this.listUsageLogs({ startDate, endDate, timezone, page })
+        items.push(...result.items)
+        pages = result.pages
+        page += 1
+      } while (page <= pages)
+      return items
+    },
+
+    async getUser(userId) {
+      return request(`/admin/users/${encodeURIComponent(String(userId))}`)
+    },
+
+    async listUsers({ search, page = 1, pageSize = 100 } = {}) {
+      const data = await request('/admin/users', {
+        search,
+        page,
+        page_size: pageSize,
+      })
+      return normalizeUserPage(data)
+    },
+
+    async listUsersAll({ search, maxPages = 100 } = {}) {
+      const items = []
+      let page = 1
+      let pages = 1
+      do {
+        if (page > maxPages) throw new Error('sub2api user result exceeds the configured page limit.')
+        const result = await this.listUsers({ search, page })
+        items.push(...result.items)
+        pages = result.pages
+        page += 1
+      } while (page <= pages)
+      return items
+    },
+
+    async adjustUserBalance(userId, { balance, operation, notes, idempotencyKey }) {
+      return request(`/admin/users/${encodeURIComponent(String(userId))}/balance`, {}, {
+        method: 'POST',
+        idempotencyKey,
+        body: { balance, operation, notes },
+      })
     },
 
     async listModelNames(provider) {
@@ -90,6 +157,30 @@ export function createSub2apiClient(config, logger) {
       }
     },
   }
+}
+
+function normalizeUsagePage(value) {
+  if (Array.isArray(value)) {
+    return { items: value, total: value.length, page: 1, page_size: value.length, pages: 1 }
+  }
+  const items = Array.isArray(value?.items) ? value.items : []
+  const page = positiveInteger(value?.page, 1)
+  const pageSize = positiveInteger(value?.page_size, items.length || 1)
+  const total = Number.isFinite(Number(value?.total)) ? Number(value.total) : items.length
+  const pages = positiveInteger(value?.pages, Math.max(1, Math.ceil(total / pageSize)))
+  return { items, total, page, page_size: pageSize, pages }
+}
+
+function normalizeUserPage(value) {
+  if (Array.isArray(value)) {
+    return { items: value, total: value.length, page: 1, page_size: value.length, pages: 1 }
+  }
+  const items = Array.isArray(value?.items) ? value.items : []
+  const page = positiveInteger(value?.page, 1)
+  const pageSize = positiveInteger(value?.page_size, items.length || 1)
+  const total = Number.isFinite(Number(value?.total)) ? Number(value.total) : items.length
+  const pages = positiveInteger(value?.pages, Math.max(1, Math.ceil(total / pageSize)))
+  return { items, total, page, page_size: pageSize, pages }
 }
 
 function accountGroupIds(account) {

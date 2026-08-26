@@ -203,7 +203,7 @@ function number(value: number, decimals: number) {
               <tr>
                 <th>分组</th>
                 <th>人民币折扣</th>
-                <th>倍率</th>
+                <th>等额倍率</th>
                 <th>说明</th>
               </tr>
             </thead>

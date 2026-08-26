@@ -44,7 +44,9 @@ curl -fsS http://127.0.0.1:3000/api/health
 默认始终拉取 `latest` 镜像，`.env` 不固化版本号；如需临时锁定版本，可执行
 `IMAGE_TAG=v2.0.10 docker compose up -d`。实际 Nginx 配置保存在
 `homeApps/自由home/guide.aiziyou.org.conf` 和 `homeApps/向云home/guide.kkflow.org.conf`，
-其中 `/auth/embed` 必须关闭 access log。
+其中 `/auth/embed` 必须关闭 access log；主站转发 sub2api 的 location 必须使用
+`proxy_set_header Host $host`，不要使用 `$http_host`，以兼容只发送 HTTP/2 `:authority`
+的浏览器请求。
 
 ## sub2api 嵌入
 
@@ -102,24 +104,24 @@ DOCKERHUB_REPOSITORY
 发布时先把 `package.json` 中的版本改为目标版本并提交，然后推送同版本标签：
 
 ```powershell
-git tag v2.2.24
-git push origin main v2.2.24
+git tag v2.2.25
+git push origin main v2.2.25
 ```
 
 也可以在 Windows 中手动触发云端发布：
 
 ```powershell
-gh workflow run release.yml -f version=v2.2.24 -f publish_latest=true
+gh workflow run release.yml -f version=v2.2.25 -f publish_latest=true
 ```
 
 正式发布会等待并复用同一提交已经运行的 `CI` 结果，不会重复执行测试。稳定版会
-推送 `v2.2.24` 和 `latest`；预发布版本不会覆盖 `latest`。工作流完成后会创建或
+推送 `v2.2.25` 和 `latest`；预发布版本不会覆盖 `latest`。工作流完成后会创建或
 更新对应的 GitHub Release。
 
 仍可使用原有本机发布流程：
 
 ```powershell
-npm run release -- -Version v2.2.24
+npm run release -- -Version v2.2.25
 ```
 
 ## 注意

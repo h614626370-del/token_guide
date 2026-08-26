@@ -435,6 +435,9 @@ describe('Nuxt application routes', () => {
     const homepageHtml = await homepage.text()
     expect(homepageHtml).toContain('自由')
     expect(homepageHtml).toContain(`href="${url('/logo-80.png')}"`)
+    expect(homepageHtml).toContain('href="https://aiziyou.org/dashboard" target="_top"')
+    expect(homepageHtml).toContain('href="https://aiziyou.org/login" target="_top"')
+    expect(homepageHtml).not.toMatch(/href="\/(?:dashboard|login|register|keys)"/)
 
     const asset = await fetch('/site-home/assets/logo-80.png')
     expect(asset.status).toBe(200)
@@ -449,6 +452,9 @@ describe('Nuxt application routes', () => {
     const xiangyunHtml = await xiangyunPreview.text()
     expect(xiangyunHtml).toContain(`href="${url('/logo-80.png')}"`)
     expect(xiangyunHtml).not.toContain('guide.kkflow.org/site-home/assets/logo-')
+    expect(xiangyunHtml).toContain('href="https://kkflow.org/dashboard" target="_top"')
+    expect(xiangyunHtml).toContain('href="https://kkflow.org/login" target="_top"')
+    expect(xiangyunHtml).not.toMatch(/href="\/(?:dashboard|login|register|keys)"/)
 
     const linglianPreview = await fetch('/site-home/?default=linglian', {
       headers: { cookie: previewCookie },

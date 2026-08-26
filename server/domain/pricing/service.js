@@ -232,6 +232,10 @@ export function createPricingService({ db, config, logger }) {
       cache.reference = createCacheItem(result)
       return result
     },
+
+    getSub2apiClient() {
+      return createRuntimeContext(repo, config, logger).sub2api
+    },
   }
 }
 

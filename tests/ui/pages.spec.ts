@@ -21,6 +21,7 @@ const routes = [
   ['admin-settings', '/admin/settings'],
   ['admin-installers', '/admin/installers'],
   ['admin-pricing', '/admin/pricing'],
+  ['admin-compensation', '/admin/compensation'],
   ['admin-homepage', '/admin/homepage'],
   ['admin-community-categories', '/admin/community/categories'],
   ['admin-community-items', '/admin/community/items'],
@@ -462,7 +463,7 @@ test('pricing shows official prices once and scopes plans to supported models', 
   await expect(gpt.locator('.pricing-model__official')).toContainText('输入$5')
   await expect(gpt.locator('.pricing-model__official')).toContainText('输出$30')
   await expect(gpt).toContainText('人民币折扣')
-  await expect(gpt).toContainText('倍率')
+  await expect(gpt).toContainText('等额倍率')
   await expect(gpt).toContainText('0.29 折')
   await expect(gpt).toContainText('1x')
   await expect(gpt).not.toContainText('额度折扣')
@@ -482,6 +483,7 @@ test('pricing shows official prices once and scopes plans to supported models', 
   await expect(imageModel).toContainText('¥0.0134')
   await expect(imageModel).toContainText('¥0.0201')
   await expect(imageModel).toContainText('¥0.0268')
+  await expect(imageModel).not.toContainText('等额倍率')
   await expect(imageModel).toContainText('按次计费')
   await expect(imageModel).not.toContainText('输入$5')
   await expect(imageModel).not.toContainText('输出$10')
@@ -739,6 +741,190 @@ test('administrator can inspect group model scopes from the source snapshot', as
   expect(tableLayout.scrollWidth).toBeGreaterThanOrEqual(tableLayout.clientWidth)
   await page.screenshot({
     path: join('artifacts', 'ui', `${testInfo.project.name}-admin-pricing-authenticated.png`),
+    fullPage: true,
+  })
+})
+
+test('administrator can use independent parameters and notes for single and batch compensation', async ({ page }, testInfo) => {
+  const login = await page.request.post('/api/session/admin', { data: { token: 'playwright-admin-token' } })
+  expect(login.ok()).toBe(true)
+
+  const testBatch = {
+    id: 'a1111111-2222-4333-8444-555555555555',
+    mode: 'single',
+    date: '2026-08-23',
+    start_time: '20:00',
+    end_time: '20:00',
+    timezone: 'Asia/Shanghai',
+    operation: 'set',
+    amount: 7.25,
+    notes: 'Playwright 单用户测试',
+    preview_fingerprint: 'a'.repeat(64),
+    user_count: 1,
+    total_amount: 7.25,
+    status: 'completed',
+    created_at: '2026-08-23T12:00:00.000Z',
+    updated_at: '2026-08-23T12:00:00.000Z',
+    completed_at: '2026-08-23T12:00:00.000Z',
+    items: [{
+      id: 1,
+      batch_id: 'a1111111-2222-4333-8444-555555555555',
+      user_id: 42,
+      email: 'tester@example.com',
+      username: 'tester',
+      status: 'succeeded',
+      idempotency_key_hash: 'b'.repeat(64),
+      upstream_response_json: null,
+      balance_after: 7.25,
+      error_message: null,
+      created_at: '2026-08-23T12:00:00.000Z',
+      updated_at: '2026-08-23T12:00:00.000Z',
+      completed_at: '2026-08-23T12:00:00.000Z',
+    }],
+  }
+  const preview = {
+    date: '2026-08-23',
+    start_time: '12:00',
+    end_time: '19:00',
+    timezone: 'Asia/Shanghai',
+    operation: 'subtract',
+    amount: 3,
+    window: { start: '2026-08-23T04:00:00.000Z', end: '2026-08-23T11:00:00.000Z', semantics: '[start, end)' },
+    source: { usage_records: 2, records_in_window: 2, excluded_users: 0, unresolved_users: 0 },
+    summary: { user_count: 1, total_amount: 3 },
+    users: [{
+      id: 42,
+      email: 'tester@example.com',
+      username: 'tester',
+      role: 'admin',
+      status: 'active',
+      deleted_at: null,
+      is_deleted: false,
+      unresolved: false,
+    }],
+    fingerprint: 'c'.repeat(64),
+  }
+  const batch = {
+    ...testBatch,
+    id: 'd1111111-2222-4333-8444-555555555555',
+    mode: 'batch',
+    operation: 'subtract',
+    amount: 3,
+    total_amount: 3,
+    notes: 'Playwright 批量备注',
+    preview_fingerprint: preview.fingerprint,
+    items: [{
+      ...testBatch.items[0],
+      id: 2,
+      batch_id: 'd1111111-2222-4333-8444-555555555555',
+      balance_after: 4.25,
+    }],
+  }
+  let submittedBody: Record<string, unknown> | null = null
+  const submittedPreviewBodies: Record<string, unknown>[] = []
+  let submittedBatchBody: Record<string, unknown> | null = null
+
+  await page.route('**/api/admin/compensation**', route => route.fulfill({
+    json: { ok: true, data: { items: [], total: 0, page: 1, page_size: 20, pages: 1 } },
+  }))
+  await page.route('**/api/admin/compensation/test', async (route) => {
+    submittedBody = await route.request().postDataJSON()
+    await route.fulfill({ json: { ok: true, data: testBatch } })
+  })
+  await page.route('**/api/admin/compensation/preview', async (route) => {
+    const body = await route.request().postDataJSON() as Record<string, unknown>
+    submittedPreviewBodies.push(body)
+    const operation = String(body.operation)
+    const amount = Number(body.amount)
+    const isFinalPreview = operation === preview.operation && amount === preview.amount
+    await route.fulfill({
+      json: {
+        ok: true,
+        data: {
+          ...preview,
+          date: String(body.date),
+          start_time: String(body.start_time),
+          end_time: String(body.end_time),
+          timezone: String(body.timezone),
+          operation,
+          amount,
+          summary: { ...preview.summary, total_amount: amount },
+          fingerprint: isFinalPreview ? preview.fingerprint : 'e'.repeat(64),
+        },
+      },
+    })
+  })
+  await page.route('**/api/admin/compensation/execute', async (route) => {
+    submittedBatchBody = await route.request().postDataJSON()
+    await route.fulfill({ json: { ok: true, data: batch } })
+  })
+
+  await page.goto('/admin/compensation', { waitUntil: 'networkidle' })
+  await expect(page.getByRole('heading', { level: 1, name: '余额补偿' })).toBeVisible()
+  await expect(page.getByText('单用户测试会立即真实修改该账号的上游余额')).toBeVisible()
+
+  await page.getByRole('button', { name: '邮箱 / 用户名' }).click()
+  await page.getByLabel('账号').fill('tester@example.com')
+  await page.getByLabel('测试调整方式').selectOption('set')
+  await page.getByLabel('测试金额').fill('7.25')
+  await page.getByLabel('测试备注').fill('Playwright 单用户测试')
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('tester@example.com')
+    expect(dialog.message()).toContain('设置余额 ¥7.25')
+    expect(dialog.message()).toContain('真实修改上游余额')
+    await dialog.accept()
+  })
+  await page.getByRole('button', { name: '执行单用户测试' }).click()
+
+  await expect(page.getByText('单用户测试成功：用户 42')).toBeVisible()
+  await expect(page.getByRole('cell', { name: '¥7.25' })).toBeVisible()
+  expect(submittedBody).toEqual({
+    target_type: 'account',
+    target: 'tester@example.com',
+    operation: 'set',
+    amount: 7.25,
+    notes: 'Playwright 单用户测试',
+  })
+
+  await page.getByRole('button', { name: '预览活跃用户' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '预览结果' })).toBeVisible()
+  expect(submittedPreviewBodies.at(-1)).toMatchObject({ operation: 'add', amount: 5 })
+
+  await page.getByLabel('批量调整方式').selectOption('subtract')
+  await page.getByLabel('每人金额').fill('3')
+  await expect(page.getByText('待更新')).toBeVisible()
+  await expect(page.getByRole('button', { name: '执行扣减余额' })).toBeDisabled()
+  await page.getByRole('button', { name: '更新预览' }).click()
+  await expect(page.getByText('扣减余额 ¥3.00/人')).toBeVisible()
+  expect(submittedPreviewBodies.at(-1)).toMatchObject({ operation: 'subtract', amount: 3 })
+  await page.getByLabel('批量备注').fill('Playwright 批量备注')
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toContain('1 个用户')
+    expect(dialog.message()).toContain('扣减余额，每人 ¥3.00，预计总额 ¥3.00')
+    expect(dialog.message()).toContain('批量备注：Playwright 批量备注')
+    expect(dialog.message()).toContain('真实修改上游余额')
+    await dialog.accept()
+  })
+  await page.getByRole('button', { name: '执行扣减余额' }).click()
+  await expect(
+    page.locator('.tool-alert--success').filter({ hasText: '批次 d1111111：成功 1 条，失败 0 条。' }),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '执行扣减余额' })).toBeDisabled()
+  expect(submittedBatchBody).toMatchObject({
+    operation: 'subtract',
+    amount: 3,
+    notes: 'Playwright 批量备注',
+    preview_fingerprint: preview.fingerprint,
+    execution_key: expect.stringMatching(/^[0-9a-f-]{36}$/),
+  })
+
+  const layout = await page.evaluate(() => ({
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: document.documentElement.clientWidth,
+  }))
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth + 1)
+  await page.screenshot({
+    path: join('artifacts', 'ui', `${testInfo.project.name}-admin-compensation-separated-parameters.png`),
     fullPage: true,
   })
 })

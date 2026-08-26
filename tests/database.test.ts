@@ -59,6 +59,9 @@ describe('database migrations', () => {
         { id: 34, name: 'rewrite_gobang_as_local_minimax_game' },
         { id: 35, name: 'remove_low_playability_games' },
         { id: 36, name: 'keep_default_games_unpublished' },
+        { id: 37, name: 'create_compensation_batches' },
+        { id: 38, name: 'add_compensation_batch_mode' },
+        { id: 39, name: 'add_compensation_execution_idempotency' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -108,6 +111,12 @@ describe('database migrations', () => {
         { slug: 'plugin', name: 'Plugin', is_visible: 1 },
       ])
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'game_items'").get()).toEqual({ name: 'game_items' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'compensation_batches'").get()).toEqual({ name: 'compensation_batches' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'compensation_items'").get()).toEqual({ name: 'compensation_items' })
+      expect(db.prepare('PRAGMA table_info(compensation_batches)').all().map((row: any) => row.name)).toContain('execution_key_hash')
+      const executionIndex = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_compensation_batches_execution_key_hash'").get() as { sql: string }
+      expect(executionIndex.sql).toContain('CREATE UNIQUE INDEX')
+      expect(executionIndex.sql).toContain('WHERE execution_key_hash IS NOT NULL')
       expect(db.prepare('PRAGMA table_info(community_items)').all().map((row: any) => row.name)).toContain('description_md')
       expect(db.prepare('SELECT COUNT(*) AS count FROM community_items').get()).toEqual({ count: 26 })
       expect(db.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 1 })
@@ -161,7 +170,7 @@ describe('database migrations', () => {
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 36 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 39 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 1 })
       expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()).toEqual(firstAppliedAt)

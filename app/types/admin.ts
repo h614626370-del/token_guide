@@ -112,3 +112,64 @@ export interface AdminEmailSettingsDraft extends AdminEmailSettings {
   smtp_password: string
   clear_smtp_password: boolean
 }
+
+export interface CompensationUser {
+  id: number
+  email: string | null
+  username: string | null
+  role: string | null
+  status: string | null
+  deleted_at: string | null
+  is_deleted: boolean
+  unresolved: boolean
+}
+
+export interface CompensationPreview {
+  date: string
+  start_time: string
+  end_time: string
+  timezone: string
+  operation: 'add' | 'subtract' | 'set'
+  amount: number
+  window: { start: string, end: string, semantics: string }
+  source: { usage_records: number, records_in_window: number, excluded_users: number, unresolved_users: number }
+  summary: { user_count: number, total_amount: number }
+  users: CompensationUser[]
+  fingerprint: string
+}
+
+export interface CompensationBatchItem {
+  id: number
+  batch_id: string
+  user_id: number
+  email: string | null
+  username: string | null
+  status: 'pending' | 'running' | 'succeeded' | 'failed'
+  idempotency_key_hash: string
+  upstream_response_json: string | null
+  balance_after: number | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+}
+
+export interface CompensationBatch {
+  id: string
+  mode: 'batch' | 'single'
+  date: string
+  start_time: string
+  end_time: string
+  timezone: string
+  operation: 'add' | 'subtract' | 'set'
+  amount: number
+  notes: string
+  preview_fingerprint: string
+  user_count: number
+  total_amount: number
+  status: 'running' | 'completed' | 'partial' | 'failed'
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+  items?: CompensationBatchItem[]
+}

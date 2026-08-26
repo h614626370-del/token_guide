@@ -1360,4 +1360,76 @@ export const migrations = [
       `).run(new Date().toISOString())
     },
   },
+  {
+    id: 37,
+    name: 'create_compensation_batches',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS compensation_batches (
+          id TEXT PRIMARY KEY,
+          date TEXT NOT NULL,
+          start_time TEXT NOT NULL,
+          end_time TEXT NOT NULL,
+          timezone TEXT NOT NULL,
+          operation TEXT NOT NULL CHECK (operation IN ('add', 'subtract', 'set')),
+          amount REAL NOT NULL CHECK (amount > 0),
+          notes TEXT NOT NULL,
+          preview_fingerprint TEXT NOT NULL,
+          user_count INTEGER NOT NULL DEFAULT 0 CHECK (user_count >= 0),
+          total_amount REAL NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
+          status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'partial', 'failed')),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          completed_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_compensation_batches_created
+          ON compensation_batches(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS compensation_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          batch_id TEXT NOT NULL REFERENCES compensation_batches(id) ON DELETE CASCADE,
+          user_id INTEGER NOT NULL,
+          email TEXT,
+          username TEXT,
+          status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+          idempotency_key_hash TEXT NOT NULL,
+          upstream_response_json TEXT,
+          error_message TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          completed_at TEXT,
+          UNIQUE(batch_id, user_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_compensation_items_batch_status
+          ON compensation_items(batch_id, status, user_id);
+      `)
+    },
+  },
+  {
+    id: 38,
+    name: 'add_compensation_batch_mode',
+    up(db) {
+      db.exec(`
+        ALTER TABLE compensation_batches
+          ADD COLUMN mode TEXT NOT NULL DEFAULT 'batch'
+          CHECK (mode IN ('batch', 'single'));
+      `)
+    },
+  },
+  {
+    id: 39,
+    name: 'add_compensation_execution_idempotency',
+    up(db) {
+      db.exec(`
+        ALTER TABLE compensation_batches
+          ADD COLUMN execution_key_hash TEXT;
+
+        CREATE UNIQUE INDEX idx_compensation_batches_execution_key_hash
+          ON compensation_batches(execution_key_hash)
+          WHERE execution_key_hash IS NOT NULL;
+      `)
+    },
+  },
 ]
