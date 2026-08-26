@@ -51,6 +51,7 @@ export interface PricingGroup {
   recharge_multiplier: number
   recharge_pay_cny?: number
   recharge_credit_usd?: number
+  equivalent_multiplier: number
   effective_rate: number
   allow_image_generation?: boolean
   image_rate_independent?: boolean

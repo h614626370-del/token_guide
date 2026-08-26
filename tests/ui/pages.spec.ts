@@ -429,8 +429,9 @@ test('pricing shows official prices once and scopes plans to supported models', 
           },
           {
             provider: 'openai', source_id: '20', name: '高速VIP通道', display_name: '高速VIP通道',
-            is_exclusive: false, rate_multiplier: 1, recharge_multiplier: 5,
-            recharge_pay_cny: 20, recharge_credit_usd: 100, effective_rate: 0.2,
+            is_exclusive: false, rate_multiplier: 1, recharge_multiplier: 1000 / 188,
+            recharge_pay_cny: 188, recharge_credit_usd: 1000,
+            equivalent_multiplier: 0.188, effective_rate: 0.188,
             sort_order: 2, note: '',
           },
           {
@@ -463,9 +464,12 @@ test('pricing shows official prices once and scopes plans to supported models', 
   await expect(gpt.locator('.pricing-model__official')).toContainText('输入$5')
   await expect(gpt.locator('.pricing-model__official')).toContainText('输出$30')
   await expect(gpt).toContainText('人民币折扣')
+  await expect(gpt.getByRole('columnheader', { name: '倍率', exact: true })).toBeVisible()
   await expect(gpt).toContainText('等额倍率')
-  await expect(gpt).toContainText('0.29 折')
-  await expect(gpt).toContainText('1x')
+  await expect(gpt).toContainText('0.27 折')
+  const subscriptionRow = gpt.locator('tbody tr').filter({ hasText: '高速VIP通道' })
+  await expect(subscriptionRow.locator('td').nth(2)).toHaveText('1x')
+  await expect(subscriptionRow.locator('td').nth(3)).toHaveText('0.19x')
   await expect(gpt).not.toContainText('额度折扣')
   await expect(gpt).not.toContainText('扣额度')
   await expect(gpt).not.toContainText('输入 / M')
@@ -483,6 +487,7 @@ test('pricing shows official prices once and scopes plans to supported models', 
   await expect(imageModel).toContainText('¥0.0134')
   await expect(imageModel).toContainText('¥0.0201')
   await expect(imageModel).toContainText('¥0.0268')
+  await expect(imageModel).not.toContainText('倍率')
   await expect(imageModel).not.toContainText('等额倍率')
   await expect(imageModel).toContainText('按次计费')
   await expect(imageModel).not.toContainText('输入$5')

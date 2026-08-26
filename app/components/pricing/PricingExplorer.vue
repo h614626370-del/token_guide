@@ -105,6 +105,10 @@ function quotaMultiplier(group: PricingGroup) {
   return `${number(Number(group.rate_multiplier || 1), 3)}x`
 }
 
+function equivalentMultiplier(group: PricingGroup) {
+  return `${number(Number(group.equivalent_multiplier ?? group.effective_rate ?? group.rate_multiplier ?? 1), 2)}x`
+}
+
 function rechargeLabel(group: PricingGroup) {
   if (group.recharge_pay_cny && group.recharge_credit_usd) {
     return `¥${number(group.recharge_pay_cny, 2)} -> $${number(group.recharge_credit_usd, 2)}`
@@ -203,6 +207,7 @@ function number(value: number, decimals: number) {
               <tr>
                 <th>分组</th>
                 <th>人民币折扣</th>
+                <th>倍率</th>
                 <th>等额倍率</th>
                 <th>说明</th>
               </tr>
@@ -212,6 +217,7 @@ function number(value: number, decimals: number) {
                 <td><strong>{{ group.display_name }}</strong><small>{{ rechargeLabel(group) }}</small></td>
                 <td><strong class="discount-value">{{ rmbDiscount(group) }}</strong><small>相对官方人民币原价</small></td>
                 <td><strong class="discount-value">{{ quotaMultiplier(group) }}</strong></td>
+                <td><strong class="discount-value">{{ equivalentMultiplier(group) }}</strong></td>
                 <td><span>{{ group.note || model.note || '实际扣费以主站账单为准' }}</span></td>
               </tr>
             </tbody>

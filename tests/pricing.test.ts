@@ -501,6 +501,7 @@ describe('pricing service', () => {
     expect(reference.groups[0]).toMatchObject({
       rate_multiplier: 0.6,
       recharge_multiplier: 5,
+      equivalent_multiplier: 0.12,
       effective_rate: 0.12,
       recharge_reference_source: 'manual',
     })
@@ -515,6 +516,84 @@ describe('pricing service', () => {
       },
     })
     expect(fetchMock).toHaveBeenCalled()
+    db.close()
+  })
+
+  it('derives the equivalent multiplier from a subscription plan price and quota', async () => {
+    const db = createDatabase()
+    db.prepare('UPDATE pricing_model_settings SET is_visible = 0').run()
+
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const requestUrl = new URL(String(input))
+      let data: any
+      if (requestUrl.pathname.endsWith('/admin/groups/all')) {
+        data = [{
+          id: 42,
+          name: 'PRO 1000',
+          platform: 'openai',
+          subscription_type: 'subscription',
+          rate_multiplier: 1,
+          monthly_limit_usd: 1000,
+        }]
+      } else if (requestUrl.pathname.endsWith('/admin/payment/plans')) {
+        data = [{ id: 8, group_id: 42, name: 'PRO 1000', price: 188, for_sale: true }]
+      } else if (requestUrl.pathname.endsWith('/admin/channels/pricing/sync-models')) {
+        data = { models: ['test-model'] }
+      } else if (requestUrl.pathname.endsWith('/admin/accounts')) {
+        data = {
+          items: [{ group_ids: [42], schedulable: true, credentials: {} }],
+          total: 1,
+          page: 1,
+          page_size: 1000,
+          pages: 1,
+        }
+      } else if (requestUrl.pathname.endsWith('/admin/channels/model-pricing')) {
+        data = { found: true, input_price: 0.000001, output_price: 0.000002 }
+      } else {
+        return new Response('not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({ code: 0, data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }))
+
+    const service = createPricingService({
+      db,
+      config: {
+        sub2apiApiBase: 'https://upstream.example/api/v1',
+        sub2apiAdminApiKey: 'admin-key',
+        pricingPlatforms: ['openai'],
+        providerDisplayOrder: ['openai'],
+        pricingCacheTtlMs: 60_000,
+        pricingFetchTimeoutMs: 5_000,
+        usdToCny: 7,
+      },
+      logger: null,
+    })
+    service.upsertModelSetting({
+      provider: 'openai',
+      model_name: 'test-model',
+      is_visible: true,
+    })
+    service.upsertGroupSetting({
+      provider: 'openai',
+      source_id: '42',
+      source_name: 'PRO 1000',
+      is_visible: true,
+    })
+
+    const reference = await service.getReference({ refresh: true })
+    expect(reference.groups).toHaveLength(1)
+    expect(reference.groups[0]).toMatchObject({
+      rate_multiplier: 1,
+      recharge_pay_cny: 188,
+      recharge_credit_usd: 1000,
+      recharge_reference_source: 'subscription_plan',
+    })
+    expect(reference.groups[0].recharge_multiplier).toBeCloseTo(1000 / 188)
+    expect(reference.groups[0].equivalent_multiplier).toBeCloseTo(0.188)
+    expect(reference.groups[0].effective_rate).toBeCloseTo(0.188)
     db.close()
   })
 

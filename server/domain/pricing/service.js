@@ -635,7 +635,8 @@ function mergeGroup(group, setting, config) {
   const recharge = resolveRechargeReference(group, setting, config)
   const rechargeMultiplier = recharge.multiplier
   const rateMultiplier = numberOr(group.rate_multiplier, 1)
-  const effectiveRate = rateMultiplier / rechargeMultiplier
+  const equivalentMultiplier = rateMultiplier * recharge.pay_cny / recharge.credit_usd
+  const effectiveRate = equivalentMultiplier
   const imageRateMultiplier = numberOr(group.image_rate_multiplier, 1)
   const imageEffectiveRate = (group.image_rate_independent ? imageRateMultiplier : rateMultiplier) / rechargeMultiplier
   const isVisible = setting?.is_visible == null ? !group.is_exclusive : setting.is_visible
@@ -664,6 +665,7 @@ function mergeGroup(group, setting, config) {
     recharge_credit_usd: recharge.credit_usd,
     recharge_reference_source: recharge.source,
     recharge_reference_label: recharge.label,
+    equivalent_multiplier: equivalentMultiplier,
     effective_rate: effectiveRate,
     allow_image_generation: Boolean(group.allow_image_generation),
     image_rate_independent: Boolean(group.image_rate_independent),
