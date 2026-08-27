@@ -1663,6 +1663,15 @@
         line-height: 1;
       }
 
+      .home-pricing-group .home-pricing-subscription-payment {
+        min-width: 0;
+        color: #795510;
+        font-family: var(--mono);
+        font-size: 9px;
+        font-weight: 850;
+        line-height: 1.1;
+      }
+
       .home-pricing-group.is-active {
         border-color: var(--blue-deep);
         color: #ffffff;
@@ -1677,6 +1686,10 @@
         border-color: rgba(255, 224, 138, 0.34);
         color: #ffe08a;
         background: rgba(255, 255, 255, 0.1);
+      }
+
+      .home-pricing-group.is-active .home-pricing-subscription-payment {
+        color: #ffffff;
       }
 
       .home-pricing-model-head {

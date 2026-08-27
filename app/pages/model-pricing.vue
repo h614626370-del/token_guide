@@ -89,8 +89,7 @@ function periodLabel(start: string, end: string) {
 function subscriptionPayment(selectedPlan?: ModelPricingSubscriptionPlan | null) {
   const plan = selectedPlan || selectedGroup.value?.subscription_plan
   if (!plan) return ''
-  const symbol = plan.currency === 'CNY' ? '¥' : `${plan.currency} `
-  return `${symbol}${formatNumber(plan.price)}`
+  return `¥${formatNumber(plan.price)}`
 }
 
 function subscriptionFormula(model: ModelPricingCatalog['vendors'][number]['groups'][number]['models'][number]) {

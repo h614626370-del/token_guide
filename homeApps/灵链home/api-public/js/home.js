@@ -669,6 +669,12 @@
         return `${(number * 10).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} 折`;
       }
 
+      function formatSubscriptionPayment(plan) {
+        const price = Number(plan?.price);
+        if (!Number.isFinite(price)) return "";
+        return `¥${formatPricingNumber(price)}`;
+      }
+
       function activePricingVendor() {
         return modelPricingCatalog?.vendors.find((vendor) => vendor.id === activePricingVendorId)
           || modelPricingCatalog?.vendors[0]
@@ -720,6 +726,7 @@
       function createGroupButton(group) {
         const button = document.createElement("button");
         const isSubscription = group.subscription_type === "subscription" || Boolean(group.subscription_plan);
+        const subscriptionPayment = formatSubscriptionPayment(group.subscription_plan);
         const meta = document.createElement("span");
         button.type = "button";
         button.className = "home-pricing-group";
@@ -727,10 +734,13 @@
         button.classList.toggle("is-subscription", isSubscription);
         button.setAttribute("role", "tab");
         button.setAttribute("aria-selected", String(group.id === activePricingGroupId));
-        button.title = `${group.name}${isSubscription ? " · 订阅分组" : ""}`;
+        button.title = `${group.name}${isSubscription ? ` · 订阅分组${subscriptionPayment ? ` · 实付 ${subscriptionPayment}` : ""}` : ""}`;
         meta.className = "home-pricing-group-meta";
         if (isSubscription) {
           meta.append(createPricingText("small", "home-pricing-subscription-badge", "订阅"));
+          if (subscriptionPayment) {
+            meta.append(createPricingText("small", "home-pricing-subscription-payment", `实付 ${subscriptionPayment}`));
+          }
         }
         meta.append(createPricingText("em", "", `${formatPricingNumber(group.effective_multiplier)}x`));
         button.append(
@@ -837,6 +847,7 @@
         if (!vendor) return;
         activePricingVendorId = vendor.id;
         const group = activePricingGroup();
+        const groupSubscriptionPayment = formatSubscriptionPayment(group?.subscription_plan);
         activePricingGroupId = group?.id || "";
 
         pricingVendors.replaceChildren(...modelPricingCatalog.vendors.map(createVendorButton));
@@ -844,7 +855,7 @@
         pricingVendorName.textContent = vendor.name;
         pricingGroupName.textContent = group?.name || "暂无可用分组";
         pricingGroupMeta.textContent = group
-          ? `${group.models.length} 个模型 · 分组倍率 ${formatPricingNumber(group.effective_multiplier)}x${group.subscription_plan ? ` · ${group.subscription_plan.name}` : ""}`
+          ? `${group.models.length} 个模型 · 分组倍率 ${formatPricingNumber(group.effective_multiplier)}x${group.subscription_plan ? ` · ${group.subscription_plan.name}${groupSubscriptionPayment ? ` · 实付 ${groupSubscriptionPayment}` : ""}` : ""}`
           : "公开分组";
         pricingModels.replaceChildren(
           ...(group?.models.length
