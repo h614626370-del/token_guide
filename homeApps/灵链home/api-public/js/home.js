@@ -17,9 +17,28 @@
       const noticeList = document.querySelector("[data-notice-list]");
       const noticeListItems = document.querySelector("[data-notice-list-items]");
       const noticeLayout = document.querySelector(".notice-layout");
+      const pricingRoot = document.querySelector("[data-model-pricing]");
+      const pricingVendors = document.querySelector("[data-pricing-vendors]");
+      const pricingGroups = document.querySelector("[data-pricing-groups]");
+      const pricingModels = document.querySelector("[data-pricing-models]");
+      const pricingStatus = document.querySelector("[data-pricing-status]");
+      const pricingSummary = document.querySelector("[data-pricing-summary]");
+      const pricingVendorName = document.querySelector("[data-pricing-vendor-name]");
+      const pricingGroupName = document.querySelector("[data-pricing-group-name]");
+      const pricingGroupMeta = document.querySelector("[data-pricing-group-meta]");
+      const pricingError = document.querySelector("[data-pricing-error]");
+      const pricingRetry = document.querySelector("[data-pricing-retry]");
+      const pricingRouteLinks = document.querySelectorAll("[data-pricing-route]");
+      const internalAnchorLinks = document.querySelectorAll('a[href^="#"]');
+      const pricingRoutePath = "/model-pricing";
       let activeNotice = null;
       let availableNotices = [];
       let noticeLastFocus = null;
+      let modelPricingCatalog = null;
+      let activePricingVendorId = "";
+      let activePricingGroupId = "";
+
+      const NOTICE_VIEW_STORAGE_KEY = "llapi_home_notice_views_v1";
 
       const NOTICE_CONFIG_DEFAULTS = Object.freeze({
         enabled: true,
@@ -46,6 +65,7 @@
         siteUrl: "https://llapi.org",
         apiBaseUrl: "https://llapi.org/v1",
         guideUrl: "https://guide.llapi.org",
+        modelPricingApiUrl: "https://guide.llapi.org/api/model-pricing",
         logoUrl: "./assets/logo-80.png",
         socialImageUrl: "./assets/logo-256.png",
         loginUrl: "/login",
@@ -168,14 +188,14 @@
           });
         }
 
-        ["apiBaseUrl", "guideUrl"].forEach((key) => {
+        ["apiBaseUrl", "guideUrl", "modelPricingApiUrl"].forEach((key) => {
           try {
             normalized[key] = new URL(normalized[key], normalized.siteUrl + "/").href;
           } catch {
             normalized[key] = SITE_CONFIG_DEFAULTS[key];
           }
         });
-        ["apiBaseUrl", "guideUrl"].forEach((key) => {
+        ["apiBaseUrl", "guideUrl", "modelPricingApiUrl"].forEach((key) => {
           normalized[key] = normalized[key].replace(/\/+$/, "");
         });
         normalized.notices = normalizeNoticeList(source, normalized);
@@ -243,6 +263,7 @@
         setConfiguredHref('a[href="/login"]', siteConfig.loginUrl);
         setConfiguredHref('a[href="/register"]', siteConfig.registerUrl);
         setConfiguredHref('a[href="/dashboard"]', siteConfig.dashboardUrl);
+        setConfiguredHref('[data-model-pricing-link]', `${siteConfig.guideUrl}/model-pricing`);
 
         const markupLogoUrl = document.querySelector('.brand img')?.getAttribute("src");
         const effectiveLogoUrl = markupLogoUrl && markupLogoUrl !== SITE_CONFIG_DEFAULTS.logoUrl
@@ -331,6 +352,60 @@
 
       applySiteConfig();
 
+      function isPricingRoute() {
+        const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+        return pathname === pricingRoutePath || pathname.endsWith(pricingRoutePath);
+      }
+
+      function updatePricingRouteMeta(active) {
+        document.title = active
+          ? `${siteConfig.brandName} 模型价格`
+          : siteConfig.pageTitle;
+        document.querySelector('link[rel="canonical"]')?.setAttribute(
+          "href",
+          `${siteConfig.siteUrl}${active ? pricingRoutePath : "/"}`
+        );
+        setMetaContent(
+          'meta[name="description"]',
+          active
+            ? `${siteConfig.brandName}模型价格目录，按厂商、分组查看实时快照价格。`
+            : siteConfig.seoDescription
+        );
+      }
+
+      function setPricingRoute(active, scroll = false) {
+        document.body.classList.toggle("pricing-only", active);
+        pricingRouteLinks.forEach((link) => {
+          link.setAttribute("aria-current", active ? "page" : "false");
+        });
+        updatePricingRouteMeta(active);
+        if (active && scroll) window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      pricingRouteLinks.forEach((link) => {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (!isPricingRoute()) window.history.pushState({}, "", pricingRoutePath);
+          closeMobileNavigation();
+          setPricingRoute(true, true);
+        });
+      });
+      internalAnchorLinks.forEach((link) => {
+        link.addEventListener("click", (event) => {
+          if (!isPricingRoute()) return;
+          const hash = link.getAttribute("href") || "";
+          if (!hash || hash === "#") return;
+          const target = document.querySelector(hash);
+          if (!target) return;
+          event.preventDefault();
+          window.history.pushState({}, "", `/${hash}`);
+          setPricingRoute(false);
+          window.requestAnimationFrame(() => target.scrollIntoView({ behavior: "smooth", block: "start" }));
+        });
+      });
+      window.addEventListener("popstate", () => setPricingRoute(isPricingRoute(), true));
+      setPricingRoute(isPricingRoute());
+
       function getNoticeTime(notice) {
         const timestamp = Date.parse(notice.publishedAt);
         return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
@@ -344,6 +419,56 @@
             const timeDiff = getNoticeTime(right) - getNoticeTime(left);
             return timeDiff || left._order - right._order;
           });
+      }
+
+      function noticeFingerprint(notice) {
+        const source = JSON.stringify([
+          notice.id,
+          notice.publishedAt,
+          notice.title,
+          notice.body,
+          notice.imageUrl,
+          notice.primaryActionText,
+          notice.primaryActionUrl,
+          notice.secondaryActionText,
+          notice.secondaryActionUrl
+        ]);
+        let hash = 2166136261;
+        for (let index = 0; index < source.length; index += 1) {
+          hash ^= source.charCodeAt(index);
+          hash = Math.imul(hash, 16777619);
+        }
+        return `${notice.id}:${(hash >>> 0).toString(36)}`;
+      }
+
+      function getViewedNoticeFingerprints() {
+        try {
+          const value = JSON.parse(window.localStorage.getItem(NOTICE_VIEW_STORAGE_KEY) || "[]");
+          return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+        } catch {
+          return [];
+        }
+      }
+
+      function hasViewedNotice(notice) {
+        return getViewedNoticeFingerprints().includes(noticeFingerprint(notice));
+      }
+
+      function markNoticeViewed(notice) {
+        if (!notice) return;
+        try {
+          const fingerprint = noticeFingerprint(notice);
+          const viewed = getViewedNoticeFingerprints().filter((item) => item !== fingerprint);
+          viewed.push(fingerprint);
+          window.localStorage.setItem(NOTICE_VIEW_STORAGE_KEY, JSON.stringify(viewed.slice(-60)));
+        } catch {
+          // Storage can be unavailable in privacy modes; the notice remains usable.
+        }
+      }
+
+      function updateNoticeUnreadState() {
+        const hasUnread = availableNotices.some((notice) => !hasViewedNotice(notice));
+        noticeOpenButton.classList.toggle("has-unread", hasUnread);
       }
 
       function setNoticeAction(link, text, href) {
@@ -452,6 +577,8 @@
         noticeLastFocus = document.activeElement;
         noticeDialogShell.hidden = false;
         document.body.classList.add("notice-open");
+        markNoticeViewed(activeNotice);
+        updateNoticeUnreadState();
         window.setTimeout(() => noticeDialog.focus(), 0);
       }
 
@@ -466,7 +593,8 @@
 
       function initializeNotice() {
         availableNotices = getAvailableNotices();
-        activeNotice = availableNotices[0] || null;
+        const unreadAutoNotice = availableNotices.find((notice) => notice.autoOpen && !hasViewedNotice(notice));
+        activeNotice = unreadAutoNotice || availableNotices[0] || null;
         renderNoticeList();
 
         if (!activeNotice) {
@@ -476,8 +604,9 @@
 
         renderNotice(activeNotice);
         noticeOpenButton.hidden = false;
+        updateNoticeUnreadState();
 
-        if (activeNotice.autoOpen) {
+        if (unreadAutoNotice) {
           window.setTimeout(openNoticeDialog, 420);
         }
       }
@@ -498,12 +627,274 @@
         activeNotice = nextNotice;
         renderNotice(activeNotice);
         updateNoticeListSelection();
+        markNoticeViewed(activeNotice);
+        updateNoticeUnreadState();
       });
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !noticeDialogShell.hidden) closeNoticeDialog();
       });
 
       initializeNotice();
+
+      function resolveModelPricingApiUrl() {
+        try {
+          const guideOrigin = new URL(siteConfig.guideUrl).origin;
+          const servedByGuide = window.location.origin === guideOrigin
+            || window.location.pathname.startsWith("/site-home")
+            || window.location.port === "3000";
+          return servedByGuide
+            ? new URL("/api/model-pricing", window.location.origin).href
+            : new URL(siteConfig.modelPricingApiUrl, `${siteConfig.guideUrl}/`).href;
+        } catch {
+          return siteConfig.modelPricingApiUrl;
+        }
+      }
+
+      function formatPricingNumber(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return "暂无";
+        if (number === 0) return "0";
+        if (Math.abs(number) < 0.0001) return number.toExponential(2);
+        return number.toFixed(Math.abs(number) < 1 ? 5 : 3).replace(/0+$/, "").replace(/\.$/, "");
+      }
+
+      function formatPlatformPrice(value) {
+        const formatted = formatPricingNumber(value);
+        return formatted === "暂无" ? formatted : `¥${formatted}`;
+      }
+
+      function formatPricingDiscount(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return "暂无";
+        return `${(number * 10).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} 折`;
+      }
+
+      function activePricingVendor() {
+        return modelPricingCatalog?.vendors.find((vendor) => vendor.id === activePricingVendorId)
+          || modelPricingCatalog?.vendors[0]
+          || null;
+      }
+
+      function activePricingGroup() {
+        const vendor = activePricingVendor();
+        return vendor?.groups.find((group) => group.id === activePricingGroupId)
+          || vendor?.groups[0]
+          || null;
+      }
+
+      function createPricingText(tagName, className, text) {
+        const element = document.createElement(tagName);
+        if (className) element.className = className;
+        element.textContent = text;
+        return element;
+      }
+
+      function createVendorButton(vendor) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "home-pricing-vendor";
+        button.classList.toggle("is-active", vendor.id === activePricingVendorId);
+        button.setAttribute("aria-pressed", String(vendor.id === activePricingVendorId));
+
+        const mark = createPricingText("span", "home-pricing-vendor-mark", vendor.short || vendor.name.slice(0, 2));
+        if (vendor.logo_url) {
+          const logo = document.createElement("img");
+          logo.src = new URL(vendor.logo_url, resolveModelPricingApiUrl()).href;
+          logo.alt = "";
+          mark.replaceChildren(logo);
+        }
+        const copy = document.createElement("span");
+        copy.append(
+          createPricingText("strong", "", vendor.name),
+          createPricingText("small", "", `${vendor.model_count} 个模型`)
+        );
+        button.append(mark, copy);
+        button.addEventListener("click", () => {
+          activePricingVendorId = vendor.id;
+          activePricingGroupId = vendor.groups[0]?.id || "";
+          renderModelPricing();
+        });
+        return button;
+      }
+
+      function createGroupButton(group) {
+        const button = document.createElement("button");
+        const isSubscription = group.subscription_type === "subscription" || Boolean(group.subscription_plan);
+        const meta = document.createElement("span");
+        button.type = "button";
+        button.className = "home-pricing-group";
+        button.classList.toggle("is-active", group.id === activePricingGroupId);
+        button.classList.toggle("is-subscription", isSubscription);
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-selected", String(group.id === activePricingGroupId));
+        button.title = `${group.name}${isSubscription ? " · 订阅分组" : ""}`;
+        meta.className = "home-pricing-group-meta";
+        if (isSubscription) {
+          meta.append(createPricingText("small", "home-pricing-subscription-badge", "订阅"));
+        }
+        meta.append(createPricingText("em", "", `${formatPricingNumber(group.effective_multiplier)}x`));
+        button.append(
+          createPricingText("strong", "", group.name),
+          meta
+        );
+        button.addEventListener("click", () => {
+          activePricingGroupId = group.id;
+          renderModelPricing();
+        });
+        return button;
+      }
+
+      function appendTokenPriceCell(row, label, value) {
+        const cell = document.createElement("div");
+        cell.className = "home-model-price-cell";
+        cell.append(
+          createPricingText("span", "", label),
+          createPricingText("strong", "", formatPlatformPrice(value))
+        );
+        row.append(cell);
+      }
+
+      function createTokenPriceRow(model, values, period = null) {
+        const row = document.createElement("div");
+        row.className = `home-model-price-row${period ? " is-period" : ""}`;
+        const identity = document.createElement("div");
+        identity.className = "home-model-identity";
+        if (period) {
+          identity.append(
+            createPricingText("strong", "", "高峰价"),
+            createPricingText("small", "", `${period.start_time.slice(0, 5)}–${period.end_time.slice(0, 5)} · ${formatPricingNumber(period.multiplier)}x`)
+          );
+        } else {
+          identity.append(
+            createPricingText("strong", "", model.display_name || model.model_name),
+            createPricingText("small", "", `${formatPricingNumber(model.effective_multiplier)}x`)
+          );
+        }
+        row.append(identity);
+        appendTokenPriceCell(row, "输入 / 1M Tokens", values?.input_usd_per_million);
+        appendTokenPriceCell(row, "输出 / 1M Tokens", values?.output_usd_per_million);
+        appendTokenPriceCell(row, "缓存读取 / 1M Tokens", values?.cache_read_usd_per_million);
+        appendTokenPriceCell(row, "缓存写入 / 1M Tokens", values?.cache_write_usd_per_million);
+        row.append(createPricingText("strong", "home-model-discount", period ? "" : formatPricingDiscount(model.discount_ratio)));
+        return row;
+      }
+
+      function createImagePriceRow(model, tiers, period = null) {
+        const row = document.createElement("div");
+        row.className = `home-model-price-row is-image${period ? " is-period" : ""}`;
+        const unit = model.billing_mode === "image" ? "张" : "次";
+        const identity = document.createElement("div");
+        identity.className = "home-model-identity";
+        if (period) {
+          identity.append(
+            createPricingText("strong", "", "高峰价"),
+            createPricingText("small", "", `${period.start_time.slice(0, 5)}–${period.end_time.slice(0, 5)} · ${formatPricingNumber(period.multiplier)}x`)
+          );
+        } else {
+          identity.append(
+            createPricingText("strong", "", model.display_name || model.model_name),
+            createPricingText("small", "", `按${unit}计费 · ${formatPricingNumber(model.effective_multiplier)}x`)
+          );
+        }
+        const prices = document.createElement("div");
+        prices.className = "home-image-price-grid";
+        if (tiers?.length) {
+          tiers.forEach((tier) => {
+            const item = document.createElement("span");
+            item.append(
+              createPricingText("small", "", `${tier.label} / ${unit}`),
+              createPricingText("strong", "", formatPlatformPrice(tier.effective_price_cny_per_image))
+            );
+            prices.append(item);
+          });
+        } else {
+          prices.append(createPricingText("span", "home-pricing-empty-inline", `暂无按${unit}价格`));
+        }
+        row.append(identity, prices, createPricingText("strong", "home-model-discount", period ? "" : formatPricingDiscount(model.discount_ratio)));
+        return row;
+      }
+
+      function createModelPriceEntry(model) {
+        const entry = document.createElement("section");
+        entry.className = "home-model-price-entry";
+        if (model.billing_mode === "token") {
+          entry.append(createTokenPriceRow(model, model.effective_prices));
+          (model.time_pricing?.periods || []).forEach((period) => {
+            entry.append(createTokenPriceRow(model, period.effective_prices, period));
+          });
+        } else {
+          entry.append(createImagePriceRow(model, model.image_prices));
+          (model.time_pricing?.periods || []).forEach((period) => {
+            entry.append(createImagePriceRow(model, period.image_prices, period));
+          });
+        }
+        return entry;
+      }
+
+      function renderModelPricing() {
+        if (!modelPricingCatalog || !pricingRoot) return;
+        const vendor = activePricingVendor();
+        if (!vendor) return;
+        activePricingVendorId = vendor.id;
+        const group = activePricingGroup();
+        activePricingGroupId = group?.id || "";
+
+        pricingVendors.replaceChildren(...modelPricingCatalog.vendors.map(createVendorButton));
+        pricingGroups.replaceChildren(...vendor.groups.map(createGroupButton));
+        pricingVendorName.textContent = vendor.name;
+        pricingGroupName.textContent = group?.name || "暂无可用分组";
+        pricingGroupMeta.textContent = group
+          ? `${group.models.length} 个模型 · 分组倍率 ${formatPricingNumber(group.effective_multiplier)}x${group.subscription_plan ? ` · ${group.subscription_plan.name}` : ""}`
+          : "公开分组";
+        pricingModels.replaceChildren(
+          ...(group?.models.length
+            ? group.models.map(createModelPriceEntry)
+            : [createPricingText("div", "home-pricing-empty", "当前分组暂无公开模型")])
+        );
+      }
+
+      async function loadModelPricing() {
+        if (!pricingRoot) return;
+        pricingRoot.classList.add("is-loading");
+        pricingRoot.classList.remove("is-error");
+        pricingError.hidden = true;
+        pricingStatus.textContent = "正在读取模型价格";
+        try {
+          const response = await fetch(resolveModelPricingApiUrl(), {
+            headers: { Accept: "application/json" },
+            credentials: "omit",
+            cache: "no-store"
+          });
+          if (!response.ok) throw new Error(`模型价格请求失败：${response.status}`);
+          const payload = await response.json();
+          const catalog = payload?.data;
+          if (!catalog || !Array.isArray(catalog.vendors) || !catalog.vendors.length) {
+            throw new Error("模型价格快照为空");
+          }
+          modelPricingCatalog = catalog;
+          if (!catalog.vendors.some((vendor) => vendor.id === activePricingVendorId)) {
+            activePricingVendorId = catalog.vendors[0].id;
+          }
+          const vendor = activePricingVendor();
+          if (!vendor?.groups.some((group) => group.id === activePricingGroupId)) {
+            activePricingGroupId = vendor?.groups[0]?.id || "";
+          }
+          pricingStatus.textContent = "价格快照已更新";
+          pricingSummary.textContent = `${catalog.summary.vendors} 家厂商 · ${catalog.summary.groups} 个分组 · ${catalog.summary.models} 个模型`;
+          renderModelPricing();
+        } catch (error) {
+          pricingRoot.classList.add("is-error");
+          pricingStatus.textContent = "价格暂不可用";
+          pricingSummary.textContent = "请稍后重新加载";
+          pricingError.hidden = false;
+          console.warn(error instanceof Error ? error.message : "模型价格读取失败");
+        } finally {
+          pricingRoot.classList.remove("is-loading");
+        }
+      }
+
+      pricingRetry?.addEventListener("click", loadModelPricing);
+      loadModelPricing();
 
       function parseAuthUser(rawValue) {
         if (!rawValue) return null;
@@ -677,8 +1068,7 @@
       const revealSelector = [
         ".section-head",
         ".bento-card",
-        ".price-callout",
-        ".price-table-wrap",
+        ".home-pricing-browser",
         ".migration-copy",
         ".code-card",
         ".trust-card",

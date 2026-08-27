@@ -7,6 +7,7 @@ window.LLAPI_HOME_CONFIG = {
   siteUrl: "https://llapi.org",
   apiBaseUrl: "{{siteUrl}}/v1",
   guideUrl: "https://guide.llapi.org",
+  modelPricingApiUrl: "{{guideUrl}}/api/model-pricing",
   logoUrl: "./assets/logo-80.png",
   socialImageUrl: "./assets/logo-256.png",
   loginUrl: "/login",

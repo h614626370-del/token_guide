@@ -87,7 +87,7 @@
           <div class="nav-links" id="main-nav">
             <a href="#capabilities">能力</a>
             <a href="#models">模型</a>
-            <a href="https://guide.llapi.org/pricing">定价</a>
+            <a href="/model-pricing" data-pricing-route>模型价格</a>
             <a href="https://guide.llapi.org">文档</a>
             <a href="#faq">常见问题</a>
             <div class="mobile-nav-actions" aria-label="账户操作">
@@ -338,42 +338,66 @@
         <div class="shell">
           <div class="section-head">
             <div>
-              <p class="section-kicker">Pricing clarity</p>
-              <h2>先看懂价格，再决定用哪个模型。</h2>
+              <p class="section-kicker">Model pricing</p>
+              <h2>模型价格，按可用分组清楚展开。</h2>
             </div>
             <p class="section-desc">
-              首页给出常用能力的价格参考，完整页面会继续拆开模型、套餐分组、额度口径与人民币折算，让成本在调用之前就能算清。
+              按厂商和公开分组查看本站实际价格。Token 模型按每百万 Token 计费，图片模型按张计费。
             </p>
           </div>
 
-          <div class="pricing-layout">
-            <article class="price-callout">
-              <div>
-                <p class="section-kicker">gpt-image-2</p>
-                <h2>把生图成本，直接算到每一张。</h2>
-                <p>按当前最优惠套餐折算，官方额度消耗约 $0.134/张，适合批量生图前快速估算。</p>
+          <div class="home-pricing-browser" data-model-pricing>
+            <header class="home-pricing-toolbar">
+              <div class="home-pricing-summary">
+                <span class="home-pricing-live"><i></i><span data-pricing-status>正在读取模型价格</span></span>
+                <strong data-pricing-summary>价格目录加载中</strong>
               </div>
-              <div class="price-highlight">
-                <div><strong>¥0.024</strong><span>1K 图片低至 / 张</span></div>
-                <span>当前最优：$2000额度/月套餐</span>
-              </div>
-            </article>
+              <a class="home-pricing-link" data-model-pricing-link href="https://guide.llapi.org/model-pricing">
+                完整价格
+                <img src="./api-public/icons/arrow-right.svg" alt="" aria-hidden="true" />
+              </a>
+            </header>
 
-            <div class="price-table-wrap">
-              <div class="price-table-head">
-                <h3>gpt-image-2 分辨率参考</h3>
-                <a href="https://guide.llapi.org/pricing">查看完整价格 →</a>
-              </div>
-              <table class="price-table">
-                <thead>
-                  <tr><th>分辨率</th><th>适用场景</th><th>最低参考价</th><th>状态</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td><strong>1K</strong><span>快速生成</span></td><td>预览、社媒、批量草图</td><td><code>¥0.024</code></td><td><span class="price-tag">推荐</span></td></tr>
-                  <tr><td><strong>2K</strong><span>清晰输出</span></td><td>文章配图、产品素材</td><td><code>¥0.036</code></td><td><span class="price-tag">可用</span></td></tr>
-                  <tr><td><strong>4K</strong><span>高分辨率</span></td><td>海报、精细视觉输出</td><td><code>¥0.048</code></td><td><span class="price-tag">可用</span></td></tr>
-                </tbody>
-              </table>
+            <nav class="home-pricing-vendors" data-pricing-vendors aria-label="模型厂商">
+              <div class="home-pricing-loading">正在加载厂商...</div>
+            </nav>
+
+            <div class="home-pricing-body">
+              <aside class="home-pricing-groups-panel" aria-label="模型分组">
+                <div class="home-pricing-groups-head">
+                  <span>可用分组</span>
+                  <strong data-pricing-vendor-name>模型价格</strong>
+                </div>
+                <div class="home-pricing-groups" data-pricing-groups role="tablist" aria-label="可用分组"></div>
+              </aside>
+
+              <section class="home-pricing-catalog" aria-live="polite">
+
+                <header class="home-pricing-model-head">
+                  <div>
+                    <span data-pricing-group-meta>公开分组</span>
+                    <h3 data-pricing-group-name>正在读取价格目录</h3>
+                  </div>
+                  <span class="home-pricing-unit">本站价 · 人民币</span>
+                </header>
+
+                <div class="home-pricing-columns" aria-hidden="true">
+                  <span>模型</span>
+                  <span><strong>输入</strong><small>/ 1M Tokens</small></span>
+                  <span><strong>输出</strong><small>/ 1M Tokens</small></span>
+                  <span><strong>缓存读取</strong><small>/ 1M Tokens</small></span>
+                  <span><strong>缓存写入</strong><small>/ 1M Tokens</small></span>
+                  <span>折扣</span>
+                </div>
+                <div class="home-pricing-models" data-pricing-models>
+                  <div class="home-pricing-loading">正在加载快照价格...</div>
+                </div>
+              </section>
+            </div>
+
+            <div class="home-pricing-error" data-pricing-error hidden>
+              <span>模型价格暂时无法读取。</span>
+              <button type="button" data-pricing-retry>重新加载</button>
             </div>
           </div>
         </div>
@@ -497,7 +521,7 @@
     <footer class="site-footer">
       <div class="shell footer-inner">
         <div class="footer-copyright">© 2026 灵链云. All Rights Reserved.</div>
-        <div class="footer-links"><a href="https://guide.llapi.org/pricing">模型价格</a><a href="https://guide.llapi.org">接入教程</a><a href="/dashboard">控制台</a></div>
+        <div class="footer-links"><a href="/model-pricing" data-pricing-route>模型价格</a><a href="https://guide.llapi.org">接入教程</a><a href="/dashboard">控制台</a></div>
       </div>
     </footer>
 

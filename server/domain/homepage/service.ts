@@ -238,14 +238,14 @@ export async function readHomepageFile(relativePath: string, event?: H3Event, pr
     const site = getPublicSiteConfig(event)
     // Keep the configured absolute URL because this HTML can be embedded by another origin.
     const logoUrl = site.logo_path
-    const bytes = rewriteHomepageAssetUrls(await readFile(fullPath), contentType, logoUrl)
+    const bytes = rewriteHomepageAssetUrls(await readFile(fullPath), contentType, logoUrl, requestedDefaultId)
     return { bytes, size: bytes.length, contentType, preview }
   } catch {
     return null
   }
 }
 
-function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string, logoUrl: string) {
+function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string, logoUrl: string, requestedDefaultId = '') {
   if (!contentType.startsWith('text/html') && !contentType.startsWith('text/css')) return bytes
 
   let content = bytes.toString('utf8')
@@ -254,12 +254,12 @@ function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string, logoUrl: s
     const resourceAttribute = /(<(?:img|script|source|video|audio|embed|input)\b[^>]*\b(?:src|poster)\s*=\s*["'])([^"']+)(["'])/gi
     const linkAttribute = /(<link\b[^>]*\bhref\s*=\s*["'])([^"']+)(["'])/gi
     content = content
-      .replace(resourceAttribute, (_match, prefix: string, value: string, suffix: string) => `${prefix}${homepageAssetUrl(value)}${suffix}`)
-      .replace(linkAttribute, (_match, prefix: string, value: string, suffix: string) => `${prefix}${homepageAssetUrl(value)}${suffix}`)
+      .replace(resourceAttribute, (_match, prefix: string, value: string, suffix: string) => `${prefix}${homepageAssetUrl(value, requestedDefaultId)}${suffix}`)
+      .replace(linkAttribute, (_match, prefix: string, value: string, suffix: string) => `${prefix}${homepageAssetUrl(value, requestedDefaultId)}${suffix}`)
       .replace(/\bsrcset\s*=\s*(["'])(.*?)\1/gi, (match, quote: string, value: string) => {
         const rewritten = value.split(',').map((item) => {
           const [url, ...descriptor] = item.trim().split(/\s+/)
-          return [homepageAssetUrl(url || ''), ...descriptor].join(' ')
+          return [homepageAssetUrl(url || '', requestedDefaultId), ...descriptor].join(' ')
         }).join(', ')
         return `srcset=${quote}${rewritten}${quote}`
       })
@@ -269,27 +269,32 @@ function rewriteHomepageAssetUrls(bytes: Buffer, contentType: string, logoUrl: s
     )
   }
 
-  if (contentType.startsWith('text/html')) {
-    content = content.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (_match, quote: string, value: string) => `url(${quote}${homepageAssetUrl(value.trim())}${quote})`)
-  } else {
-    content = content.replace(/url\(\s*(["']?)\/(?!\/|site-home(?:\/|$))/gi, 'url($1/site-home/')
-  }
+  content = content.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (_match, quote: string, value: string) => `url(${quote}${homepageAssetUrl(value.trim(), requestedDefaultId)}${quote})`)
   return Buffer.from(content, 'utf8')
 }
 
-function homepageAssetUrl(value: string) {
+function homepageAssetUrl(value: string, requestedDefaultId = '') {
   const trimmed = value.trim()
   if (!trimmed || /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(trimmed)) return value
   try {
     const resolved = new URL(trimmed, 'https://homepage.invalid/site-home/')
     if (resolved.origin !== 'https://homepage.invalid') return value
     if (resolved.pathname === '/site-home' || resolved.pathname.startsWith('/site-home/')) {
-      return `${resolved.pathname}${resolved.search}${resolved.hash}`
+      return appendHomepagePreviewQuery(`${resolved.pathname}${resolved.search}${resolved.hash}`, requestedDefaultId)
     }
-    return `/site-home${resolved.pathname}${resolved.search}${resolved.hash}`
+    return appendHomepagePreviewQuery(`/site-home${resolved.pathname}${resolved.search}${resolved.hash}`, requestedDefaultId)
   } catch {
     return value
   }
+}
+
+function appendHomepagePreviewQuery(value: string, requestedDefaultId: string) {
+  if (!requestedDefaultId || !value.startsWith('/site-home')) return value
+  const hashIndex = value.indexOf('#')
+  const hash = hashIndex >= 0 ? value.slice(hashIndex) : ''
+  const withoutHash = hashIndex >= 0 ? value.slice(0, hashIndex) : value
+  const separator = withoutHash.includes('?') ? '&' : '?'
+  return `${withoutHash}${separator}default=${encodeURIComponent(requestedDefaultId)}${hash}`
 }
 
 export async function stageHomepageFiles(files: Array<{ path: string; data: Buffer }>, event?: H3Event): Promise<HomepageUploadResult> {

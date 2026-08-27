@@ -62,6 +62,13 @@ describe('database migrations', () => {
         { id: 37, name: 'create_compensation_batches' },
         { id: 38, name: 'add_compensation_batch_mode' },
         { id: 39, name: 'add_compensation_execution_idempotency' },
+        { id: 40, name: 'create_model_pricing_overrides' },
+        { id: 41, name: 'create_group_model_pricing' },
+        { id: 42, name: 'add_group_model_pricing_visibility' },
+        { id: 43, name: 'extend_model_pricing_for_images_and_ordering' },
+        { id: 44, name: 'add_model_pricing_official_overrides_and_group_names' },
+        { id: 45, name: 'add_model_pricing_official_price_unit' },
+        { id: 46, name: 'create_model_pricing_public_snapshots' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -99,6 +106,26 @@ describe('database migrations', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'email_settings'").get()).toEqual({ name: 'email_settings' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_model_discoveries'").get()).toEqual({ name: 'pricing_model_discoveries' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pricing_source_snapshots'").get()).toEqual({ name: 'pricing_source_snapshots' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_overrides'").get()).toEqual({ name: 'model_pricing_overrides' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_group_overrides'").get()).toEqual({ name: 'model_pricing_group_overrides' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_source_snapshots'").get()).toEqual({ name: 'model_pricing_source_snapshots' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_public_snapshots'").get()).toEqual({ name: 'model_pricing_public_snapshots' })
+      expect(db.prepare('PRAGMA table_info(model_pricing_group_overrides)').all().map((row: any) => row.name)).toContain('is_visible')
+      expect(db.prepare('PRAGMA table_info(model_pricing_group_overrides)').all().map((row: any) => row.name)).toEqual(expect.arrayContaining([
+        'image_price_1k',
+        'image_price_2k',
+        'image_price_4k',
+        'official_input_usd_per_million',
+        'official_output_usd_per_million',
+        'official_cache_read_usd_per_million',
+        'official_cache_write_usd_per_million',
+        'official_image_price_1k',
+        'official_image_price_2k',
+        'official_image_price_4k',
+        'official_price_unit',
+      ]))
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_display_order'").get()).toEqual({ name: 'model_pricing_display_order' })
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_group_settings'").get()).toEqual({ name: 'model_pricing_group_settings' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_items'").get()).toEqual({ name: 'community_items' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_likes'").get()).toEqual({ name: 'community_likes' })
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'community_item_images'").get()).toEqual({ name: 'community_item_images' })
@@ -170,12 +197,62 @@ describe('database migrations', () => {
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 39 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 46 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 1 })
       expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()).toEqual(firstAppliedAt)
     } finally {
       second.close()
+    }
+  })
+
+  it('upgrades databases created before model pricing migrations were renumbered', () => {
+    const databasePath = createDatabasePath()
+    const legacy = openDatabase(databasePath)
+    try {
+      legacy.exec(`
+        DROP TABLE compensation_items;
+        DROP TABLE compensation_batches;
+        DELETE FROM schema_migrations WHERE id >= 37;
+      `)
+      const insertMigration = legacy.prepare(`
+        INSERT INTO schema_migrations (id, name, applied_at)
+        VALUES (?, ?, ?)
+      `)
+      const appliedAt = new Date().toISOString()
+      for (const migration of [
+        { id: 37, name: 'create_model_pricing_overrides' },
+        { id: 38, name: 'create_group_model_pricing' },
+        { id: 39, name: 'add_group_model_pricing_visibility' },
+        { id: 40, name: 'extend_model_pricing_for_images_and_ordering' },
+        { id: 41, name: 'add_model_pricing_official_overrides_and_group_names' },
+        { id: 42, name: 'add_model_pricing_official_price_unit' },
+        { id: 43, name: 'create_model_pricing_public_snapshots' },
+      ]) {
+        insertMigration.run(migration.id, migration.name, appliedAt)
+      }
+    } finally {
+      legacy.close()
+    }
+
+    const upgraded = openDatabase(databasePath)
+    try {
+      expect(upgraded.prepare('SELECT id, name FROM schema_migrations WHERE id >= 37 ORDER BY id').all()).toEqual([
+        { id: 37, name: 'create_compensation_batches' },
+        { id: 38, name: 'add_compensation_batch_mode' },
+        { id: 39, name: 'add_compensation_execution_idempotency' },
+        { id: 40, name: 'create_model_pricing_overrides' },
+        { id: 41, name: 'create_group_model_pricing' },
+        { id: 42, name: 'add_group_model_pricing_visibility' },
+        { id: 43, name: 'extend_model_pricing_for_images_and_ordering' },
+        { id: 44, name: 'add_model_pricing_official_overrides_and_group_names' },
+        { id: 45, name: 'add_model_pricing_official_price_unit' },
+        { id: 46, name: 'create_model_pricing_public_snapshots' },
+      ])
+      expect(upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'compensation_batches'").get()).toEqual({ name: 'compensation_batches' })
+      expect(upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_group_overrides'").get()).toEqual({ name: 'model_pricing_group_overrides' })
+    } finally {
+      upgraded.close()
     }
   })
 })

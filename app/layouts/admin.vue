@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, BadgeDollarSign, BarChart3, Boxes, FileText, FolderTree, Gamepad2, Gift, Home, Images, LayoutDashboard, List, LogOut, Mail, MessageSquareText, RefreshCcw, Settings } from 'lucide-vue-next'
+import { ArrowLeft, BadgeDollarSign, BarChart3, Boxes, FileText, FolderTree, Gamepad2, Gift, Home, Images, LayoutDashboard, List, LogOut, Mail, MessageSquareText, RefreshCcw, Settings, Tags } from 'lucide-vue-next'
 import { PackageOpen } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -15,6 +15,7 @@ const links = [
   { label: '脚本配置', to: '/admin/installers', icon: PackageOpen },
   { label: '价格配置', to: '/admin/pricing', icon: BadgeDollarSign },
   { label: '余额补偿', to: '/admin/compensation', icon: Gift },
+  { label: '模型定价', to: '/admin/model-pricing', icon: Tags },
   { label: '反馈处理', to: '/admin/feedback', icon: MessageSquareText },
   {
     label: '社区管理', icon: Boxes, children: [

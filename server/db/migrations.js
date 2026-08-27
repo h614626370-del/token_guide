@@ -1432,4 +1432,157 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 40,
+    name: 'create_model_pricing_overrides',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS model_pricing_overrides (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          provider TEXT NOT NULL,
+          model_name TEXT NOT NULL,
+          is_manual INTEGER NOT NULL DEFAULT 0 CHECK (is_manual IN (0, 1)),
+          input_usd_per_million REAL CHECK (input_usd_per_million IS NULL OR input_usd_per_million >= 0),
+          output_usd_per_million REAL CHECK (output_usd_per_million IS NULL OR output_usd_per_million >= 0),
+          cache_read_usd_per_million REAL CHECK (cache_read_usd_per_million IS NULL OR cache_read_usd_per_million >= 0),
+          cache_write_usd_per_million REAL CHECK (cache_write_usd_per_million IS NULL OR cache_write_usd_per_million >= 0),
+          image_price_1k REAL CHECK (image_price_1k IS NULL OR image_price_1k >= 0),
+          image_price_2k REAL CHECK (image_price_2k IS NULL OR image_price_2k >= 0),
+          image_price_4k REAL CHECK (image_price_4k IS NULL OR image_price_4k >= 0),
+          note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(provider, model_name)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_model_pricing_overrides_provider
+          ON model_pricing_overrides(provider, model_name);
+      `)
+    },
+  },
+  {
+    id: 41,
+    name: 'create_group_model_pricing',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS model_pricing_group_overrides (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          group_id TEXT NOT NULL,
+          model_name TEXT NOT NULL,
+          is_enabled INTEGER NOT NULL DEFAULT 1 CHECK (is_enabled IN (0, 1)),
+          multiplier REAL CHECK (multiplier IS NULL OR multiplier > 0),
+          input_usd_per_million REAL CHECK (input_usd_per_million IS NULL OR input_usd_per_million >= 0),
+          output_usd_per_million REAL CHECK (output_usd_per_million IS NULL OR output_usd_per_million >= 0),
+          cache_read_usd_per_million REAL CHECK (cache_read_usd_per_million IS NULL OR cache_read_usd_per_million >= 0),
+          cache_write_usd_per_million REAL CHECK (cache_write_usd_per_million IS NULL OR cache_write_usd_per_million >= 0),
+          note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(group_id, model_name)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_model_pricing_group_overrides_group
+          ON model_pricing_group_overrides(group_id, model_name);
+
+        CREATE TABLE IF NOT EXISTS model_pricing_source_snapshots (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          payload_json TEXT NOT NULL,
+          fetched_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `)
+    },
+  },
+  {
+    id: 42,
+    name: 'add_group_model_pricing_visibility',
+    up(db) {
+      db.exec(`
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN is_visible INTEGER NOT NULL DEFAULT 1 CHECK (is_visible IN (0, 1));
+
+        CREATE INDEX IF NOT EXISTS idx_model_pricing_group_overrides_visibility
+          ON model_pricing_group_overrides(is_visible, group_id, model_name);
+      `)
+    },
+  },
+  {
+    id: 43,
+    name: 'extend_model_pricing_for_images_and_ordering',
+    up(db) {
+      db.exec(`
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN image_price_1k REAL CHECK (image_price_1k IS NULL OR image_price_1k >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN image_price_2k REAL CHECK (image_price_2k IS NULL OR image_price_2k >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN image_price_4k REAL CHECK (image_price_4k IS NULL OR image_price_4k >= 0);
+
+        CREATE TABLE IF NOT EXISTS model_pricing_display_order (
+          scope TEXT NOT NULL CHECK (scope IN ('vendor', 'group', 'model')),
+          parent_key TEXT NOT NULL DEFAULT '',
+          item_key TEXT NOT NULL,
+          sort_order INTEGER NOT NULL DEFAULT 1000,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (scope, parent_key, item_key)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_model_pricing_display_order
+          ON model_pricing_display_order(scope, parent_key, sort_order, item_key);
+      `)
+    },
+  },
+  {
+    id: 44,
+    name: 'add_model_pricing_official_overrides_and_group_names',
+    up(db) {
+      db.exec(`
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_input_usd_per_million REAL CHECK (official_input_usd_per_million IS NULL OR official_input_usd_per_million >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_output_usd_per_million REAL CHECK (official_output_usd_per_million IS NULL OR official_output_usd_per_million >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_cache_read_usd_per_million REAL CHECK (official_cache_read_usd_per_million IS NULL OR official_cache_read_usd_per_million >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_cache_write_usd_per_million REAL CHECK (official_cache_write_usd_per_million IS NULL OR official_cache_write_usd_per_million >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_image_price_1k REAL CHECK (official_image_price_1k IS NULL OR official_image_price_1k >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_image_price_2k REAL CHECK (official_image_price_2k IS NULL OR official_image_price_2k >= 0);
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_image_price_4k REAL CHECK (official_image_price_4k IS NULL OR official_image_price_4k >= 0);
+
+        CREATE TABLE IF NOT EXISTS model_pricing_group_settings (
+          group_id TEXT PRIMARY KEY,
+          display_name TEXT,
+          updated_at TEXT NOT NULL
+        );
+      `)
+    },
+  },
+  {
+    id: 45,
+    name: 'add_model_pricing_official_price_unit',
+    up(db) {
+      db.exec(`
+        ALTER TABLE model_pricing_group_overrides
+          ADD COLUMN official_price_unit TEXT NOT NULL DEFAULT 'usd'
+          CHECK (official_price_unit IN ('usd', 'rmb'));
+      `)
+    },
+  },
+  {
+    id: 46,
+    name: 'create_model_pricing_public_snapshots',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS model_pricing_public_snapshots (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          payload_json TEXT NOT NULL,
+          generated_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `)
+    },
+  },
 ]
