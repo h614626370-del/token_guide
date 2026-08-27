@@ -30,7 +30,7 @@ export default defineNuxtConfig({
     compensationMaxAmount: 100000,
     trustedProxyIps: '127.0.0.1,::1',
     usdToCny: 6.8102,
-    appVersion: process.env.NUXT_APP_VERSION || '2.2.27',
+    appVersion: process.env.NUXT_APP_VERSION || '2.2.28',
     updateImageRepository: '614626370/sub2api-guide',
     updateGithubRepo: 'h614626370-del/token_guide',
     updateContainerName: 'sub2api-guide',
