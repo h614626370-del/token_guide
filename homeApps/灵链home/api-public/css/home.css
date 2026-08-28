@@ -1737,7 +1737,7 @@
       .home-pricing-columns,
       .home-model-price-row {
         display: grid;
-        grid-template-columns: minmax(170px, 1.35fr) repeat(4, minmax(82px, 0.8fr)) 70px;
+        grid-template-columns: minmax(170px, 1.35fr) repeat(3, minmax(82px, 0.8fr)) 70px;
       }
 
       .home-pricing-columns {
@@ -1857,7 +1857,7 @@
       }
 
       .home-model-price-row.is-image .home-image-price-grid {
-        grid-column: 2 / 6;
+        grid-column: 2 / 5;
       }
 
       .home-image-price-grid {

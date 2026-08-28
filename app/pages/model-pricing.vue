@@ -171,7 +171,7 @@ function formatNumber(value: number) {
 
             <div class="model-price-table-wrap">
               <table class="model-price-table">
-                <thead><tr><th>模型</th><th>价格层级</th><th>输入</th><th>输出</th><th>缓存读取</th><th>缓存写入</th><th>折扣</th></tr></thead>
+                <thead><tr><th>模型</th><th>价格层级</th><th>输入</th><th>输出</th><th>缓存读取</th><th>折扣</th></tr></thead>
                 <tbody v-for="model in visibleModels" :key="model.id" class="model-price-pair">
                   <template v-if="model.billing_mode === 'token'">
                   <tr class="model-price-row model-price-row--official">
@@ -184,7 +184,6 @@ function formatNumber(value: number) {
                     <td data-label="输入"><strong class="model-official-price">{{ officialCny(model.official_display_prices.input_usd_per_million, model) }}</strong><small>{{ platformBase(model.base_prices.input_usd_per_million) }}</small></td>
                     <td data-label="输出"><strong class="model-official-price">{{ officialCny(model.official_display_prices.output_usd_per_million, model) }}</strong><small>{{ platformBase(model.base_prices.output_usd_per_million) }}</small></td>
                     <td data-label="缓存读取"><strong class="model-official-price">{{ officialCny(model.official_display_prices.cache_read_usd_per_million, model) }}</strong><small>{{ platformBase(model.base_prices.cache_read_usd_per_million) }}</small></td>
-                    <td data-label="缓存写入"><strong class="model-official-price">{{ officialCny(model.official_display_prices.cache_write_usd_per_million, model) }}</strong><small>{{ platformBase(model.base_prices.cache_write_usd_per_million) }}</small></td>
                     <td><span class="model-reference-label">参考</span></td>
                   </tr>
                   <tr class="model-price-row model-price-row--platform">
@@ -192,7 +191,6 @@ function formatNumber(value: number) {
                     <td data-label="输入"><strong class="model-platform-price">{{ platformCny(model.effective_prices.input_usd_per_million) }}</strong></td>
                     <td data-label="输出"><strong class="model-platform-price">{{ platformCny(model.effective_prices.output_usd_per_million) }}</strong></td>
                     <td data-label="缓存读取"><strong class="model-platform-price">{{ platformCny(model.effective_prices.cache_read_usd_per_million) }}</strong></td>
-                    <td data-label="缓存写入"><strong class="model-platform-price">{{ platformCny(model.effective_prices.cache_write_usd_per_million) }}</strong></td>
                     <td class="model-discount-cell"><strong class="model-discount">{{ discount(model.discount_ratio) }}</strong></td>
                   </tr>
                   <tr v-for="period in model.time_pricing?.periods || []" :key="`${period.start_time}-${period.end_time}`" class="model-price-row model-price-row--peak">
@@ -200,7 +198,6 @@ function formatNumber(value: number) {
                     <td data-label="输入"><strong class="model-platform-price">{{ platformCny(period.effective_prices.input_usd_per_million) }}</strong></td>
                     <td data-label="输出"><strong class="model-platform-price">{{ platformCny(period.effective_prices.output_usd_per_million) }}</strong></td>
                     <td data-label="缓存读取"><strong class="model-platform-price">{{ platformCny(period.effective_prices.cache_read_usd_per_million) }}</strong></td>
-                    <td data-label="缓存写入"><strong class="model-platform-price">{{ platformCny(period.effective_prices.cache_write_usd_per_million) }}</strong></td>
                     <td class="model-discount-cell"></td>
                   </tr>
                   </template>
@@ -212,7 +209,7 @@ function formatNumber(value: number) {
                         <span class="model-billing-badge">按{{ imageUnit(model.billing_mode) }}计费</span>
                       </td>
                       <td class="model-price-tier"><strong class="model-price-label">官方价格 <span class="model-info-dot" tabindex="0" :title="officialFormula(model)" aria-label="官方价格计算公式">!</span></strong><small>平台基础价</small></td>
-                      <td colspan="4" class="model-image-prices-cell">
+                      <td colspan="3" class="model-image-prices-cell">
                         <div class="model-image-prices">
                           <span v-for="tier in model.image_prices" :key="tier.label"><small>{{ tier.label }} / {{ imageUnit(model.billing_mode) }}</small><strong class="model-official-price">{{ officialCny(model.official_display_image_prices.find(item => item.label === tier.label)?.price ?? tier.base_price_usd_per_image, model) }}</strong><em>{{ platformBase(tier.base_price_usd_per_image) }}</em></span>
                           <span v-if="!model.image_prices.length" class="model-image-prices__empty">暂无按{{ imageUnit(model.billing_mode) }}价格</span>
@@ -222,7 +219,7 @@ function formatNumber(value: number) {
                     </tr>
                     <tr class="model-price-row model-price-row--platform model-price-row--image">
                       <td class="model-price-tier"><strong class="model-price-label">本站价 <span class="model-info-dot" tabindex="0" :title="subscriptionFormula(model)" aria-label="本站价格计算公式">!</span></strong><small>平台基础价 × 倍率</small></td>
-                      <td colspan="4" class="model-image-prices-cell">
+                      <td colspan="3" class="model-image-prices-cell">
                         <div class="model-image-prices">
                           <span v-for="tier in model.image_prices" :key="tier.label"><small>{{ tier.label }} / {{ imageUnit(model.billing_mode) }}</small><strong class="model-platform-price">{{ platformCny(tier.effective_price_cny_per_image) }}</strong></span>
                           <span v-if="!model.image_prices.length" class="model-image-prices__empty">暂无按{{ imageUnit(model.billing_mode) }}价格</span>
@@ -232,7 +229,7 @@ function formatNumber(value: number) {
                     </tr>
                     <tr v-for="period in model.time_pricing?.periods || []" :key="`${period.start_time}-${period.end_time}`" class="model-price-row model-price-row--peak model-price-row--image">
                       <td class="model-price-tier"><strong>本站高峰价</strong><small>{{ periodLabel(period.start_time, period.end_time) }} · {{ period.multiplier }}x</small></td>
-                      <td colspan="4" class="model-image-prices-cell">
+                      <td colspan="3" class="model-image-prices-cell">
                         <div class="model-image-prices">
                           <span v-for="tier in period.image_prices" :key="tier.label"><small>{{ tier.label }} / {{ imageUnit(model.billing_mode) }}</small><strong class="model-platform-price">{{ platformCny(tier.effective_price_cny_per_image) }}</strong></span>
                         </div>

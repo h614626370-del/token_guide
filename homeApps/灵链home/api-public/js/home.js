@@ -784,7 +784,6 @@
         appendTokenPriceCell(row, "输入 / 1M Tokens", values?.input_usd_per_million);
         appendTokenPriceCell(row, "输出 / 1M Tokens", values?.output_usd_per_million);
         appendTokenPriceCell(row, "缓存读取 / 1M Tokens", values?.cache_read_usd_per_million);
-        appendTokenPriceCell(row, "缓存写入 / 1M Tokens", values?.cache_write_usd_per_million);
         row.append(createPricingText("strong", "home-model-discount", period ? "" : formatPricingDiscount(model.discount_ratio)));
         return row;
       }
