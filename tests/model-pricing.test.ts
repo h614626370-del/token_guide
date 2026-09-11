@@ -117,6 +117,26 @@ describe('group model pricing', () => {
     db.close()
   })
 
+  it('reads model names from the current sub2api model allowlist shape', async () => {
+    const db = createDatabase()
+    const client = createClient()
+    client.listGroups = async () => [{
+      id: 6,
+      name: 'OpenAI allowlist',
+      platform: 'openai',
+      status: 'active',
+      is_exclusive: false,
+      rate_multiplier: 0.27,
+      model_allowlist: { enabled: true, models: ['gpt-5.6'] },
+    }]
+    const service = createModelPricingService({ db, config, logger: null, clientFactory: vi.fn(() => client) })
+    const catalog = await service.getCatalog({ refresh: true })
+
+    expect(catalog.summary).toEqual({ vendors: 1, groups: 1, models: 1 })
+    expect(catalog.vendors[0]?.groups[0]?.models[0]?.model_name).toBe('gpt-5.6')
+    db.close()
+  })
+
   it('stores manual multipliers separately for the same model in different groups', async () => {
     const db = createDatabase()
     const service = createModelPricingService({ db, config, logger: null, clientFactory: vi.fn(() => createClient()) })

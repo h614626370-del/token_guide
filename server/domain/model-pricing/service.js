@@ -210,7 +210,12 @@ async function fetchLiveSource(client) {
 function normalizePublicGroup(group) {
   const subscriptionType = String(group?.subscription_type || 'standard').toLowerCase()
   if (!group || group.status === 'disabled' || group.status === 'inactive' || (group.is_exclusive && subscriptionType !== 'subscription')) return null
-  const modelNames = normalizeModelNames(group.models_list_config?.models)
+  // sub2api exposes enabled group allowlists as `model_allowlist.models`.
+  // Keep the legacy models_list_config shape for older upstream versions.
+  const modelNames = normalizeModelNames(
+    group.models_list_config?.models
+      || group.model_allowlist?.models,
+  )
   return {
     id: String(group.id),
     name: String(group.name || `分组 ${group.id}`),
@@ -273,6 +278,7 @@ function subscriptionPlanItems(value) {
 function extractGroupModelNames(group) {
   const candidates = [
     group?.models_list_config?.models,
+    group?.model_allowlist?.models,
     group?.models,
     group?.model_names,
     group?.model_list,
