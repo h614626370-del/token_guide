@@ -350,6 +350,7 @@ function buildCatalog(source, overrides, displayOrder, groupSettings, config, { 
           name: groupSetting?.display_name || sourceName,
           source_name: sourceName,
           display_name: groupSetting?.display_name || null,
+          is_visible: groupSetting?.is_visible !== false,
           platform: sourceGroup.platform,
           description: sourceGroup.description,
           source_multiplier: sourceGroup.source_multiplier,
@@ -408,7 +409,7 @@ function buildCatalog(source, overrides, displayOrder, groupSettings, config, { 
       sort_order: vendor.sort_order,
       model_count: new Set([...vendor.groups.values()].flatMap(group => group.models.map(model => model.model_name.toLowerCase()))).size,
       groups: [...vendor.groups.values()]
-        .filter(group => group.models.length)
+        .filter(group => group.models.length && (includeHidden || group.is_visible))
         .map(group => ({ ...group, models: group.models.sort(modelComparator) }))
         .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'zh-CN')),
     }))

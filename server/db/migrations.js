@@ -1585,4 +1585,21 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 47,
+    name: 'add_model_pricing_group_visibility',
+    up(db) {
+      const columns = new Set(db.prepare('PRAGMA table_info(model_pricing_group_settings)').all().map(row => row.name))
+      if (!columns.has('is_visible')) {
+        db.exec(`
+          ALTER TABLE model_pricing_group_settings
+            ADD COLUMN is_visible INTEGER NOT NULL DEFAULT 1 CHECK (is_visible IN (0, 1));
+        `)
+      }
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_model_pricing_group_settings_visibility
+          ON model_pricing_group_settings(is_visible, group_id);
+      `)
+    },
+  },
 ]

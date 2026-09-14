@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowDownAZ, ArrowUpAZ, Download, GripVertical, ListOrdered, RefreshCw, RotateCcw, Save, Search, Trash2 } from 'lucide-vue-next'
+import { ArrowDownAZ, ArrowUpAZ, Copy, Download, GripVertical, ListOrdered, RefreshCw, RotateCcw, Save, Search, Trash2 } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { GroupModelPrice, GroupModelPricingOverride, ModelPricingCatalog, ModelPricingDisplayOrderItem } from '~/types/model-pricing'
@@ -31,14 +31,22 @@ const loading = ref(false)
 const saving = ref(false)
 const sorting = ref(false)
 const syncingModelKey = ref('')
-const bulkAction = ref<'' | 'overwrite' | 'restore' | 'restore-all'>('')
+const bulkAction = ref<'' | 'overwrite' | 'restore' | 'restore-all' | 'apply-groups'>('')
 const loaded = ref(false)
 const groupDisplayNameDraft = ref('')
+const groupVisibleDraft = ref(true)
 const priceUnit = ref<'usd' | 'rmb'>('usd')
+const batchTargetGroupIds = ref<string[]>([])
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 
 const selectedVendor = computed(() => catalog.value?.vendors.find(item => item.id === selectedVendorId.value) || catalog.value?.vendors[0] || null)
 const selectedGroup = computed(() => selectedVendor.value?.groups.find(item => item.id === selectedGroupId.value) || selectedVendor.value?.groups[0] || null)
+const batchGroupOptions = computed(() => (catalog.value?.vendors || []).flatMap(vendor => vendor.groups.map(group => ({
+  ...group,
+  vendor_id: vendor.id,
+  vendor_name: vendor.name,
+}))))
+const batchTargetGroups = computed(() => batchGroupOptions.value.filter(group => batchTargetGroupIds.value.includes(group.id) && group.id !== selectedGroup.value?.id))
 const draftByKey = computed(() => new Map(drafts.value.map(item => [item.key, item])))
 const orderedGroupDrafts = computed(() => (selectedGroup.value?.models || []).flatMap((model) => {
   const item = draftByKey.value.get(`${selectedVendor.value?.id}:${selectedGroup.value?.id}:${model.model_name.toLowerCase()}`)
@@ -61,7 +69,7 @@ const visibilityCounts = computed(() => ({
 }))
 
 watch(() => admin.session.value?.admin, (authenticated) => {
-  if (authenticated && !loaded.value) void loadCatalog(false)
+  if (authenticated && !loaded.value) void loadCatalog(true)
 }, { immediate: true })
 
 async function loadCatalog(refresh: boolean) {
@@ -88,6 +96,8 @@ function selectDefaults() {
   const groups = vendors.find(item => item.id === selectedVendorId.value)?.groups || []
   if (!groups.some(item => item.id === selectedGroupId.value)) selectedGroupId.value = groups[0]?.id || ''
   groupDisplayNameDraft.value = groups.find(item => item.id === selectedGroupId.value)?.display_name || ''
+  groupVisibleDraft.value = groups.find(item => item.id === selectedGroupId.value)?.is_visible !== false
+  batchTargetGroupIds.value = batchTargetGroupIds.value.filter(id => batchGroupOptions.value.some(group => group.id === id && group.id !== selectedGroupId.value))
 }
 
 function rebuildDrafts() {
@@ -364,12 +374,14 @@ function selectVendor(id: string) {
   selectedGroupId.value = catalog.value?.vendors.find(item => item.id === id)?.groups[0]?.id || ''
   query.value = ''
   groupDisplayNameDraft.value = selectedGroup.value?.display_name || ''
+  groupVisibleDraft.value = selectedGroup.value?.is_visible !== false
 }
 
 function selectGroup(id: string) {
   selectedGroupId.value = id
   query.value = ''
   groupDisplayNameDraft.value = selectedGroup.value?.display_name || ''
+  groupVisibleDraft.value = selectedGroup.value?.is_visible !== false
 }
 
 async function saveGroupSettings() {
@@ -380,16 +392,100 @@ async function saveGroupSettings() {
   try {
     await $fetch<ApiSuccess<unknown>>('/api/admin/model-pricing/groups', {
       method: 'PUT',
-      body: { group_id: selectedGroup.value.id, display_name: groupDisplayNameDraft.value.trim() || null },
+      body: {
+        group_id: selectedGroup.value.id,
+        display_name: groupDisplayNameDraft.value.trim() || null,
+        is_visible: groupVisibleDraft.value,
+      },
     })
     notice.type = 'success'
-    notice.message = '分组显示名称已保存。'
+    notice.message = '分组设置已保存。'
     await loadCatalog(false)
   } catch (cause) {
     notice.type = 'error'
     notice.message = apiErrorMessage(cause, '分组名称保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+function serializeDraft(item: PricingDraft) {
+  const draft = toUsdDraft(item)
+  const {
+    key: _key,
+    vendor: _vendor,
+    source_multiplier: _sourceMultiplier,
+    upstream_base_prices: _upstreamBasePrices,
+    upstream_image_prices: _upstreamImagePrices,
+    base_prices: _basePrices,
+    base_price_source: _basePriceSource,
+    upstream_price_source: _upstreamPriceSource,
+    time_pricing: _timePricing,
+    billing_mode: _billingMode,
+    ...payload
+  } = draft
+  return payload
+}
+
+function copyPricingValues(source: PricingDraft, target: PricingDraft) {
+  return {
+    ...target,
+    is_enabled: source.is_enabled,
+    multiplier: source.multiplier,
+    input_usd_per_million: source.input_usd_per_million,
+    output_usd_per_million: source.output_usd_per_million,
+    cache_read_usd_per_million: source.cache_read_usd_per_million,
+    cache_write_usd_per_million: source.cache_write_usd_per_million,
+    image_price_1k: source.image_price_1k,
+    image_price_2k: source.image_price_2k,
+    image_price_4k: source.image_price_4k,
+    official_input_usd_per_million: source.official_input_usd_per_million,
+    official_output_usd_per_million: source.official_output_usd_per_million,
+    official_cache_read_usd_per_million: source.official_cache_read_usd_per_million,
+    official_cache_write_usd_per_million: source.official_cache_write_usd_per_million,
+    official_image_price_1k: source.official_image_price_1k,
+    official_image_price_2k: source.official_image_price_2k,
+    official_image_price_4k: source.official_image_price_4k,
+    official_price_unit: source.official_price_unit,
+  }
+}
+
+function toggleBatchTarget(groupId: string, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  batchTargetGroupIds.value = checked
+    ? [...new Set([...batchTargetGroupIds.value, groupId])]
+    : batchTargetGroupIds.value.filter(id => id !== groupId)
+}
+
+async function applyPricingToSelectedGroups() {
+  if (!selectedGroup.value || !batchTargetGroups.value.length || bulkAction.value) return
+  const confirmed = window.confirm(`将当前分组中与目标分组同名的模型价格、倍率和官方价格复制到 ${batchTargetGroups.value.length} 个分组，目标分组的显示状态和备注会保留。是否继续？`)
+  if (!confirmed) return
+
+  bulkAction.value = 'apply-groups'
+  notice.type = 'idle'
+  notice.message = ''
+  try {
+    const sourceByModel = new Map(groupDrafts.value.map(item => [item.model_name.toLowerCase(), item]))
+    const items = batchTargetGroups.value.flatMap(group => group.models.flatMap(model => {
+      const source = sourceByModel.get(model.model_name.toLowerCase())
+      const target = draftByKey.value.get(`${group.vendor_id}:${group.id}:${model.model_name.toLowerCase()}`)
+      return source && target ? [serializeDraft(copyPricingValues(source, target))] : []
+    }))
+    if (!items.length) throw new Error('所选分组没有与当前分组重名的模型。')
+
+    await $fetch<ApiSuccess<GroupModelPricingOverride[]>>('/api/admin/model-pricing/overrides/bulk', {
+      method: 'PUT',
+      body: { items },
+    })
+    await loadCatalog(false)
+    notice.type = 'success'
+    notice.message = `已将 ${items.length} 个模型的定价应用到 ${batchTargetGroups.value.length} 个分组。`
+  } catch (cause) {
+    notice.type = 'error'
+    notice.message = apiErrorMessage(cause, '批量应用分组定价失败')
+  } finally {
+    bulkAction.value = ''
   }
 }
 
@@ -401,23 +497,7 @@ async function saveGroup(): Promise<boolean> {
   try {
     await $fetch<ApiSuccess<GroupModelPricingOverride[]>>('/api/admin/model-pricing/overrides/bulk', {
       method: 'PUT',
-      body: { items: groupDrafts.value.map(item => {
-        const draft = toUsdDraft(item)
-        const {
-          key: _key,
-          vendor: _vendor,
-          source_multiplier: _sourceMultiplier,
-          upstream_base_prices: _upstreamBasePrices,
-          upstream_image_prices: _upstreamImagePrices,
-          base_prices: _basePrices,
-          base_price_source: _basePriceSource,
-          upstream_price_source: _upstreamPriceSource,
-          time_pricing: _timePricing,
-          billing_mode: _billingMode,
-          ...payload
-        } = draft
-        return payload
-      }) },
+      body: { items: groupDrafts.value.map(serializeDraft) },
     })
     await loadCatalog(false)
     notice.type = 'success'
@@ -566,13 +646,13 @@ function timePricingLabel(schedule: GroupModelPrice['time_pricing']) {
       <header class="admin-page-heading">
         <span>Group model pricing</span>
         <h1>模型定价</h1>
-        <p>上游分组倍率是默认值。手动配置按“分组 + 模型”独立保存；拖动手柄可调整厂商、分组和模型的前台顺序。</p>
+        <p>上游分组倍率是默认值。手动配置按“分组 + 模型”独立保存；首次进入或同步主站分组后，会读取最新分组和模型列表。</p>
         <div class="admin-page-heading__actions">
           <div class="price-unit-switch" role="group" aria-label="手动平台基础价输入单位">
             <button type="button" :class="{ active: priceUnit === 'usd' }" @click="setPriceUnit('usd')">USD</button>
             <button type="button" :class="{ active: priceUnit === 'rmb' }" @click="setPriceUnit('rmb')">人民币</button>
           </div>
-          <button class="secondary-command" type="button" :disabled="loading || sorting || Boolean(bulkAction)" @click="loadCatalog(true)"><RefreshCw :size="16" :class="{ spinning: loading }" />同步主站</button>
+          <button class="secondary-command" type="button" title="重新读取主站分组和模型列表" :disabled="loading || sorting || Boolean(bulkAction)" @click="loadCatalog(true)"><RefreshCw :size="16" :class="{ spinning: loading }" />同步主站分组</button>
           <button class="secondary-command danger-command" type="button" :disabled="loading || saving || Boolean(bulkAction)" @click="clearAllManualPricing"><Trash2 :size="16" />{{ bulkAction === 'restore-all' ? '清空中...' : '清空所有' }}</button>
           <button class="primary-command" type="button" :disabled="saving || Boolean(bulkAction) || !groupDrafts.length" @click="saveGroup"><Save :size="16" />{{ saving ? '保存中...' : '保存当前分组' }}</button>
         </div>
@@ -592,10 +672,10 @@ function timePricingLabel(schedule: GroupModelPrice['time_pricing']) {
 
         <div class="admin-model-pricing-body">
           <aside class="admin-model-groups">
-            <header><span>{{ selectedVendor?.name }}</span><strong>公开分组</strong></header>
+            <header><span>{{ selectedVendor?.name }}</span><strong>价格分组</strong></header>
             <button v-for="group in selectedVendor?.groups || []" :key="group.id" type="button" draggable="true" :class="{ active: selectedGroup?.id === group.id, dragging: dragItem?.scope === 'group' && dragItem.key === group.id }" @click="selectGroup(group.id)" @dragover.prevent @drop.prevent="dropOrder('group', group.id)" @dragstart="startOrderDrag($event, 'group', group.id)" @dragend="finishOrderDrag">
               <strong><GripVertical class="pricing-drag-handle" :size="14" aria-label="拖动调整分组顺序" title="拖动调整分组顺序" @click.stop />{{ group.name }}</strong>
-              <span><small>{{ group.models.length }} 个模型</small><em>{{ group.effective_multiplier }}x<span v-if="group.subscription_plan"> 订阅</span></em></span>
+              <span><small>{{ group.models.length }} 个模型 · {{ group.is_visible ? '前台显示' : '前台隐藏' }}</small><em>{{ group.effective_multiplier }}x<span v-if="group.subscription_plan"> 订阅</span></em></span>
             </button>
           </aside>
 
@@ -613,8 +693,22 @@ function timePricingLabel(schedule: GroupModelPrice['time_pricing']) {
             </header>
             <div class="model-group-name-editor">
               <label><span>前台分组名称</span><input v-model="groupDisplayNameDraft" maxlength="200" :placeholder="selectedGroup?.source_name || '沿用主站名称'"></label>
-              <button class="secondary-command" type="button" :disabled="saving || !selectedGroup" @click="saveGroupSettings"><Save :size="15" />保存名称</button>
+              <label class="model-group-visibility-toggle"><input v-model="groupVisibleDraft" type="checkbox"><span>{{ groupVisibleDraft ? '前台显示分组' : '前台隐藏分组' }}</span></label>
+              <button class="secondary-command" type="button" :disabled="saving || !selectedGroup" @click="saveGroupSettings"><Save :size="15" />保存分组设置</button>
             </div>
+
+            <details class="model-bulk-targets" :class="{ disabled: saving || Boolean(bulkAction) }">
+              <summary><Copy :size="15" /><span><strong>批量应用当前分组定价</strong><small>{{ batchTargetGroups.length ? `已选 ${batchTargetGroups.length} 个目标分组` : '选择多个目标分组，一次复制同名模型的定价' }}</small></span></summary>
+              <div class="model-bulk-targets__body">
+                <div class="model-bulk-targets__list">
+                  <label v-for="group in batchGroupOptions" :key="`${group.vendor_id}:${group.id}`" class="model-bulk-target">
+                    <input type="checkbox" :checked="batchTargetGroupIds.includes(group.id)" :disabled="group.id === selectedGroup?.id || saving || Boolean(bulkAction)" @change="toggleBatchTarget(group.id, $event)">
+                    <span><strong>{{ group.name }}</strong><small>{{ group.vendor_name }} · {{ group.models.length }} 个模型</small></span>
+                  </label>
+                </div>
+                <button class="primary-command" type="button" :disabled="saving || Boolean(bulkAction) || !batchTargetGroups.length" @click="applyPricingToSelectedGroups"><Copy :size="15" />{{ bulkAction === 'apply-groups' ? '应用中...' : '应用到已选分组' }}</button>
+              </div>
+            </details>
 
             <div class="model-order-toolbar">
               <div class="model-order-toolbar__summary">

@@ -80,6 +80,7 @@ export interface ModelPricingGroup {
   name: string
   source_name: string
   display_name: string | null
+  is_visible: boolean
   platform: string
   description: string
   source_multiplier: number
@@ -158,6 +159,7 @@ export interface GroupModelPricingOverride {
 export interface ModelPricingGroupSetting {
   group_id: string
   display_name: string | null
+  is_visible: boolean
 }
 
 export interface ModelPricingDisplayOrderItem {

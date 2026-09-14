@@ -267,6 +267,20 @@ describe('group model pricing', () => {
     db.close()
   })
 
+  it('hides configured groups from the public catalog but keeps them in admin', async () => {
+    const db = createDatabase()
+    const service = createModelPricingService({ db, config, logger: null, clientFactory: vi.fn(() => createClient()) })
+    await service.getCatalog({ refresh: true })
+    await service.upsertGroupSetting({ group_id: '6', is_visible: false })
+
+    const publicCatalog = await service.getCatalog()
+    const adminCatalog = await service.getCatalog({ includeHidden: true })
+    expect(publicCatalog.vendors.find(item => item.id === 'openai')).toBeUndefined()
+    expect(publicCatalog.vendors.find(item => item.id === 'deepseek')?.groups.map(item => item.id)).toEqual(['19'])
+    expect(adminCatalog.vendors.find(item => item.id === 'openai')?.groups[0]).toMatchObject({ id: '6', is_visible: false })
+    db.close()
+  })
+
   it('uses per-image tiers for OpenAI image models and applies group prices before channel prices', async () => {
     const db = createDatabase()
     const imageClient = {

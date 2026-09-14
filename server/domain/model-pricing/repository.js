@@ -120,14 +120,15 @@ export function createModelPricingRepository(db) {
       updated_at = excluded.updated_at
   `)
   const listGroupSettingsStatement = db.prepare(`
-    SELECT group_id, display_name
+    SELECT group_id, display_name, is_visible
     FROM model_pricing_group_settings
   `)
   const upsertGroupSettingStatement = db.prepare(`
-    INSERT INTO model_pricing_group_settings (group_id, display_name, updated_at)
-    VALUES (@group_id, @display_name, @updated_at)
+    INSERT INTO model_pricing_group_settings (group_id, display_name, is_visible, updated_at)
+    VALUES (@group_id, @display_name, @is_visible, @updated_at)
     ON CONFLICT(group_id) DO UPDATE SET
       display_name = excluded.display_name,
+      is_visible = excluded.is_visible,
       updated_at = excluded.updated_at
   `)
   const runtimeSettingsStatement = db.prepare(`
@@ -222,16 +223,19 @@ export function createModelPricingRepository(db) {
     },
 
     listGroupSettings() {
-      return listGroupSettingsStatement.all()
+      return listGroupSettingsStatement.all().map(item => ({ ...item, is_visible: Boolean(item.is_visible) }))
     },
 
     upsertGroupSetting(input) {
+      const current = listGroupSettingsStatement.all().find(item => String(item.group_id) === String(input.group_id))
       upsertGroupSettingStatement.run({
         group_id: String(input.group_id),
         display_name: emptyToNull(input.display_name),
+        is_visible: input.is_visible == null ? (current?.is_visible == null ? 1 : (current.is_visible ? 1 : 0)) : (input.is_visible ? 1 : 0),
         updated_at: new Date().toISOString(),
       })
-      return listGroupSettingsStatement.all().find(item => String(item.group_id) === String(input.group_id)) || null
+      const saved = listGroupSettingsStatement.all().find(item => String(item.group_id) === String(input.group_id))
+      return saved ? { ...saved, is_visible: Boolean(saved.is_visible) } : null
     },
 
     listRuntimeSettings() {

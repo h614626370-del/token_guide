@@ -49,4 +49,5 @@ export const updateModelPricingOrderSchema = z.object({
 export const updateModelPricingGroupSchema = z.object({
   group_id: z.coerce.string().trim().min(1).max(100),
   display_name: z.string().trim().max(200).nullable().optional(),
+  is_visible: z.boolean().optional(),
 })
