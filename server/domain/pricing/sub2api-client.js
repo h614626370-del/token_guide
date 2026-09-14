@@ -119,6 +119,52 @@ export function createSub2apiClient(config, logger) {
       return Array.isArray(data?.models) ? data.models : []
     },
 
+    async listAccounts({ provider = 'openai', status = 'active', page = 1, pageSize = 1000 } = {}) {
+      return request('/admin/accounts', {
+        platform: provider,
+        status,
+        page,
+        page_size: pageSize,
+      })
+    },
+
+    async listAccountsAll({ provider = 'openai', status = 'active', maxPages = 100 } = {}) {
+      const items = []
+      let page = 1
+      let pages = 1
+      do {
+        if (page > maxPages) throw new Error('sub2api account result exceeds the configured page limit.')
+        const data = await this.listAccounts({ provider, status, page })
+        const pageItems = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : [])
+        items.push(...pageItems)
+        const total = Number(data?.total)
+        const pageSize = Number(data?.page_size || 1000)
+        pages = positiveInteger(data?.pages, Number.isFinite(total) ? Math.max(1, Math.ceil(total / pageSize)) : 1)
+        page += 1
+      } while (page <= pages)
+      return items
+    },
+
+    async testAccountStream(accountId, body, { signal } = {}) {
+      if (!configured) throw new Error('sub2api admin source is not configured.')
+      const url = new URL(`${config.sub2apiApiBase}/admin/accounts/${encodeURIComponent(String(accountId))}/test`)
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          accept: 'text/event-stream',
+          'content-type': 'application/json',
+          'x-api-key': config.sub2apiAdminApiKey,
+        },
+        body: JSON.stringify(body),
+        signal,
+      })
+      if (response.ok) return response
+      const text = await response.text()
+      let payload = null
+      try { payload = text ? JSON.parse(text) : null } catch { payload = null }
+      throw new Error(`sub2api ${response.status}: ${extractMessage(payload) || response.statusText || 'account test failed'}`)
+    },
+
     async listAccountModelAccess(provider) {
       const accounts = []
       let page = 1

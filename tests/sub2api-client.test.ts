@@ -12,6 +12,52 @@ afterEach(() => {
 })
 
 describe('sub2api compensation client calls', () => {
+  it('lists all active OpenAI accounts across pages', async () => {
+    const calls: URL[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {
+      const url = new URL(String(input))
+      calls.push(url)
+      const page = Number(url.searchParams.get('page'))
+      const data = page === 1
+        ? { items: [{ id: 1 }], total: 2, page: 1, page_size: 1000, pages: 2 }
+        : { items: [{ id: 2 }], total: 2, page: 2, page_size: 1000, pages: 2 }
+      return new Response(JSON.stringify({ code: 0, data }), { status: 200 })
+    }))
+
+    const client = createSub2apiClient(config, null)
+    const accounts = await client.listAccountsAll({ provider: 'openai', status: 'active', maxPages: 2 })
+
+    expect(accounts.map(account => account.id)).toEqual([1, 2])
+    expect(calls).toHaveLength(2)
+    expect(calls[0].pathname).toBe('/api/v1/admin/accounts')
+    expect(calls[0].searchParams.get('platform')).toBe('openai')
+    expect(calls[0].searchParams.get('status')).toBe('active')
+  })
+
+  it('opens a single-account SSE test with the admin key', async () => {
+    let request: { url: URL, init: RequestInit } | null = null
+    vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      request = { url: new URL(String(input)), init: init || {} }
+      return new Response('data: {"type":"test_complete","success":true}\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    }))
+
+    const client = createSub2apiClient(config, null)
+    const response = await client.testAccountStream(42, { model_id: 'gpt-test', prompt: 'hello', mode: 'default' })
+
+    expect(response.ok).toBe(true)
+    expect(request?.url.pathname).toBe('/api/v1/admin/accounts/42/test')
+    expect(request?.init.method).toBe('POST')
+    expect(request?.init.headers).toMatchObject({
+      accept: 'text/event-stream',
+      'x-api-key': 'admin-secret',
+      'content-type': 'application/json',
+    })
+    expect(JSON.parse(String(request?.init.body))).toEqual({ model_id: 'gpt-test', prompt: 'hello', mode: 'default' })
+  })
+
   it('loads all usage pages with the expected date and pagination filters', async () => {
     const calls: Array<{ url: URL, init: RequestInit }> = []
     vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
