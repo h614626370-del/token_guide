@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertTriangle, CheckCircle2, CircleStop, LoaderCircle, Play, RefreshCw, Users, XCircle } from 'lucide-vue-next'
+import { AlertTriangle, CheckCircle2, CircleStop, Filter, LoaderCircle, Play, RefreshCw, Search, Users, XCircle } from 'lucide-vue-next'
 import { SseDecoder } from '#shared/utils/sse'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
@@ -8,8 +8,9 @@ import type { AccountTestAccount, AccountTestBatchCounts } from '~/types/account
 definePageMeta({ layout: 'admin' })
 useSeoMeta({ title: 'OpenAI 账号测试', robots: 'noindex, nofollow' })
 
-type RowState = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
+type RowState = 'idle' | 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 type AccountTestRow = AccountTestAccount & {
+  selected: boolean
   state: RowState
   answer: string
   statusText: string
@@ -22,17 +23,35 @@ const models = ref<string[]>([])
 const selectedModel = ref('')
 const prompt = ref('')
 const rows = ref<AccountTestRow[]>([])
+const searchQuery = ref('')
+const scheduleFilter = ref<'all' | 'schedulable' | 'unschedulable'>('all')
+const authFilter = ref<'all' | 'oauth' | 'other'>('all')
 const loading = ref(false)
 const running = ref(false)
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 const counts = ref<AccountTestBatchCounts>({ total: 0, succeeded: 0, failed: 0 })
 let abortController: AbortController | null = null
 
-const canStart = computed(() => Boolean(selectedModel.value && prompt.value.trim() && rows.value.length && !loading.value && !running.value))
-const completedCount = computed(() => rows.value.filter(item => ['success', 'failed', 'cancelled'].includes(item.state)).length)
-const successCount = computed(() => rows.value.filter(item => item.state === 'success').length)
-const failedCount = computed(() => rows.value.filter(item => item.state === 'failed').length)
+const selectedRows = computed(() => rows.value.filter(item => item.selected))
+const filteredRows = computed(() => rows.value.filter((row) => {
+  const query = searchQuery.value.trim().toLowerCase()
+  const matchesSearch = !query || row.name.toLowerCase().includes(query) || String(row.id).includes(query)
+  const matchesSchedule = scheduleFilter.value === 'all'
+    || (scheduleFilter.value === 'schedulable' && row.schedulable)
+    || (scheduleFilter.value === 'unschedulable' && !row.schedulable)
+  const normalizedType = row.type.toLowerCase()
+  const matchesAuth = authFilter.value === 'all'
+    || (authFilter.value === 'oauth' && normalizedType.includes('oauth'))
+    || (authFilter.value === 'other' && !normalizedType.includes('oauth'))
+  return matchesSearch && matchesSchedule && matchesAuth
+}))
+const allFilteredSelected = computed(() => filteredRows.value.length > 0 && filteredRows.value.every(row => row.selected))
+const canStart = computed(() => Boolean(selectedModel.value && prompt.value.trim() && selectedRows.value.length && !loading.value && !running.value))
+const completedCount = computed(() => selectedRows.value.filter(item => ['success', 'failed', 'cancelled'].includes(item.state)).length)
+const successCount = computed(() => selectedRows.value.filter(item => item.state === 'success').length)
+const failedCount = computed(() => selectedRows.value.filter(item => item.state === 'failed').length)
 const stateLabel = (state: RowState) => ({
+  idle: '未选择',
   queued: '等待测试',
   running: '测试中',
   success: '成功',
@@ -68,7 +87,20 @@ async function loadData() {
 }
 
 function createRow(account: AccountTestAccount): AccountTestRow {
-  return { ...account, state: 'queued', answer: '', statusText: '', error: '', latencyMs: null }
+  return { ...account, selected: false, state: 'idle', answer: '', statusText: '', error: '', latencyMs: null }
+}
+
+function toggleFilteredSelection() {
+  const next = !allFilteredSelected.value
+  rows.value = rows.value.map(row => filteredRows.value.some(item => item.id === row.id) ? { ...row, selected: next } : row)
+}
+
+function selectAll() {
+  rows.value = rows.value.map(row => ({ ...row, selected: true }))
+}
+
+function clearSelection() {
+  rows.value = rows.value.map(row => ({ ...row, selected: false }))
 }
 
 async function refreshData() {
@@ -81,7 +113,8 @@ async function startTest() {
   notice.type = 'idle'
   notice.message = ''
   counts.value = { total: rows.value.length, succeeded: 0, failed: 0 }
-  rows.value = rows.value.map(row => ({ ...createRow(row), state: 'queued' }))
+  const selectedIds = selectedRows.value.map(row => row.id)
+  rows.value = rows.value.map(row => ({ ...createRow(row), selected: row.selected, state: row.selected ? 'queued' : 'idle' }))
   running.value = true
   abortController = new AbortController()
 
@@ -89,7 +122,7 @@ async function startTest() {
     const response = await fetch('/api/admin/account-tests/run', {
       method: 'POST',
       headers: { accept: 'text/event-stream', 'content-type': 'application/json' },
-      body: JSON.stringify({ model_id: selectedModel.value, prompt: prompt.value.trim() }),
+      body: JSON.stringify({ model_id: selectedModel.value, prompt: prompt.value.trim(), account_ids: selectedIds }),
       signal: abortController.signal,
     })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -124,7 +157,7 @@ async function startTest() {
 function stopTest() {
   if (!running.value) return
   abortController?.abort()
-  rows.value = rows.value.map(row => row.state === 'queued' || row.state === 'running' ? { ...row, state: 'cancelled', error: '测试已中止。' } : row)
+  rows.value = rows.value.map(row => row.selected && (row.state === 'queued' || row.state === 'running') ? { ...row, state: 'cancelled', error: '测试已中止。' } : row)
   running.value = false
   notice.type = 'idle'
   notice.message = '批量测试已中止。'
@@ -182,7 +215,7 @@ function parseEventData(value: string) {
       <header class="admin-page-heading">
         <span>OpenAI Diagnostics</span>
         <h1>OpenAI 账号测试</h1>
-        <p>使用同一条提示词并发测试所有活跃 OpenAI 账号，实时比较返回结果。</p>
+        <p>筛选并勾选需要测试的 active OpenAI 账号，使用同一条提示词实时比较返回结果。</p>
         <div class="admin-page-heading__actions">
           <button class="secondary-command" type="button" :disabled="loading || running" title="刷新账号和模型" @click="refreshData">
             <RefreshCw :size="16" :class="{ 'is-spinning': loading }" />
@@ -214,7 +247,38 @@ function parseEventData(value: string) {
               <CircleStop :size="17" />
               中止测试
             </button>
-            <span class="account-tests-hint"><Users :size="15" /> {{ rows.length }} 个活跃 OpenAI 账号</span>
+            <span class="account-tests-hint"><Users :size="15" /> 已选择 {{ selectedRows.length }} / {{ rows.length }} 个账号</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="account-tests-filters" aria-label="账号筛选">
+        <div class="account-tests-filter-heading"><Filter :size="16" /><strong>筛选账号</strong><span>可按名称、ID、调度状态和认证类型缩小列表</span></div>
+        <div class="account-tests-filter-grid">
+          <label class="form-field account-tests-search">
+            <span>搜索</span>
+            <div class="account-tests-search-control"><Search :size="15" /><input v-model="searchQuery" type="search" placeholder="账号名称或 ID" :disabled="running" /></div>
+          </label>
+          <label class="form-field">
+            <span>调度状态</span>
+            <select v-model="scheduleFilter" :disabled="running">
+              <option value="all">全部</option>
+              <option value="schedulable">可调度</option>
+              <option value="unschedulable">不可调度</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>认证类型</span>
+            <select v-model="authFilter" :disabled="running">
+              <option value="all">全部</option>
+              <option value="oauth">OAuth</option>
+              <option value="other">API Key / 其他</option>
+            </select>
+          </label>
+          <div class="account-tests-selection-actions">
+            <button class="secondary-command" type="button" :disabled="running || !filteredRows.length" @click="toggleFilteredSelection">{{ allFilteredSelected ? '取消当前筛选' : '选择当前筛选' }}</button>
+            <button class="text-command" type="button" :disabled="running || !rows.length" @click="selectAll">全选</button>
+            <button class="text-command" type="button" :disabled="running || !selectedRows.length" @click="clearSelection">清空</button>
           </div>
         </div>
       </section>
@@ -226,7 +290,7 @@ function parseEventData(value: string) {
       </div>
 
       <section class="account-tests-summary">
-        <div><strong>{{ completedCount }} / {{ rows.length }}</strong><span>已完成</span></div>
+        <div><strong>{{ completedCount }} / {{ selectedRows.length }}</strong><span>已完成</span></div>
         <div><strong>{{ successCount }}</strong><span>成功</span></div>
         <div><strong>{{ failedCount }}</strong><span>失败</span></div>
         <div><strong>{{ selectedModel || '未选择' }}</strong><span>测试模型</span></div>
@@ -234,11 +298,12 @@ function parseEventData(value: string) {
 
       <section class="account-tests-results" aria-live="polite">
         <div v-if="!rows.length" class="account-tests-empty">暂无可测试的 active OpenAI 账号。</div>
-        <article v-for="row in rows" :key="row.id" class="account-test-row" :data-state="row.state">
+        <div v-else-if="!filteredRows.length" class="account-tests-empty">当前筛选条件下没有账号。</div>
+        <article v-for="row in filteredRows" :key="row.id" class="account-test-row" :data-state="row.state">
           <header>
             <div class="account-test-identity">
-              <strong>{{ row.name }}</strong>
-              <span>#{{ row.id }} · {{ row.type || 'OpenAI' }}</span>
+              <label class="account-test-select"><input v-model="row.selected" type="checkbox" :disabled="running" /><strong>{{ row.name }}</strong></label>
+              <span>#{{ row.id }} · {{ row.type || 'OpenAI' }} · {{ row.schedulable ? '可调度' : '不可调度' }} · {{ row.status }}</span>
             </div>
             <div class="account-test-meta">
               <span class="account-test-state"><LoaderCircle v-if="row.state === 'running'" :size="14" class="is-spinning" /><CheckCircle2 v-else-if="row.state === 'success'" :size="14" /><XCircle v-else-if="row.state === 'failed' || row.state === 'cancelled'" :size="14" />{{ stateLabel(row.state) }}</span>
@@ -249,6 +314,7 @@ function parseEventData(value: string) {
           <pre v-if="row.answer" class="account-test-answer">{{ row.answer }}</pre>
           <p v-if="row.error" class="account-test-error">{{ row.error }}</p>
           <p v-if="!row.answer && !row.error && row.state === 'queued'" class="account-test-placeholder">等待开始...</p>
+          <p v-if="row.state === 'idle'" class="account-test-placeholder">未加入本次测试</p>
         </article>
       </section>
     </div>
@@ -260,6 +326,15 @@ function parseEventData(value: string) {
 .account-tests-form { display: grid; gap: 18px; max-width: 860px; }
 .account-tests-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .account-tests-hint { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.account-tests-filters { display: grid; gap: 16px; margin-top: 18px; padding: 18px 22px; border: 1px solid var(--line); background: var(--surface-subtle); }
+.account-tests-filter-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--ink); }
+.account-tests-filter-heading span { color: var(--muted); font-size: 12px; }
+.account-tests-filter-grid { display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(2, minmax(150px, 1fr)) auto; align-items: end; gap: 14px; }
+.account-tests-search-control { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 12px; border: 1px solid var(--line); background: var(--surface); }
+.account-tests-search-control input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; }
+.account-tests-selection-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.text-command { padding: 8px 4px; border: 0; background: transparent; color: var(--brand-strong); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.text-command:disabled { cursor: not-allowed; opacity: .45; }
 .account-tests-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-top: 18px; border: 1px solid var(--line); background: var(--line); }
 .account-tests-summary > div { display: grid; gap: 4px; min-width: 0; padding: 14px 16px; background: var(--surface); }
 .account-tests-summary strong { overflow: hidden; color: var(--ink); font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
@@ -272,6 +347,8 @@ function parseEventData(value: string) {
 .account-test-row[data-state="failed"], .account-test-row[data-state="cancelled"] { border-color: #e1b0a8; }
 .account-test-row > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .account-test-identity { display: grid; gap: 4px; min-width: 0; }
+.account-test-select { display: inline-flex; align-items: center; gap: 9px; min-width: 0; cursor: pointer; }
+.account-test-select input { flex: 0 0 auto; width: 16px; height: 16px; accent-color: var(--brand-strong); }
 .account-test-identity strong { overflow: hidden; color: var(--ink); text-overflow: ellipsis; white-space: nowrap; }
 .account-test-identity span, .account-test-meta { color: var(--muted); font-size: 12px; }
 .account-test-meta { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
@@ -285,6 +362,9 @@ function parseEventData(value: string) {
 @keyframes account-test-spin { to { transform: rotate(360deg); } }
 @media (max-width: 720px) {
   .account-tests-controls { padding: 16px; }
+  .account-tests-filters { padding: 16px; }
+  .account-tests-filter-grid { grid-template-columns: 1fr; }
+  .account-tests-selection-actions { justify-content: flex-start; }
   .account-tests-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-test-row > header { display: grid; gap: 10px; }
   .account-test-meta { justify-content: flex-start; }

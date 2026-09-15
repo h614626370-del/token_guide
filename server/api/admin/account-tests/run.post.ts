@@ -10,6 +10,7 @@ import { readLimitedJson } from '../../../utils/request-body'
 const requestSchema = z.object({
   model_id: z.string().trim().min(1).max(120),
   prompt: z.string().trim().min(1).max(100_000),
+  account_ids: z.array(z.number().int().positive()).min(1).max(10_000),
 }).strict()
 
 export default defineEventHandler(async (event) => {
@@ -21,14 +22,20 @@ export default defineEventHandler(async (event) => {
   const client = usePricingService().getSub2apiClient()
   if (!client.configured) apiError(503, 'SUB2API_NOT_CONFIGURED', 'Sub2API 管理接口尚未配置。')
 
-  let accounts
+  let activeAccounts
   try {
-    accounts = (await client.listAccountsAll({ provider: 'openai', status: 'active' }))
+    activeAccounts = (await client.listAccountsAll({ provider: 'openai', status: 'active' }))
       .map(sanitizeAccount)
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
   } catch {
     apiError(502, 'SUB2API_ACCOUNTS_UNAVAILABLE', '无法读取 Sub2API 的 OpenAI 账号列表。')
   }
+
+  const requestedIds = Array.from(new Set(input.account_ids))
+  const accountMap = new Map(activeAccounts.map(account => [account.id, account]))
+  const missingIds = requestedIds.filter(id => !accountMap.has(id))
+  if (missingIds.length) apiError(400, 'INVALID_ACCOUNT_SELECTION', '所选账号已不是 active OpenAI 账号，请刷新后重试。')
+  const accounts = requestedIds.map(id => accountMap.get(id)!).filter(Boolean)
 
   const stream = createEventStream(event)
   let closed = false

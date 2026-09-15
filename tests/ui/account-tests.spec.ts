@@ -19,7 +19,7 @@ test('administrator can run a live batch OpenAI account test', async ({ page }) 
     },
   }))
   await page.route('**/api/admin/account-tests/run', async route => {
-    expect(route.request().postDataJSON()).toEqual({ model_id: 'gpt-5.4', prompt: '请回答：测试成功' })
+    expect(route.request().postDataJSON()).toEqual({ model_id: 'gpt-5.4', prompt: '请回答：测试成功', account_ids: [1, 2] })
     await route.fulfill({
       status: 200,
       contentType: 'text/event-stream',
@@ -38,7 +38,14 @@ test('administrator can run a live batch OpenAI account test', async ({ page }) 
 
   await page.goto('/admin/account-tests', { waitUntil: 'networkidle' })
   await expect(page.getByRole('heading', { level: 1, name: 'OpenAI 账号测试' })).toBeVisible()
-  await expect(page.getByText('2 个活跃 OpenAI 账号')).toBeVisible()
+  await expect(page.getByText('已选择 0 / 2 个账号')).toBeVisible()
+  await page.getByLabel('认证类型').selectOption('oauth')
+  await expect(page.getByText('OpenAI Main')).toBeVisible()
+  await expect(page.getByText('OpenAI Backup')).toHaveCount(0)
+  await page.getByRole('button', { name: '选择当前筛选' }).click()
+  await page.getByRole('button', { name: '取消当前筛选' }).click()
+  await page.getByRole('button', { name: '全选' }).click()
+  await page.getByLabel('认证类型').selectOption('all')
   await page.getByLabel('自定义提示词').fill('请回答：测试成功')
   await page.getByRole('button', { name: '开始批量测试' }).click()
   await expect(page.getByText('主账号回答')).toBeVisible()
