@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, BadgeDollarSign, BarChart3, Boxes, Database, FileText, Gift, Home, Images, MessageSquareText, RefreshCcw, Settings, ShieldCheck, TestTube2 } from 'lucide-vue-next'
+import { ArrowRight, BadgeDollarSign, BarChart3, Boxes, Database, FileText, Gift, Home, Images, MessageSquareText, RefreshCcw, Settings, ShieldCheck } from 'lucide-vue-next'
 import { PackageOpen } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'admin' })
@@ -13,7 +13,6 @@ const items = [
   { icon: PackageOpen, title: '脚本配置', text: '维护 Codex 与 Claude 的安装脚本和公共接入参数。', to: '/admin/installers' },
   { icon: BadgeDollarSign, title: '价格配置', text: '维护数据源、展示模型、套餐和折算参数。', to: '/admin/pricing' },
   { icon: Gift, title: '余额补偿', text: '按时间筛选活跃用户，预览并批量调整余额。', to: '/admin/compensation' },
-  { icon: TestTube2, title: 'OpenAI 账号测试', text: '使用自定义提示词并发测试所有活跃 OpenAI 账号。', to: '/admin/account-tests' },
   { icon: MessageSquareText, title: '反馈处理', text: '筛选用户反馈，更新状态并填写公开回复。', to: '/admin/feedback' },
   { icon: Boxes, title: '社区管理', text: '维护社区分类、资源条目与公开展示状态。', to: '/admin/community' },
   { icon: BarChart3, title: '推广统计', text: '创建主站推广直链，比较来源访问量和独立访客。', to: '/admin/promotions' },

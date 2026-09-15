@@ -24,7 +24,6 @@ const routes = [
   ['admin-pricing', '/admin/pricing'],
   ['admin-compensation', '/admin/compensation'],
   ['admin-model-pricing', '/admin/model-pricing'],
-  ['admin-account-tests', '/admin/account-tests'],
   ['admin-homepage', '/admin/homepage'],
   ['admin-community-categories', '/admin/community/categories'],
   ['admin-community-items', '/admin/community/items'],
