@@ -384,6 +384,65 @@ describe('group model pricing', () => {
     db.close()
   })
 
+  it('keeps Grok token, image and video prices separate within one group', async () => {
+    const db = createDatabase()
+    const grokClient = {
+      configured: true,
+      async listGroups() {
+        return [{
+          id: 53,
+          name: 'Grok image and video',
+          platform: 'grok',
+          status: 'active',
+          rate_multiplier: 0.1,
+          image_rate_independent: false,
+          video_rate_independent: true,
+          video_rate_multiplier: 1,
+          image_price_1k: 0.08,
+          image_price_2k: 0.1,
+          image_price_4k: 0.12,
+          video_price_480p: 0.15,
+          video_price_720p: 0.2,
+          video_price_1080p: 0.23,
+          model_allowlist: { enabled: false, models: ['grok-4.6', 'grok-imagine-image', 'grok-imagine-video', 'grok-imagine-video-1.5'] },
+          model_pricing: [],
+        }]
+      },
+      async listChannels() { return [] },
+      async listSubscriptionPlans() { return [] },
+      async getModelPricing() { return { found: true, input_price: 0.000002, output_price: 0.000006 } },
+    }
+    const service = createModelPricingService({ db, config, logger: null, clientFactory: vi.fn(() => grokClient) })
+    const catalog = await service.getCatalog({ refresh: true })
+    const models = catalog.vendors[0]?.groups[0]?.models || []
+    const text = models.find(model => model.model_name === 'grok-4.6')
+    const image = models.find(model => model.model_name === 'grok-imagine-image')
+    const videos = models.filter(model => model.model_name.includes('-video'))
+
+    expect(text).toMatchObject({ billing_mode: 'token', image_prices: [], video_prices: [], pricing_found: true })
+    expect(text?.effective_prices.input_usd_per_million).toBe(0.2)
+    expect(image).toMatchObject({ billing_mode: 'image', video_prices: [], upstream_price_source: 'group' })
+    expect(image?.image_prices.map(tier => tier.effective_price_cny_per_image)).toEqual([0.008, 0.01, 0.012])
+    expect(videos).toHaveLength(2)
+    for (const video of videos) {
+      expect(video).toMatchObject({ billing_mode: 'video', image_prices: [], video_effective_multiplier: 1, upstream_price_source: 'group' })
+      expect(video.video_prices.map(tier => [tier.label, tier.base_price_usd_per_second, tier.effective_price_cny_per_second])).toEqual([
+        ['480p', 0.15, 0.15], ['720p', 0.2, 0.2], ['1080p', 0.23, 0.23],
+      ])
+    }
+    await service.upsertOverrides([
+      { group_id: '53', model_name: 'grok-imagine-video', is_enabled: true, is_visible: true, multiplier: 0.5, image_price_1k: 5 },
+      { group_id: '53', model_name: 'grok-4.6', is_enabled: true, is_visible: true, image_price_1k: 5 },
+    ])
+    const updated = (await service.getCatalog()).vendors[0]?.groups[0]?.models || []
+    expect(updated.find(model => model.model_name === 'grok-imagine-video')).toMatchObject({
+      billing_mode: 'video', image_prices: [], video_effective_multiplier: 0.5,
+    })
+    expect(updated.find(model => model.model_name === 'grok-imagine-video')?.video_prices[0]).toMatchObject({ label: '480p', effective_price_cny_per_second: 0.075 })
+    expect(updated.find(model => model.model_name === 'grok-4.6')).toMatchObject({ billing_mode: 'token', image_prices: [] })
+    db.close()
+  })
+
   it('keeps a subscription group when its custom model list is disabled', async () => {
     const db = createDatabase()
     const subscriptionClient = {

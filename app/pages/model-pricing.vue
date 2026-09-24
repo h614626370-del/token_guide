@@ -78,8 +78,24 @@ function discount(value: number | null) {
   return `${(value * 10).toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} 折`
 }
 
-function imageUnit(mode: 'token' | 'image' | 'per_request') {
-  return mode === 'image' ? '张' : '次'
+function imageUnit(mode: 'token' | 'image' | 'video' | 'per_request') {
+  return mode === 'image' ? '张' : mode === 'video' ? '秒' : '次'
+}
+
+function mediaPrices(model: ModelPricingCatalog['vendors'][number]['groups'][number]['models'][number]) {
+  return model.billing_mode === 'video' ? model.video_prices : model.image_prices
+}
+
+function mediaBasePrice(tier: ReturnType<typeof mediaPrices>[number]) {
+  return 'base_price_usd_per_second' in tier ? tier.base_price_usd_per_second : tier.base_price_usd_per_image
+}
+
+function mediaEffectivePrice(tier: ReturnType<typeof mediaPrices>[number]) {
+  return 'effective_price_cny_per_second' in tier ? tier.effective_price_cny_per_second : tier.effective_price_cny_per_image
+}
+
+function mediaOfficialPrice(model: ModelPricingCatalog['vendors'][number]['groups'][number]['models'][number], label: string, basePrice: number) {
+  return model.billing_mode === 'video' ? basePrice : model.official_display_image_prices.find(item => item.label === label)?.price ?? basePrice
 }
 
 function periodLabel(start: string, end: string) {
@@ -96,7 +112,7 @@ function subscriptionFormula(model: ModelPricingCatalog['vendors'][number]['grou
   const plan = selectedGroup.value?.subscription_plan
   if (!plan?.monthly_quota_usd || !model.subscription_multiplier) return `平台基础价 × ${model.effective_multiplier}x`
   const billingMultiplier = model.manual_multiplier
-    ?? (model.billing_mode === 'image' ? model.image_rate_multiplier : model.group_effective_multiplier)
+    ?? (model.billing_mode === 'image' ? model.image_rate_multiplier : model.billing_mode === 'video' ? model.video_rate_multiplier : model.group_effective_multiplier)
   return `平台基础价 × ${formatNumber(billingMultiplier)}x × ${subscriptionPayment(plan)} ÷ ${formatNumber(plan.monthly_quota_usd)} U`
 }
 
@@ -211,8 +227,8 @@ function formatNumber(value: number) {
                       <td class="model-price-tier"><strong class="model-price-label">官方价格 <span class="model-info-dot" tabindex="0" :title="officialFormula(model)" aria-label="官方价格计算公式">!</span></strong><small>平台基础价</small></td>
                       <td colspan="3" class="model-image-prices-cell">
                         <div class="model-image-prices">
-                          <span v-for="tier in model.image_prices" :key="tier.label"><small>{{ tier.label }} / {{ imageUnit(model.billing_mode) }}</small><strong class="model-official-price">{{ officialCny(model.official_display_image_prices.find(item => item.label === tier.label)?.price ?? tier.base_price_usd_per_image, model) }}</strong><em>{{ platformBase(tier.base_price_usd_per_image) }}</em></span>
-                          <span v-if="!model.image_prices.length" class="model-image-prices__empty">暂无按{{ imageUnit(model.billing_mode) }}价格</span>
+                          <span v-for="tier in mediaPrices(model)" :key="tier.label"><small>{{ tier.label }} / {{ imageUnit(model.billing_mode) }}</small><strong class="model-official-price">{{ officialCny(mediaOfficialPrice(model, tier.label, mediaBasePrice(tier)), model) }}</strong><em>{{ platformBase(mediaBasePrice(tier)) }}</em></span>
+                          <span v-if="!mediaPrices(model).length" class="model-image-prices__empty">暂无按{{ imageUnit(model.billing_mode) }}价格</span>
                         </div>
                       </td>
                       <td><span class="model-reference-label">参考</span></td>
@@ -221,8 +237,8 @@ function formatNumber(value: number) {
                       <td class="model-price-tier"><strong class="model-price-label">本站价 <span class="model-info-dot" tabindex="0" :title="subscriptionFormula(model)" aria-label="本站价格计算公式">!</span></strong><small>平台基础价 × 倍率</small></td>
                       <td colspan="3" class="model-image-prices-cell">
                         <div class="model-image-prices">
-                          <span v-for="tier in model.image_prices" :key="tier.label"><small>{{ tier.label }} / {{ imageUnit(model.billing_mode) }}</small><strong class="model-platform-price">{{ platformCny(tier.effective_price_cny_per_image) }}</strong></span>
-                          <span v-if="!model.image_prices.length" class="model-image-prices__empty">暂无按{{ imageUnit(model.billing_mode) }}价格</span>
+                          <span v-for="tier in mediaPrices(model)" :key="tier.label"><small>{{ tier.label }} / {{ imageUnit(model.billing_mode) }}</small><strong class="model-platform-price">{{ platformCny(mediaEffectivePrice(tier)) }}</strong></span>
+                          <span v-if="!mediaPrices(model).length" class="model-image-prices__empty">暂无按{{ imageUnit(model.billing_mode) }}价格</span>
                         </div>
                       </td>
                       <td class="model-discount-cell"><strong class="model-discount">{{ discount(model.discount_ratio) }}</strong></td>

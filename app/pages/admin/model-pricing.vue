@@ -13,6 +13,8 @@ type PricingDraft = GroupModelPricingOverride & {
   source_multiplier: number
   upstream_base_prices: GroupModelPrice['upstream_base_prices']
   upstream_image_prices: GroupModelPrice['upstream_image_prices']
+  upstream_video_prices: GroupModelPrice['upstream_video_prices']
+  video_prices: GroupModelPrice['video_prices']
   base_prices: GroupModelPrice['base_prices']
   base_price_source: GroupModelPrice['base_price_source']
   upstream_price_source: GroupModelPrice['upstream_price_source']
@@ -128,6 +130,8 @@ function rebuildDrafts() {
     source_multiplier: model.source_multiplier,
     upstream_base_prices: model.upstream_base_prices,
     upstream_image_prices: model.upstream_image_prices,
+    upstream_video_prices: model.upstream_video_prices,
+    video_prices: model.video_prices,
     base_prices: model.base_prices,
     base_price_source: model.base_price_source,
     upstream_price_source: model.upstream_price_source,
@@ -190,6 +194,13 @@ function officialUnitLabel(item: PricingDraft) {
   return item.official_price_unit === 'rmb' ? '人民币原值' : 'USD'
 }
 
+function upstreamMultiplier(item: PricingDraft) {
+  const group = selectedGroup.value
+  if (item.billing_mode === 'video' && group?.video_rate_independent) return group.video_rate_multiplier
+  if (item.billing_mode === 'image' && group?.image_rate_independent) return group.image_rate_multiplier
+  return item.source_multiplier
+}
+
 function findCatalogModel(value: ModelPricingCatalog, item: PricingDraft) {
   return value.vendors
     .find(vendor => vendor.id === item.vendor)?.groups
@@ -213,6 +224,7 @@ function clearManualPricing(item: PricingDraft) {
 }
 
 function overwriteWithUpstream(item: PricingDraft, model: GroupModelPrice) {
+  if (model.billing_mode === 'video') return
   clearManualPricing(item)
   item.is_enabled = true
   if (model.billing_mode === 'image' || model.billing_mode === 'per_request') {
@@ -239,6 +251,8 @@ function applyUpstreamModel(item: PricingDraft, model: GroupModelPrice) {
   item.source_multiplier = model.source_multiplier
   item.upstream_base_prices = model.upstream_base_prices
   item.upstream_image_prices = model.upstream_image_prices
+  item.upstream_video_prices = model.upstream_video_prices
+  item.video_prices = model.video_prices
   item.base_prices = model.upstream_base_prices
   item.base_price_source = model.upstream_price_source
   item.upstream_price_source = model.upstream_price_source
@@ -265,6 +279,7 @@ async function refreshModelPricing(item: PricingDraft, overwrite: boolean) {
     }
     applyUpstreamModel(item, model)
 
+    if (overwrite && model.billing_mode === 'video') throw new Error('视频每秒价由主站分组配置，不能填入图片或文本的手动价格。')
     if (overwrite) overwriteWithUpstream(item, model)
     notice.type = 'success'
     notice.message = overwrite
@@ -417,6 +432,8 @@ function serializeDraft(item: PricingDraft) {
     source_multiplier: _sourceMultiplier,
     upstream_base_prices: _upstreamBasePrices,
     upstream_image_prices: _upstreamImagePrices,
+    upstream_video_prices: _upstreamVideoPrices,
+    video_prices: _videoPrices,
     base_prices: _basePrices,
     base_price_source: _basePriceSource,
     upstream_price_source: _upstreamPriceSource,
@@ -614,6 +631,10 @@ function sourcePrice(value: number | null) {
   return `${prefix}${displayValue.toFixed(displayValue < 1 ? 5 : 3).replace(/0+$/, '').replace(/\.$/, '')}`
 }
 
+function cnyPrice(value: number) {
+  return `¥${value.toFixed(value < 1 ? 5 : 3).replace(/0+$/, '').replace(/\.$/, '')}`
+}
+
 function priceUnitLabel() {
   return priceUnit.value === 'rmb' ? '人民币' : '美元'
 }
@@ -739,11 +760,11 @@ function timePricingLabel(schedule: GroupModelPrice['time_pricing']) {
                       <strong>{{ item.model_name }}</strong>
                       <span>
                         <button type="button" title="重新拉取主站价格，保留手动配置" :aria-label="`重新拉取 ${item.model_name} 的主站价格`" :disabled="Boolean(syncingModelKey) || Boolean(bulkAction)" @click="refreshModelPricing(item, false)"><RefreshCw :size="14" :class="{ spinning: syncingModelKey === item.key }" /></button>
-                        <button type="button" title="拉取并填入全部手动价格" :aria-label="`拉取并覆盖 ${item.model_name} 的全部价格`" :disabled="Boolean(syncingModelKey) || Boolean(bulkAction)" @click="refreshModelPricing(item, true)"><Download :size="14" /></button>
+                        <button type="button" title="拉取并填入全部手动价格" :aria-label="`拉取并覆盖 ${item.model_name} 的全部价格`" :disabled="item.billing_mode === 'video' || Boolean(syncingModelKey) || Boolean(bulkAction)" @click="refreshModelPricing(item, true)"><Download :size="14" /></button>
                         <button type="button" title="清空手动价格并恢复跟随上游" :aria-label="`恢复 ${item.model_name} 跟随上游`" :disabled="Boolean(syncingModelKey) || Boolean(bulkAction)" @click="restoreUpstreamPricing(item)"><RotateCcw :size="14" /></button>
                       </span>
                     </div>
-                    <small>{{ item.billing_mode === 'image' ? '按张计费' : item.billing_mode === 'per_request' ? '按次计费' : selectedVendor?.name }}</small>
+                    <small>{{ item.billing_mode === 'image' ? '按张计费' : item.billing_mode === 'video' ? '按秒计费' : item.billing_mode === 'per_request' ? '按次计费' : selectedVendor?.name }}</small>
                   </div>
 
                   <div class="admin-model-item__states">
@@ -761,11 +782,15 @@ function timePricingLabel(schedule: GroupModelPrice['time_pricing']) {
                 </header>
 
                 <div class="admin-model-item__pricing">
-                  <label class="admin-model-multiplier"><span>手动倍率</span><input v-model.number="item.multiplier" type="number" min="0.0001" max="10000" step="0.01" :placeholder="String(item.source_multiplier)" :disabled="!item.is_enabled"><small>上游 {{ item.source_multiplier }}x</small></label>
+                  <label class="admin-model-multiplier"><span>手动倍率</span><input v-model.number="item.multiplier" type="number" min="0.0001" max="10000" step="0.01" :placeholder="String(upstreamMultiplier(item))" :disabled="!item.is_enabled"><small>上游 {{ upstreamMultiplier(item) }}x</small></label>
 
                   <section class="admin-model-price-section">
                     <header><div><strong>平台基础价</strong><small>{{ priceUnitLabel() }} · 留空跟随{{ priceSourceLabel(item.upstream_price_source) }}</small></div></header>
-                    <div v-if="item.billing_mode === 'image'" class="admin-price-input-grid admin-price-input-grid--image">
+                    <div v-if="item.billing_mode === 'video'" class="admin-price-input-grid admin-price-input-grid--image">
+                      <label v-for="tier in item.upstream_video_prices" :key="tier.label"><span>{{ tier.label }} / 秒</span><strong>{{ sourcePrice(tier.price) }}</strong></label>
+                      <small v-if="!item.upstream_video_prices.length">主站未配置视频每秒价</small>
+                    </div>
+                    <div v-else-if="item.billing_mode === 'image'" class="admin-price-input-grid admin-price-input-grid--image">
                       <label><span>1K / 张</span><input v-model.number="item.image_price_1k" type="number" min="0" step="0.0001" :placeholder="priceUnitLabel()" :disabled="!item.is_enabled"></label>
                       <label><span>2K / 张</span><input v-model.number="item.image_price_2k" type="number" min="0" step="0.0001" :placeholder="priceUnitLabel()" :disabled="!item.is_enabled"></label>
                       <label><span>4K / 张</span><input v-model.number="item.image_price_4k" type="number" min="0" step="0.0001" :placeholder="priceUnitLabel()" :disabled="!item.is_enabled"></label>
@@ -780,13 +805,17 @@ function timePricingLabel(schedule: GroupModelPrice['time_pricing']) {
 
                   <section class="admin-model-price-section admin-model-price-section--official">
                     <header>
-                      <div><strong>官方价格</strong><small>每个模型独立选择换算方式</small></div>
-                      <select class="official-unit-select" :value="item.official_price_unit" aria-label="官方价格单位" @change="changeOfficialUnit(item, $event)">
+                      <div><strong>{{ item.billing_mode === 'video' ? '本站视频价' : '官方价格' }}</strong><small>{{ item.billing_mode === 'video' ? '主站每秒基础价 × 视频倍率' : '每个模型独立选择换算方式' }}</small></div>
+                      <select v-if="item.billing_mode !== 'video'" class="official-unit-select" :value="item.official_price_unit" aria-label="官方价格单位" @change="changeOfficialUnit(item, $event)">
                         <option value="usd">USD（按汇率换算）</option>
                         <option value="rmb">人民币（原值展示）</option>
                       </select>
                     </header>
-                    <div v-if="item.billing_mode === 'image'" class="admin-price-input-grid admin-price-input-grid--image">
+                    <div v-if="item.billing_mode === 'video'" class="admin-price-input-grid admin-price-input-grid--image">
+                      <label v-for="tier in item.video_prices" :key="tier.label"><span>{{ tier.label }} / 秒 · 本站价</span><strong>{{ cnyPrice(tier.effective_price_cny_per_second) }}</strong></label>
+                      <small>视频源价及独立倍率由主站分组配置；手动倍率可在上方覆盖。</small>
+                    </div>
+                    <div v-else-if="item.billing_mode === 'image'" class="admin-price-input-grid admin-price-input-grid--image">
                       <label><span>1K / 张</span><input v-model.number="item.official_image_price_1k" type="number" min="0" step="0.0001" :placeholder="officialUnitLabel(item)" :disabled="!item.is_enabled"></label>
                       <label><span>2K / 张</span><input v-model.number="item.official_image_price_2k" type="number" min="0" step="0.0001" :placeholder="officialUnitLabel(item)" :disabled="!item.is_enabled"></label>
                       <label><span>4K / 张</span><input v-model.number="item.official_image_price_4k" type="number" min="0" step="0.0001" :placeholder="officialUnitLabel(item)" :disabled="!item.is_enabled"></label>

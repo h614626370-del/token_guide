@@ -26,6 +26,13 @@ export interface ModelImageSourcePriceTier {
   price: number
 }
 
+export interface ModelVideoPriceTier {
+  label: string
+  base_price_usd_per_second: number
+  effective_price_cny_per_second: number
+  discount_ratio: number | null
+}
+
 export interface ModelPricingTimeSchedule {
   timezone: string
   weekdays_only: boolean
@@ -40,12 +47,15 @@ export interface GroupModelPrice {
   source_order: number
   sort_order: number
   is_visible: boolean
-  billing_mode: 'token' | 'image' | 'per_request'
+  billing_mode: 'token' | 'image' | 'video' | 'per_request'
   source_multiplier: number
   group_effective_multiplier: number
   image_rate_independent: boolean
   image_rate_multiplier: number
   image_effective_multiplier: number
+  video_rate_independent: boolean
+  video_rate_multiplier: number
+  video_effective_multiplier: number
   manual_multiplier: number | null
   subscription_multiplier: number | null
   effective_multiplier: number
@@ -64,11 +74,13 @@ export interface GroupModelPrice {
   official_price_source: 'base' | 'manual'
   upstream_base_prices: ModelPriceValues
   upstream_image_prices: ModelImageSourcePriceTier[]
+  upstream_video_prices: ModelImageSourcePriceTier[]
   base_prices: ModelPriceValues
   upstream_price_source: 'official' | 'channel' | 'group'
   base_price_source: 'official' | 'channel' | 'group' | 'manual'
   effective_prices: ModelPriceValues
   image_prices: ModelImagePriceTier[]
+  video_prices: ModelVideoPriceTier[]
   discount_ratio: number | null
   time_pricing: ModelPricingTimeSchedule | null
   pricing_found: boolean
@@ -90,6 +102,8 @@ export interface ModelPricingGroup {
   subscription_plan: ModelPricingSubscriptionPlan | null
   image_rate_independent: boolean
   image_rate_multiplier: number
+  video_rate_independent: boolean
+  video_rate_multiplier: number
   channel_id: string | null
   channel_name: string | null
   sort_order: number

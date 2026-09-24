@@ -225,10 +225,13 @@ function normalizePublicGroup(group) {
     subscription_type: subscriptionType,
     image_rate_independent: Boolean(group.image_rate_independent),
     image_rate_multiplier: positiveNumber(group.image_rate_multiplier, 1),
+    video_rate_independent: Boolean(group.video_rate_independent),
+    video_rate_multiplier: positiveNumber(group.video_rate_multiplier, 1),
     model_names: modelNames,
     source: group,
     group_pricing: normalizePricingEntries(group.model_pricing),
     image_prices: normalizeGroupImagePrices(group),
+    video_prices: normalizeGroupVideoPrices(group),
     sort_order: finiteNumber(group.sort_order, 1000),
   }
 }
@@ -360,6 +363,8 @@ function buildCatalog(source, overrides, displayOrder, groupSettings, config, { 
           subscription_plan: sourceGroup.subscription_plan || null,
           image_rate_independent: sourceGroup.image_rate_independent,
           image_rate_multiplier: sourceGroup.image_rate_multiplier,
+          video_rate_independent: sourceGroup.video_rate_independent,
+          video_rate_multiplier: sourceGroup.video_rate_multiplier,
           channel_id: sourceGroup.channel_id || null,
           channel_name: sourceGroup.channel_name || null,
           sort_order: displaySortOrder(displayOrderMap, 'group', vendor.id, sourceGroup.id, sourceGroup.sort_order),
@@ -388,6 +393,7 @@ function buildCatalog(source, overrides, displayOrder, groupSettings, config, { 
           100_000 + sourceModelNames.length - sourceOrder - 1,
         ),
         groupImagePrices: sourceGroup.image_prices || [],
+        groupVideoPrices: sourceGroup.video_prices || [],
         usdToCny: positiveNumber(config.usdToCny, 6.8102),
       })
       if (includeHidden || model.is_visible) group.models.push(model)
@@ -433,7 +439,7 @@ function buildCatalog(source, overrides, displayOrder, groupSettings, config, { 
   }
 }
 
-function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, channelPricing, override, sourceOrder, modelSortOrder, groupImagePrices, usdToCny }) {
+function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, channelPricing, override, sourceOrder, modelSortOrder, groupImagePrices, groupVideoPrices, usdToCny }) {
   const overrideEnabled = Boolean(override?.is_enabled)
   const manualMultiplier = overrideEnabled ? nullablePositive(override.multiplier) : null
   const groupMultiplier = positiveNumber(group.effective_multiplier, group.source_multiplier)
@@ -444,6 +450,10 @@ function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, chan
     ? positiveNumber(group.image_rate_multiplier, groupMultiplier)
     : groupMultiplier
   const effectiveImageMultiplier = roundPrice((manualMultiplier ?? imageMultiplier) * subscriptionMultiplier)
+  const videoMultiplier = group.video_rate_independent
+    ? positiveNumber(group.video_rate_multiplier, groupMultiplier)
+    : groupMultiplier
+  const effectiveVideoMultiplier = roundPrice((manualMultiplier ?? videoMultiplier) * subscriptionMultiplier)
   const manualPrices = {
     input_usd_per_million: overrideEnabled ? nullableNonNegative(override?.input_usd_per_million) : null,
     output_usd_per_million: overrideEnabled ? nullableNonNegative(override?.output_usd_per_million) : null,
@@ -466,19 +476,22 @@ function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, chan
     { label: '2K', price: overrideEnabled ? nullableNonNegative(override?.official_image_price_2k) : null },
     { label: '4K', price: overrideEnabled ? nullableNonNegative(override?.official_image_price_4k) : null },
   ].filter(item => item.price != null)
-  const hasManualOfficialPrices = Object.values(manualOfficialPrices).some(value => value != null)
-    || manualOfficialImagePrices.length > 0
-  const officialPriceUnit = hasManualOfficialPrices && override?.official_price_unit === 'rmb' ? 'rmb' : 'usd'
-  const hasManualPrices = Object.values(manualPrices).some(value => value != null) || manualImagePrices.length > 0
   const upstreamPricing = groupPricing || channelPricing
-  const upstreamPriceSource = groupPricing ? 'group' : channelPricing ? 'channel' : 'official'
   const configuredPrices = upstreamPricing?.billing_mode === 'token' ? upstreamPricing.prices : emptyPrices()
   const upstreamBasePrices = Object.fromEntries(Object.keys(sourcePrices)
     .map(key => [key, configuredPrices[key] ?? sourcePrices[key]]))
   const basePrices = Object.fromEntries(Object.keys(sourcePrices)
     .map(key => [key, manualPrices[key] ?? upstreamBasePrices[key]]))
   const effectivePrices = Object.fromEntries(Object.entries(basePrices).map(([key, value]) => [key, multiplyPrice(value, effectiveMultiplier)]))
-  const billingMode = upstreamPricing?.billing_mode || ((groupImagePrices.length || isImageModelName(modelName)) ? 'image' : 'token')
+  const billingMode = upstreamPricing?.billing_mode || (isVideoModelName(modelName) ? 'video' : isImageModelName(modelName) ? 'image' : 'token')
+  const isImageBilling = billingMode === 'image' || billingMode === 'per_request'
+  const hasManualOfficialPrices = billingMode === 'token' && Object.values(manualOfficialPrices).some(value => value != null)
+    || isImageBilling && manualOfficialImagePrices.length > 0
+  const officialPriceUnit = hasManualOfficialPrices && override?.official_price_unit === 'rmb' ? 'rmb' : 'usd'
+  const hasManualPrices = billingMode === 'token' && Object.values(manualPrices).some(value => value != null)
+    || isImageBilling && manualImagePrices.length > 0
+  const upstreamPriceSource = groupPricing ? 'group' : channelPricing ? 'channel'
+    : (billingMode === 'video' && groupVideoPrices.length) || (isImageBilling && groupImagePrices.length) ? 'group' : 'official'
   const upstreamImagePrices = mergeImagePrices({
     upstream: upstreamPricing?.request_prices?.length ? upstreamPricing.request_prices : officialImagePrices(modelName),
     group: billingMode === 'image' ? groupImagePrices : [],
@@ -487,7 +500,7 @@ function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, chan
   const imageBasePrices = mergeImagePrices({
     upstream: upstreamImagePrices,
     group: [],
-    manual: manualImagePrices,
+    manual: isImageBilling ? manualImagePrices : [],
   })
   const officialDisplayPrices = Object.fromEntries(Object.keys(basePrices)
     .map(key => [key, manualOfficialPrices[key] ?? basePrices[key]]))
@@ -497,7 +510,7 @@ function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, chan
   const officialDisplayImagePrices = mergeImagePrices({
     upstream: imageBasePrices,
     group: [],
-    manual: manualOfficialImagePrices,
+    manual: isImageBilling ? manualOfficialImagePrices : [],
   })
   const officialCalculationImagePrices = officialPriceUnit === 'rmb'
     ? officialDisplayImagePrices.map(item => ({ ...item, price: roundPrice(item.price / usdToCny) }))
@@ -511,6 +524,15 @@ function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, chan
       multiplyPrice(item.price, effectiveImageMultiplier),
       usdToCny,
     ),
+  }))
+  const upstreamVideoPrices = billingMode === 'video'
+    ? (upstreamPricing?.request_prices?.length ? upstreamPricing.request_prices : groupVideoPrices)
+    : []
+  const videoPrices = upstreamVideoPrices.map(item => ({
+    label: item.label,
+    base_price_usd_per_second: item.price,
+    effective_price_cny_per_second: multiplyPrice(item.price, effectiveVideoMultiplier),
+    discount_ratio: priceRatioValue(item.price, multiplyPrice(item.price, effectiveVideoMultiplier), usdToCny),
   }))
   const timePricing = channelPricing?.time_pricing
     ? buildEffectiveTimePricing(channelPricing.time_pricing, effectivePrices, officialDisplayPrices, imagePrices, officialDisplayImagePrices, usdToCny)
@@ -529,6 +551,9 @@ function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, chan
     image_rate_independent: Boolean(group.image_rate_independent),
     image_rate_multiplier: positiveNumber(group.image_rate_multiplier, groupMultiplier),
     image_effective_multiplier: effectiveImageMultiplier,
+    video_rate_independent: Boolean(group.video_rate_independent),
+    video_rate_multiplier: positiveNumber(group.video_rate_multiplier, groupMultiplier),
+    video_effective_multiplier: effectiveVideoMultiplier,
     manual_multiplier: manualMultiplier,
     subscription_multiplier: group.subscription_multiplier,
     effective_multiplier: effectiveMultiplier,
@@ -547,14 +572,17 @@ function buildModel({ modelName, vendor, group, sourcePrices, groupPricing, chan
     official_price_source: hasManualOfficialPrices ? 'manual' : 'base',
     upstream_base_prices: upstreamBasePrices,
     upstream_image_prices: upstreamImagePrices,
+    upstream_video_prices: upstreamVideoPrices,
     base_prices: basePrices,
     upstream_price_source: upstreamPriceSource,
     base_price_source: hasManualPrices ? 'manual' : upstreamPriceSource,
     effective_prices: effectivePrices,
     image_prices: imagePrices,
-    discount_ratio: imagePrices[0]?.discount_ratio ?? priceRatio(officialCalculationPrices, effectivePrices, usdToCny),
+    video_prices: videoPrices,
+    discount_ratio: videoPrices[0]?.discount_ratio ?? imagePrices[0]?.discount_ratio ?? priceRatio(officialCalculationPrices, effectivePrices, usdToCny),
     time_pricing: timePricing,
-    pricing_found: imagePrices.length > 0 || Object.values(basePrices).some(value => value != null),
+    pricing_found: billingMode === 'video' ? videoPrices.length > 0
+      : isImageBilling ? imagePrices.length > 0 : Object.values(basePrices).some(value => value != null),
     note: override?.note || '',
   }
 }
@@ -563,7 +591,7 @@ function normalizePricingEntries(value) {
   if (!Array.isArray(value)) return []
   return value.flatMap((entry) => {
     const billingMode = String(entry?.billing_mode || 'token').trim().toLowerCase()
-    if (!['token', 'image', 'per_request'].includes(billingMode)) return []
+    if (!['token', 'image', 'video', 'per_request'].includes(billingMode)) return []
     const models = normalizeModelNames(entry?.models)
     if (!models.length) return []
     return [{
@@ -683,6 +711,14 @@ function normalizeGroupImagePrices(group) {
   ].filter(item => item.price != null)
 }
 
+function normalizeGroupVideoPrices(group) {
+  return [
+    { label: '480p', price: nullableNonNegative(group?.video_price_480p) },
+    { label: '720p', price: nullableNonNegative(group?.video_price_720p) },
+    { label: '1080p', price: nullableNonNegative(group?.video_price_1080p) },
+  ].filter(item => item.price != null)
+}
+
 function normalizeRequestPrices(entry, billingMode) {
   const tiers = (Array.isArray(entry?.intervals) ? entry.intervals : [])
     .map((item, index) => ({
@@ -695,7 +731,7 @@ function normalizeRequestPrices(entry, billingMode) {
     .map(({ label, price }) => ({ label, price }))
   if (tiers.length) return tiers
   const defaultPrice = nullableNonNegative(entry?.per_request_price)
-  return defaultPrice == null ? [] : [{ label: billingMode === 'image' ? '每张' : '每次', price: defaultPrice }]
+  return defaultPrice == null ? [] : [{ label: billingMode === 'image' ? '每张' : billingMode === 'video' ? '每秒' : '每次', price: defaultPrice }]
 }
 
 function mergeImagePrices({ upstream, group, manual }) {
@@ -716,6 +752,10 @@ function mergeImagePrices({ upstream, group, manual }) {
 
 function isImageModelName(modelName) {
   return /(^|[-_])(image|imagen|dall-e|cogview)([-_]|$)/i.test(String(modelName || ''))
+}
+
+function isVideoModelName(modelName) {
+  return /(^|[-_])(video|cogvideo)([-_]|$)/i.test(String(modelName || ''))
 }
 
 function officialImagePrices(modelName) {
