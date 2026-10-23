@@ -16,6 +16,7 @@ export const emailSettingsSchema = z.object({
   from_name: z.string().trim().max(120),
   from_email: emailAddress,
   admin_email: emailAddress,
+  upstream_alert_emails: z.array(z.string().trim().max(320).email()).max(30).transform(values => [...new Set(values.map(value => value.toLowerCase()))]).optional(),
   admin_subject_template: z.string().trim().min(1).max(500),
   admin_body_template: z.string().trim().min(1).max(20_000),
   reply_subject_template: z.string().trim().min(1).max(500),

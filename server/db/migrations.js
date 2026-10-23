@@ -1602,4 +1602,36 @@ export const migrations = [
       `)
     },
   },
+  {
+    id: 48,
+    name: 'create_upstream_monitors',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS upstream_monitors (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          source TEXT NOT NULL CHECK (source IN ('manual', 'main_site')),
+          account_id INTEGER,
+          base_url TEXT NOT NULL DEFAULT '',
+          api_key TEXT NOT NULL DEFAULT '',
+          enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+          low_balance_enabled INTEGER NOT NULL DEFAULT 1 CHECK (low_balance_enabled IN (0, 1)),
+          low_balance_threshold REAL NOT NULL DEFAULT 10 CHECK (low_balance_threshold >= 0),
+          exhausted_enabled INTEGER NOT NULL DEFAULT 1 CHECK (exhausted_enabled IN (0, 1)),
+          check_interval_minutes INTEGER NOT NULL DEFAULT 5 CHECK (check_interval_minutes BETWEEN 1 AND 1440),
+          balance REAL,
+          balance_unit TEXT NOT NULL DEFAULT 'USD',
+          last_checked_at TEXT,
+          last_check_status TEXT NOT NULL DEFAULT 'pending',
+          last_error TEXT,
+          last_alert_kind TEXT,
+          last_alert_at TEXT,
+          notification_status TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_upstream_monitors_enabled ON upstream_monitors(enabled, last_checked_at);
+      `)
+    },
+  },
 ]

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ArrowRight, BadgeDollarSign, BarChart3, Boxes, Database, FileText, Gift, Home, Images, MessageSquareText, RefreshCcw, Settings, ShieldCheck } from 'lucide-vue-next'
-import { PackageOpen } from 'lucide-vue-next'
+import { PackageOpen, Network } from 'lucide-vue-next'
 
 definePageMeta({ layout: 'admin' })
 useSeoMeta({ title: '管理概览', robots: 'noindex, nofollow' })
 
 const items = [
   { icon: Settings, title: '站点配置', text: '维护名称、主站地址、品牌与支持信息。', to: '/admin/settings' },
+  { icon: Network, title: '上游管理', text: '监控上游账号余额，配置余额不足与用完邮件告警。', to: '/admin/upstreams' },
   { icon: Images, title: '图片管理', text: '上传 Logo、群二维码或内容图片，生成可公开访问的地址。', to: '/admin/assets' },
   { icon: Home, title: '首页管理', text: '应用默认首页，上传独立静态文件并在线发布。', to: '/admin/homepage' },
   { icon: FileText, title: '指南内容', text: '直接编辑首页、接入教程和会员流程文档。', to: '/admin/docs' },

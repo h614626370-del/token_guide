@@ -12,6 +12,7 @@ const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
 const loaded = ref(false)
+const alertRecipients = ref('')
 const notice = reactive({ type: 'idle' as 'idle' | 'success' | 'error', message: '' })
 const form = reactive<AdminEmailSettingsDraft>({
   enabled: false,
@@ -24,6 +25,7 @@ const form = reactive<AdminEmailSettingsDraft>({
   from_name: '指南中心',
   from_email: '',
   admin_email: '',
+  upstream_alert_emails: [],
   admin_subject_template: '[{{project_name}}反馈] {{title}}',
   admin_body_template: '',
   reply_subject_template: '[{{project_name}}] 您的反馈已有回复：{{title}}',
@@ -68,6 +70,7 @@ async function saveSettings() {
         from_name: form.from_name,
         from_email: form.from_email,
         admin_email: form.admin_email,
+        upstream_alert_emails: alertRecipients.value.split(/[\s,;，；]+/).map(value => value.trim()).filter(Boolean),
         admin_subject_template: form.admin_subject_template,
         admin_body_template: form.admin_body_template,
         reply_subject_template: form.reply_subject_template,
@@ -101,6 +104,7 @@ async function sendTestEmail() {
 }
 
 function applySettings(value: AdminEmailSettings) {
+  alertRecipients.value = (value.upstream_alert_emails || []).join('\n')
   Object.assign(form, value, {
     smtp_password: '',
     clear_smtp_password: false,
@@ -119,7 +123,7 @@ function clearNotice() {
       <header class="admin-page-heading">
         <span>Email</span>
         <h1>邮件通知</h1>
-        <p>配置反馈提醒、回复通知和 SMTP 发件账户。</p>
+        <p>配置反馈提醒、上游余额告警和 SMTP 发件账户。</p>
         <div class="admin-page-heading__actions">
           <button class="secondary-command" type="button" :disabled="loading || saving || testing || !form.enabled" @click="sendTestEmail">
             <Send :size="16" />{{ testing ? '发送中...' : '发送测试邮件' }}
@@ -140,7 +144,7 @@ function clearNotice() {
           <header><h2>SMTP 服务器</h2><Server :size="18" /></header>
           <label class="check-line email-enabled-toggle">
             <input v-model="form.enabled" type="checkbox">
-            启用反馈邮件通知
+            启用邮件通知
           </label>
           <label class="form-field"><span>SMTP 服务器</span><input v-model.trim="form.smtp_host" maxlength="255" placeholder="smtp.gmail.com" :required="form.enabled"></label>
           <div class="email-server-row">
@@ -160,6 +164,8 @@ function clearNotice() {
           <label class="form-field"><span>发件人名称</span><input v-model.trim="form.from_name" maxlength="120" placeholder="指南中心"></label>
           <label class="form-field"><span>发件邮箱</span><input v-model.trim="form.from_email" type="email" maxlength="320" autocomplete="email" :required="form.enabled" placeholder="notice@example.com"></label>
           <label class="form-field"><span>管理员收件邮箱</span><input v-model.trim="form.admin_email" type="email" maxlength="320" autocomplete="email" :required="form.enabled" placeholder="admin@example.com"></label>
+          <label class="form-field"><span>上游告警收件邮箱</span><textarea v-model="alertRecipients" aria-label="上游告警收件邮箱" aria-describedby="upstream-email-hint" rows="4" maxlength="10000" placeholder="ops@example.com&#10;finance@example.com" /><small id="upstream-email-hint">可填写多个邮箱，用换行、逗号或分号分隔；留空时发送至管理员收件邮箱。</small></label>
+          <NuxtLink to="/admin/upstreams">管理上游余额告警</NuxtLink>
         </section>
 
         <section class="admin-section email-template-section">

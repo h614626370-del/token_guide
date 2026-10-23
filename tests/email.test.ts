@@ -25,6 +25,17 @@ afterEach(() => {
 })
 
 describe('email settings repository', () => {
+  it('persists multiple upstream recipients without clearing them on legacy updates', () => {
+    const { db, repo } = createRepository()
+    try {
+      repo.update({ ...defaultEmailSettings, upstream_alert_emails: ['ops@example.com', 'finance@example.com'] })
+      expect(repo.getPublic().upstream_alert_emails).toEqual(['ops@example.com', 'finance@example.com'])
+      const { upstream_alert_emails: _, ...legacy } = defaultEmailSettings
+      repo.update(legacy)
+      expect(repo.get().upstream_alert_emails).toHaveLength(2)
+    } finally { db.close() }
+  })
+
   it('keeps SMTP passwords server-side and only clears them explicitly', () => {
     const { db, repo } = createRepository()
     try {

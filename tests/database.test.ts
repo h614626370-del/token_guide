@@ -70,6 +70,7 @@ describe('database migrations', () => {
         { id: 45, name: 'add_model_pricing_official_price_unit' },
         { id: 46, name: 'create_model_pricing_public_snapshots' },
         { id: 47, name: 'add_model_pricing_group_visibility' },
+        { id: 48, name: 'create_upstream_monitors' },
       ])
       expect(db.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
 
@@ -198,7 +199,7 @@ describe('database migrations', () => {
 
     const second = openDatabase(databasePath)
     try {
-      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 47 })
+      expect(second.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 48 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM pricing_model_settings').get()).toEqual({ count: 8 })
       expect(second.prepare('SELECT COUNT(*) AS count FROM game_items').get()).toEqual({ count: 1 })
       expect(second.prepare('SELECT applied_at FROM schema_migrations WHERE id = 22').get()).toEqual(firstAppliedAt)
@@ -250,6 +251,7 @@ describe('database migrations', () => {
         { id: 45, name: 'add_model_pricing_official_price_unit' },
         { id: 46, name: 'create_model_pricing_public_snapshots' },
         { id: 47, name: 'add_model_pricing_group_visibility' },
+        { id: 48, name: 'create_upstream_monitors' },
       ])
       expect(upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'compensation_batches'").get()).toEqual({ name: 'compensation_batches' })
       expect(upgraded.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_pricing_group_overrides'").get()).toEqual({ name: 'model_pricing_group_overrides' })

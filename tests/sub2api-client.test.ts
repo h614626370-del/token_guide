@@ -12,6 +12,16 @@ afterEach(() => {
 })
 
 describe('sub2api compensation client calls', () => {
+  it('only exports the selected account credentials without proxies', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 0, data: { accounts: [] } })))
+    vi.stubGlobal('fetch', request)
+    await createSub2apiClient(config, null).exportAccountCredentials(42)
+    const target = new URL(String(request.mock.calls[0]?.[0]))
+    expect(target.pathname).toBe('/api/v1/admin/accounts/data')
+    expect(target.searchParams.get('ids')).toBe('42')
+    expect(target.searchParams.get('include_proxies')).toBe('false')
+  })
+
   it('lists all active OpenAI accounts across pages', async () => {
     const calls: URL[] = []
     vi.stubGlobal('fetch', vi.fn(async (input: URL | RequestInfo) => {

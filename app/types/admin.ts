@@ -100,6 +100,7 @@ export interface AdminEmailSettings {
   from_name: string
   from_email: string
   admin_email: string
+  upstream_alert_emails: string[]
   admin_subject_template: string
   admin_body_template: string
   reply_subject_template: string

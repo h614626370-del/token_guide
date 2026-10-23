@@ -11,6 +11,7 @@ export interface EmailSettings {
   from_name: string
   from_email: string
   admin_email: string
+  upstream_alert_emails: string[]
   admin_subject_template: string
   admin_body_template: string
   reply_subject_template: string
@@ -27,6 +28,7 @@ export const defaultEmailSettings: Readonly<EmailSettings> = Object.freeze({
   from_name: '指南中心',
   from_email: '',
   admin_email: '',
+  upstream_alert_emails: [],
   admin_subject_template: '[{{project_name}}反馈] {{title}}',
   admin_body_template: `收到一条新的用户反馈。
 
@@ -91,6 +93,7 @@ export function createEmailSettingsRepository(db: Database.Database) {
       smtp_port: parsePort(stored.smtp_port),
       smtp_secure: stored.smtp_secure === undefined ? defaultEmailSettings.smtp_secure : stored.smtp_secure === 'true',
       smtp_password: stored.smtp_password || '',
+      upstream_alert_emails: parseRecipients(stored.upstream_alert_emails),
     }
   }
 
@@ -119,6 +122,9 @@ export function createEmailSettingsRepository(db: Database.Database) {
             updated_at: now,
           })
         }
+        if (input.upstream_alert_emails !== undefined) {
+          upsert.run({ key: 'upstream_alert_emails', value: JSON.stringify(input.upstream_alert_emails), is_secret: 0, created_at: now, updated_at: now })
+        }
         if (input.clear_smtp_password) remove.run('smtp_password')
         if (input.smtp_password) {
           upsert.run({
@@ -139,4 +145,11 @@ export function createEmailSettingsRepository(db: Database.Database) {
 function parsePort(value: string | undefined) {
   const port = Number(value ?? defaultEmailSettings.smtp_port)
   return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : defaultEmailSettings.smtp_port
+}
+
+function parseRecipients(value: string | undefined): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value || '[]')
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch { return [] }
 }

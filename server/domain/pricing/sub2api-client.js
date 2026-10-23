@@ -128,6 +128,14 @@ export function createSub2apiClient(config, logger) {
       })
     },
 
+    async getAccount(accountId) {
+      return request(`/admin/accounts/${encodeURIComponent(String(accountId))}`)
+    },
+
+    async exportAccountCredentials(accountId) {
+      return request('/admin/accounts/data', { ids: String(accountId), include_proxies: false })
+    },
+
     async listAccountsAll({ provider = 'openai', status = 'active', maxPages = 100 } = {}) {
       const items = []
       let page = 1

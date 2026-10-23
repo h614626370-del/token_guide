@@ -28,6 +28,18 @@ const upstream = createServer(async (request, response) => {
   }
   upstreamRequests.push({ path: requestUrl.pathname, authorization, body: requestBody })
   response.setHeader('content-type', 'application/json')
+  if (requestUrl.pathname === '/v1/usage' && authorization === 'Bearer sk-upstream-integration-only') {
+    response.end(JSON.stringify({ mode: 'unrestricted', remaining: 7.5, balance: 7.5, unit: 'USD' }))
+    return
+  }
+  if (requestUrl.pathname.startsWith('/api/v1/admin/accounts') && request.headers['x-api-key'] === 'integration-main-site-admin-key') {
+    const account = { id: 42, name: 'Integration upstream', type: 'apikey', platform: 'openai', status: 'active', credentials: { base_url: upstreamOrigin, api_key: 'sk-upstream-integration-only' } }
+    const data = requestUrl.pathname === '/api/v1/admin/accounts'
+      ? { items: [account, { ...account, id: 43, type: 'oauth' }], total: 2, pages: 1 }
+      : account
+    response.end(JSON.stringify({ code: 0, data }))
+    return
+  }
   if (requestUrl.pathname === '/api/v1/auth/me' && authorization === `Bearer ${jwt}`) {
     response.end(JSON.stringify({
       code: 0,
@@ -884,6 +896,46 @@ describe('authentication and same-origin API protection', () => {
       ok: true,
       data: { smtp_password_configured: false },
     })
+  })
+  it('protects upstream management and queries manual and main-site accounts without exposing credentials', async () => {
+    for (const [path, method] of [
+      ['/api/admin/upstreams', 'GET'], ['/api/admin/upstreams', 'POST'],
+      ['/api/admin/upstreams/1', 'PUT'], ['/api/admin/upstreams/1', 'DELETE'],
+      ['/api/admin/upstreams/1/check', 'POST'], ['/api/admin/upstreams/accounts', 'GET'],
+    ]) {
+      expect((await fetch(path!, { method })).status).toBe(401)
+    }
+    const cookie = await administratorCookie()
+    const headers = { 'content-type': 'application/json', cookie }
+    const input = { name: 'Integration manual upstream', source: 'manual', base_url: `${upstreamOrigin}/v1`, api_key: 'sk-upstream-integration-only', enabled: false }
+    const created = await fetch('/api/admin/upstreams', { method: 'POST', headers, body: JSON.stringify(input) })
+    expect(created.status).toBe(200)
+    const saved = (await json(created)).data
+    expect(saved).not.toHaveProperty('api_key')
+    expect(saved.api_key_configured).toBe(true)
+    const checked = await fetch(`/api/admin/upstreams/${saved.id}/check`, { method: 'POST', headers })
+    expect(await json(checked)).toMatchObject({ data: { balance: 7.5, balance_unit: 'USD', last_check_status: 'success' } })
+    const updated = await fetch(`/api/admin/upstreams/${saved.id}`, { method: 'PUT', headers, body: JSON.stringify({ ...input, api_key: null, name: 'Updated upstream' }) })
+    expect((await json(updated)).data.api_key_configured).toBe(true)
+    const invalid = await fetch('/api/admin/upstreams', { method: 'POST', headers, body: JSON.stringify({ ...input, base_url: 'file:///tmp/test' }) })
+    expect(invalid.status).toBe(400)
+
+    const configured = await fetch('/api/admin/pricing/settings', { method: 'PUT', headers, body: JSON.stringify({ sub2api_base_url: upstreamOrigin, sub2api_admin_api_key: 'integration-main-site-admin-key' }) })
+    expect(configured.status).toBe(200)
+    const accounts = await fetch('/api/admin/upstreams/accounts?platform=openai', { headers })
+    const accountData = await json(accounts)
+    expect(accountData.data).toHaveLength(1)
+    expect(JSON.stringify(accountData)).not.toContain('sk-upstream-integration-only')
+    const main = await fetch('/api/admin/upstreams', { method: 'POST', headers, body: JSON.stringify({ name: 'Main site upstream', source: 'main_site', account_id: 42, enabled: false }) })
+    const mainSaved = (await json(main)).data
+    expect(mainSaved.id).toBeGreaterThan(0)
+    const mainChecked = await fetch(`/api/admin/upstreams/${mainSaved.id}/check`, { method: 'POST', headers })
+    expect(await json(mainChecked)).toMatchObject({ data: { balance: 7.5, last_check_status: 'success' } })
+    const list = await fetch('/api/admin/upstreams', { headers })
+    expect(await list.text()).not.toContain('sk-upstream-integration-only')
+    expect((await fetch(`/api/admin/upstreams/${saved.id}`, { method: 'DELETE', headers })).status).toBe(200)
+    expect((await fetch(`/api/admin/upstreams/${mainSaved.id}`, { method: 'DELETE', headers })).status).toBe(200)
+    await fetch('/api/admin/pricing/settings', { method: 'PUT', headers, body: JSON.stringify({ clear_sub2api_admin_api_key: true }) })
   })
   it('persists administrator pricing model and group bulk updates', async () => {
     const cookie = await administratorCookie()

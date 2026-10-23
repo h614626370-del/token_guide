@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft, BadgeDollarSign, BarChart3, Boxes, FileText, FolderTree, Gamepad2, Gift, Home, Images, LayoutDashboard, List, LogOut, Mail, MessageSquareText, RefreshCcw, Settings, Tags } from 'lucide-vue-next'
-import { PackageOpen } from 'lucide-vue-next'
+import { PackageOpen, Network } from 'lucide-vue-next'
 
 const route = useRoute()
 const admin = useAdminSessionState()
@@ -9,6 +9,7 @@ const links = [
   { label: '概览', to: '/admin', icon: LayoutDashboard },
   { label: '站点配置', to: '/admin/settings', icon: Settings },
   { label: '邮件通知', to: '/admin/email', icon: Mail },
+  { label: '上游管理', to: '/admin/upstreams', icon: Network },
   { label: '图片管理', to: '/admin/assets', icon: Images },
   { label: '首页管理', to: '/admin/homepage', icon: Home },
   { label: '指南内容', to: '/admin/docs', icon: FileText },

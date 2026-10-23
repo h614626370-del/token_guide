@@ -8,6 +8,8 @@ import {
 } from '../domain/email/repository'
 import { useGuideDatabase } from './database'
 import { getPublicSiteConfig } from './site-config'
+import { getGuideConfig } from './config'
+import type { UpstreamAlert } from '../domain/upstreams/service'
 
 export type EmailDeliveryStatus = 'sent' | 'disabled' | 'skipped' | 'failed'
 
@@ -99,6 +101,19 @@ export async function sendEmailSettingsTest(event: H3Event): Promise<EmailDelive
   })
 }
 
+export async function sendUpstreamBalanceAlert(alert: UpstreamAlert): Promise<EmailDeliveryResult> {
+  const settings = createEmailSettingsRepository(useGuideDatabase()).get()
+  if (!settings.enabled) return { status: 'disabled', reason: 'not_configured' }
+  const recipients = settings.upstream_alert_emails.length ? settings.upstream_alert_emails : [settings.admin_email].filter(Boolean)
+  if (!recipients.length) return { status: 'skipped', reason: 'missing_recipient' }
+  const kind = alert.kind === 'exhausted' ? '余额已用完' : '余额不足'
+  return deliver(settings, {
+    to: recipients,
+    subject: `[${getGuideConfig().projectName}] 上游${kind}：${alert.name.replace(/[\r\n]/g, ' ')}`,
+    text: `上游${kind}，请及时充值或调整账号。\n\n上游名称：${alert.name}\n上游地址：${alert.base_url}\n当前余额：${alert.balance} ${alert.unit}\n告警阈值：${alert.threshold} ${alert.unit}\n检查时间：${formatDate(new Date().toISOString())}`,
+  })
+}
+
 function feedbackVariables(feedback: FeedbackEmailData, projectName: string, siteUrl: string) {
   const baseUrl = siteUrl.replace(/\/+$/, '')
   return {
@@ -128,10 +143,11 @@ function validateOperationalSettings(settings: EmailSettings) {
 
 async function deliver(
   settings: EmailSettings,
-  message: { to: string, subject: string, text: string },
+  message: { to: string | string[], subject: string, text: string },
 ): Promise<EmailDeliveryResult> {
   const issue = validateOperationalSettings(settings)
-  if (issue || !isEmail(message.to)) return { status: 'failed', reason: 'delivery_failed' }
+  const recipients = Array.isArray(message.to) ? message.to : [message.to]
+  if (issue || !recipients.length || recipients.some(recipient => !isEmail(recipient))) return { status: 'failed', reason: 'delivery_failed' }
 
   const transporter = nodemailer.createTransport({
     host: settings.smtp_host,
@@ -146,13 +162,13 @@ async function deliver(
   })
 
   try {
-    await transporter.sendMail({
+    const result = await transporter.sendMail({
       from: { name: settings.from_name || '指南中心', address: settings.from_email },
-      to: message.to,
+      ...(Array.isArray(message.to) ? { bcc: message.to } : { to: message.to }),
       subject: message.subject,
       text: message.text,
     })
-    return { status: 'sent' }
+    return result.rejected?.length ? { status: 'failed', reason: 'delivery_failed' } : { status: 'sent' }
   } catch (error) {
     console.error('[email] delivery failed:', error instanceof Error ? error.message : 'Unknown SMTP error')
     return { status: 'failed', reason: 'delivery_failed' }
