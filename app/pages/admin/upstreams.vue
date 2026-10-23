@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, ExternalLink, Mail, Network, Pencil, Plus, RefreshCw, Save, Trash2, X } from 'lucide-vue-next'
+import { Check, ChevronDown, ExternalLink, Mail, MailCheck, MailWarning, Network, Pencil, Plus, RefreshCw, Save, Trash2, X } from 'lucide-vue-next'
 import type { ApiSuccess } from '~/types/api'
 import { apiErrorMessage } from '~/types/api'
 import type { MainSiteUpstreamAccount, UpstreamMonitor } from '~/types/upstreams'
@@ -17,6 +17,7 @@ const accountsLoading = ref(false)
 const checking = ref<number[]>([])
 const deleting = ref<number | null>(null)
 const confirmDelete = ref<number | null>(null)
+const expandedError = ref<number | null>(null)
 const editing = ref(false)
 const editingId = ref<number | null>(null)
 const keyConfigured = ref(false)
@@ -148,6 +149,21 @@ function date(value: string | null) {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '尚未检查'
 }
 
+function time(value: string | null) {
+  return value ? new Date(value).toLocaleTimeString('zh-CN', { hour12: false }) : '尚未检查'
+}
+
+function upstreamHost(value: string) {
+  try { return new URL(value).host } catch { return value }
+}
+
+function alertRules(item: UpstreamMonitor) {
+  const rules = []
+  if (item.low_balance_enabled) rules.push(`≤ ${item.low_balance_threshold}`)
+  if (item.exhausted_enabled) rules.push('用完告警')
+  return rules.join(' · ') || '已关闭'
+}
+
 function notification(item: UpstreamMonitor) {
   if (item.notification_status === 'sent') return `已发送${item.last_alert_kind === 'exhausted' ? '用完' : '余额不足'}告警 · ${date(item.last_alert_at)}`
   if (item.notification_status === 'disabled') return '邮件未启用，请前往邮件通知配置'
@@ -202,20 +218,29 @@ function showError(error: unknown, fallback: string) {
 
       <div v-if="loading && !loaded" class="loading-band">正在读取上游配置...</div>
       <section v-else-if="!monitors.length" class="upstream-empty"><Network :size="28" /><h2>尚未添加上游</h2><p>添加上游地址和 API Key，或选择主站的三方 API 账号。</p><button v-if="!editing" class="primary-command" type="button" @click="edit()"><Plus :size="16" />添加上游</button></section>
-      <section v-else class="upstream-list" aria-label="上游账号列表">
-        <article v-for="item in monitors" :key="item.id" class="upstream-row">
-          <div class="upstream-identity">
-            <div class="upstream-name"><h2>{{ item.name }}</h2><span :class="['upstream-status', `upstream-status--${status(item).tone}`]">{{ status(item).label }}</span></div>
-            <p>{{ item.source === 'main_site' ? `主站账号 #${item.account_id}` : '手动配置' }}</p>
-            <p><a v-if="item.resolved_base_url" class="upstream-link" :href="item.resolved_base_url" target="_blank" rel="noopener noreferrer">{{ item.resolved_base_url }} <ExternalLink :size="12" aria-hidden="true" /></a><span v-else>上游地址暂不可用</span></p>
-            <small>每 {{ item.check_interval_minutes }} 分钟检查 · {{ date(item.last_checked_at) }}</small>
-          </div>
-          <div class="upstream-balance"><strong>{{ item.last_check_status === 'unlimited' ? '不限额' : (item.balance === null ? '—' : item.balance.toLocaleString('zh-CN', { maximumFractionDigits: 6 })) }}</strong><span>{{ item.balance === null ? '当前余额' : item.balance_unit }}<template v-if="item.last_check_status === 'error' && item.balance !== null"> · 上次余额</template></span></div>
-          <div class="upstream-rules"><span>{{ item.low_balance_enabled ? `余额 ≤ ${item.low_balance_threshold} 时告警` : '余额不足告警已关闭' }}</span><span>{{ item.exhausted_enabled ? '余额用完时告警' : '余额用完告警已关闭' }}</span><small v-if="notification(item)" :class="{ 'upstream-error': item.notification_status !== 'sent' }">{{ notification(item) }}</small></div>
-          <div class="upstream-actions"><button class="secondary-command" type="button" :disabled="checking.includes(item.id) || deleting === item.id || saving" @click="check(item)"><RefreshCw :size="15" :class="{ 'upstream-spinning': checking.includes(item.id) }" />{{ checking.includes(item.id) ? '查询中...' : '查询余额' }}</button><button class="upstream-icon-button" type="button" :title="`编辑 ${item.name}`" :aria-label="`编辑 ${item.name}`" :disabled="saving || checking.includes(item.id)" @click="edit(item)"><Pencil :size="16" /></button><button class="upstream-icon-button upstream-error" type="button" :title="`删除 ${item.name}`" :aria-label="`删除 ${item.name}`" :disabled="deleting === item.id || saving" @click="confirmDelete = item.id"><Trash2 :size="16" /></button></div>
-          <p v-if="item.last_error" class="upstream-row-error" role="alert">{{ item.last_error }}</p>
-          <div v-if="confirmDelete === item.id" class="upstream-delete-confirm"><span>确定删除「{{ item.name }}」及其监控配置？</span><button class="secondary-command" type="button" :disabled="deleting === item.id" @click="confirmDelete = null"><X :size="15" />取消</button><button class="secondary-command upstream-error" type="button" :disabled="deleting === item.id" @click="remove(item)"><Check :size="15" />确认删除</button></div>
-        </article>
+      <section v-else class="upstream-list" aria-label="上游账号列表" tabindex="0">
+        <table class="upstream-table">
+          <colgroup><col class="upstream-col-name"><col><col class="upstream-col-balance"><col class="upstream-col-status"><col class="upstream-col-rules"><col class="upstream-col-check"><col class="upstream-col-actions"></colgroup>
+          <thead><tr><th scope="col">上游名称</th><th scope="col">上游地址</th><th scope="col" class="upstream-balance-heading">余额</th><th scope="col">状态</th><th scope="col">告警规则</th><th scope="col">最近检查</th><th scope="col" class="upstream-actions-heading">操作</th></tr></thead>
+          <tbody>
+            <template v-for="item in monitors" :key="item.id">
+              <tr class="upstream-row">
+                <td class="upstream-name"><h2 :title="item.name">{{ item.name }}</h2></td>
+                <td><a v-if="item.resolved_base_url" class="upstream-link" :href="item.resolved_base_url" :title="item.resolved_base_url" :aria-label="item.resolved_base_url" target="_blank" rel="noopener noreferrer"><span>{{ upstreamHost(item.resolved_base_url) }}</span><ExternalLink :size="12" aria-hidden="true" /></a><span v-else class="upstream-muted">地址暂不可用</span></td>
+                <td><div class="upstream-balance" :title="item.balance === null ? undefined : `${item.balance} ${item.balance_unit}${item.last_check_status === 'error' ? ' · 上次余额' : ''}`"><strong>{{ item.last_check_status === 'unlimited' ? '不限额' : (item.balance === null ? '—' : item.balance.toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })) }}</strong><span v-if="item.balance !== null">{{ item.balance_unit }}</span></div></td>
+                <td>
+                  <button v-if="item.last_error" type="button" :class="['upstream-status', 'upstream-status-toggle', `upstream-status--${status(item).tone}`]" :title="item.last_error" :aria-label="`查看 ${item.name} 错误详情`" :aria-expanded="expandedError === item.id" :aria-controls="`upstream-error-${item.id}`" @click="expandedError = expandedError === item.id ? null : item.id">{{ status(item).label }}<ChevronDown :size="12" :class="{ 'upstream-chevron-open': expandedError === item.id }" /></button>
+                  <span v-else :class="['upstream-status', `upstream-status--${status(item).tone}`]">{{ status(item).label }}</span>
+                </td>
+                <td><div class="upstream-rules"><span class="upstream-rule-text" :title="alertRules(item)">{{ alertRules(item) }}</span><span v-if="notification(item)" :class="['upstream-notification', { 'upstream-notification--warning': item.notification_status !== 'sent' }]" role="img" tabindex="0" :title="notification(item)" :aria-label="notification(item)"><MailCheck v-if="item.notification_status === 'sent'" :size="14" aria-hidden="true" /><MailWarning v-else :size="14" aria-hidden="true" /></span></div></td>
+                <td class="upstream-check"><span :title="`${date(item.last_checked_at)} · 每 ${item.check_interval_minutes} 分钟检查`" tabindex="0">{{ time(item.last_checked_at) }}</span></td>
+                <td><div class="upstream-actions"><button class="secondary-command upstream-query" type="button" aria-label="查询余额" :title="`查询 ${item.name} 余额`" :disabled="checking.includes(item.id) || deleting === item.id || saving" @click="check(item)"><RefreshCw :size="14" :class="{ 'upstream-spinning': checking.includes(item.id) }" />{{ checking.includes(item.id) ? '查询中' : '查询' }}</button><button class="upstream-icon-button" type="button" :title="`编辑 ${item.name}`" :aria-label="`编辑 ${item.name}`" :disabled="saving || checking.includes(item.id)" @click="edit(item)"><Pencil :size="15" /></button><button class="upstream-icon-button upstream-error" type="button" :title="`删除 ${item.name}`" :aria-label="`删除 ${item.name}`" :disabled="deleting === item.id || saving" @click="confirmDelete = item.id"><Trash2 :size="15" /></button></div></td>
+              </tr>
+              <tr v-if="item.last_error && expandedError === item.id" class="upstream-detail-row"><td colspan="7"><p :id="`upstream-error-${item.id}`" class="upstream-row-error" role="alert">{{ item.last_error }}</p></td></tr>
+              <tr v-if="confirmDelete === item.id" class="upstream-detail-row"><td colspan="7"><div class="upstream-delete-confirm"><span>确定删除「{{ item.name }}」及其监控配置？</span><button class="secondary-command" type="button" :disabled="deleting === item.id" @click="confirmDelete = null"><X :size="15" />取消</button><button class="secondary-command upstream-error" type="button" :disabled="deleting === item.id" @click="remove(item)"><Check :size="15" />确认删除</button></div></td></tr>
+            </template>
+          </tbody>
+        </table>
       </section>
       <p class="upstream-footnote">告警发送至<NuxtLink to="/admin/email">邮件通知</NuxtLink>中配置的收件邮箱。同一状态发送成功后不重复提醒；余额恢复后可再次触发，余额用完会单独告警。</p>
     </div>
@@ -235,35 +260,52 @@ function showError(error: unknown, fallback: string) {
 .upstream-empty h2, .upstream-empty p { margin: 0; }
 .upstream-empty h2 { font-size: 17px; color: var(--ink); }
 .upstream-empty p { font-size: 13px; }
-.upstream-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(100px, .6fr) minmax(0, 1fr) auto; gap: 20px; padding: 22px 0; border-bottom: 1px solid var(--line); align-items: center; }
-.upstream-identity, .upstream-rules { min-width: 0; overflow-wrap: anywhere; }
-.upstream-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.upstream-name h2 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
-.upstream-identity p { color: var(--muted); font-size: 12px; margin: 8px 0; }
-.upstream-link { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.upstream-list { max-width: 100%; min-width: 0; overflow-x: auto; }
+.upstream-table { width: 100%; min-width: 1060px; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+.upstream-col-name { width: 20%; }
+.upstream-col-balance { width: 136px; }
+.upstream-col-status { width: 88px; }
+.upstream-col-rules { width: 184px; }
+.upstream-col-check { width: 104px; }
+.upstream-col-actions { width: 164px; }
+.upstream-table th { padding: 12px 10px; color: var(--muted); font-size: 11px; font-weight: 500; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.upstream-table td { height: 50px; padding: 8px 10px; vertical-align: middle; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.upstream-table .upstream-balance-heading { text-align: right; }
+.upstream-table .upstream-actions-heading { text-align: right; }
+.upstream-name h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.upstream-link { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; vertical-align: middle; }
+.upstream-link span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .upstream-link:hover, .upstream-link:focus-visible { color: var(--accent); }
-.upstream-link svg { display: inline; vertical-align: -2px; }
-.upstream-identity small, .upstream-rules small { color: var(--muted); font-size: 11px; }
-.upstream-status { padding: 3px 7px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
+.upstream-link svg { flex: 0 0 auto; }
+.upstream-muted { color: var(--muted); }
+.upstream-status { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 4px; font-size: 11px; line-height: 18px; white-space: nowrap; }
+.upstream-status-toggle { gap: 2px; padding-inline: 4px; border: 0; font-family: inherit; cursor: pointer; }
+.upstream-chevron-open { transform: rotate(180deg); }
 .upstream-status--success { color: #16704a; background: #edf8f1; }
 .upstream-status--warning { color: #8b5c08; background: #fff7df; }
 .upstream-status--error { color: #b42318; background: #fff1f0; }
 .upstream-status--muted { color: var(--muted); background: var(--surface-subtle); }
-.upstream-balance { display: grid; gap: 5px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.upstream-balance strong { font-size: 20px; color: var(--ink); }
-.upstream-balance span { color: var(--muted); font-size: 11px; }
-.upstream-rules { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
-.upstream-actions { display: flex; align-items: center; gap: 5px; }
+.upstream-balance { display: flex; justify-content: flex-end; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; }
+.upstream-balance strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 14px; color: var(--ink); }
+.upstream-balance span { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
+.upstream-rules { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); }
+.upstream-rule-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.upstream-notification { display: inline-flex; flex: 0 0 auto; color: #16704a; cursor: help; }
+.upstream-notification--warning { color: #8b5c08; }
+.upstream-check { color: var(--muted); font-variant-numeric: tabular-nums; }
+.upstream-actions { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
+.upstream-actions .upstream-query { min-height: 32px; height: 32px; width: 72px; flex: 0 0 72px; padding: 0 8px; gap: 4px; font-size: 12px; }
+.upstream-actions .upstream-icon-button { width: 32px; height: 32px; flex-basis: 32px; }
 .upstream-icon-button { display: inline-flex; justify-content: center; align-items: center; width: 34px; height: 34px; flex: 0 0 34px; padding: 0; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: var(--surface); cursor: pointer; }
 .upstream-icon-button:disabled { cursor: default; opacity: .5; }
 .upstream-error { color: #b42318 !important; }
-.upstream-row-error { grid-column: 1 / -1; margin: 0; color: #b42318; font-size: 12px; overflow-wrap: anywhere; }
-.upstream-delete-confirm { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.upstream-table .upstream-detail-row td { height: auto; padding: 12px 10px; white-space: normal; background: var(--surface-subtle); }
+.upstream-row-error { margin: 0; color: #b42318; font-size: 12px; overflow-wrap: anywhere; }
+.upstream-delete-confirm { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
 .upstream-footnote { color: var(--muted); font-size: 12px; line-height: 1.8; }
 .upstream-footnote a { margin-inline: 4px; }
 .upstream-spinning { animation: upstream-spin 1s linear infinite; }
 @keyframes upstream-spin { to { transform: rotate(360deg); } }
-@media (max-width: 1150px) { .upstream-row { grid-template-columns: minmax(0, 1fr) minmax(100px, .5fr); } .upstream-actions { justify-self: end; } }
-@media (max-width: 600px) { .upstream-fields { grid-template-columns: minmax(0, 1fr); } .upstream-row { gap: 16px; } .upstream-summary { gap: 16px; } .upstream-actions { flex-wrap: wrap; } .upstream-balance { text-align: right; } }
+@media (max-width: 600px) { .upstream-fields { grid-template-columns: minmax(0, 1fr); } .upstream-summary { gap: 16px; } }
 @media (prefers-reduced-motion: reduce) { .upstream-spinning { animation: none; } }
 </style>
